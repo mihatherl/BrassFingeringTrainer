@@ -1,8 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { soundedPitch } from '../domain/fingering';
-import { INSTRUMENTS, soundingFromWritten, writtenRange } from '../domain/instruments';
+import { INSTRUMENTS } from '../domain/instruments';
 import { SAMPLE_MANIFEST, SAMPLE_STEP } from './sample-manifest';
 import { nearestSample, playbackRateFor } from './sampler';
 
@@ -56,31 +55,6 @@ describe('the sample manifest', () => {
     }
   });
 
-  it('covers the wrong notes too, not just the right ones', () => {
-    // In "play what I finger" mode a wrong fingering lands on a neighbouring
-    // harmonic, which can fall outside anything the exercise would ask for. Those
-    // notes still have to sound, so they still need samples near them.
-    for (const instrument of INSTRUMENTS) {
-      const pitches = SAMPLE_MANIFEST[instrument.sampleSet];
-
-      for (const clef of ['treble', 'bass'] as const) {
-        if (instrument.transposition[clef] === undefined) continue;
-        const [low, high] = writtenRange(instrument, clef);
-
-        for (let written = low; written <= high; written++) {
-          const target = soundingFromWritten(written, instrument, clef);
-          for (let mask = 0; mask < 8; mask++) {
-            const sounded = soundedPitch(mask, target, instrument);
-            const shift = Math.abs(nearestSample(pitches, sounded) - sounded);
-            expect(
-              shift,
-              `${instrument.name} ${clef}: written ${written} fingered ${mask} sounds ${sounded}`,
-            ).toBeLessThanOrEqual(MAX_SHIFT + SAMPLE_STEP);
-          }
-        }
-      }
-    }
-  });
 });
 
 describe('choosing and shifting a sample', () => {

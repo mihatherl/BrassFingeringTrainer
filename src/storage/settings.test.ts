@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
+  PLAYBACK_MODES,
   loadOpenPanels,
   loadSettings,
   sanitise,
@@ -37,7 +38,7 @@ describe('loading settings', () => {
   });
 
   it('round-trips through saving', () => {
-    const settings = { ...DEFAULT_SETTINGS, tempo: 96, playbackMode: 'fingered' as const };
+    const settings = { ...DEFAULT_SETTINGS, tempo: 96, playbackMode: 'off' as const };
     saveSettings(settings);
     expect(loadSettings()).toEqual(settings);
   });
@@ -57,8 +58,22 @@ describe('migrating the old playback switch', () => {
   });
 
   it('does not override an explicit choice', () => {
-    store({ playbackEnabled: false, playbackMode: 'fingered' });
-    expect(loadSettings().playbackMode).toBe('fingered');
+    store({ playbackEnabled: false, playbackMode: 'reference' });
+    expect(loadSettings().playbackMode).toBe('reference');
+  });
+});
+
+describe('a playback mode that no longer exists', () => {
+  it('is not offered', () => {
+    expect(PLAYBACK_MODES.map((mode) => mode.id)).toEqual(['reference', 'off']);
+  });
+
+  it('falls back for anyone who had it stored', () => {
+    // "Play what I finger" was withdrawn. This list is the only thing deciding
+    // what can be chosen, so a stored setting naming a mode that has gone must
+    // degrade to something valid rather than to nothing at all.
+    store({ playbackMode: 'fingered' });
+    expect(loadSettings().playbackMode).toBe(DEFAULT_SETTINGS.playbackMode);
   });
 });
 

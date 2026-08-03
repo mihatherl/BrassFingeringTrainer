@@ -90,7 +90,6 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       metronomeEnabled: settings.metronomeEnabled,
       playbackMode: settings.playbackMode,
       brassVoice: voiceRef.current,
-      backingLevel: settings.backingLevel,
       timingTolerance: settings.timingTolerance,
       // Fires as the fingers arrive, not when the note is finally judged, so
       // the green reads as confirmation of what was just played.

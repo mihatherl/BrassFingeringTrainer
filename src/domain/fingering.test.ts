@@ -3,7 +3,6 @@ import { midiFromName } from './pitch';
 import {
   instrumentById,
   soundingFromWritten,
-  writtenFromSounding,
   writtenRange,
   type Clef,
   type Instrument,
@@ -13,7 +12,6 @@ import {
   formatMask,
   maskOf,
   primaryFingering,
-  soundedPitch,
 } from './fingering';
 
 /**
@@ -209,91 +207,6 @@ describe('alternate fingerings', () => {
     const masks = acceptedMasks(sounding, cornet);
     expect(masks.has(maskOf([1, 2]))).toBe(true);
     expect(masks.has(maskOf([3]))).toBe(true);
-  });
-});
-
-describe('what a button state sounds', () => {
-  /**
-   * The written note that sounds, as a MIDI number. Compared numerically rather
-   * than by name so that B flat and A sharp cannot fail a test for being the
-   * same pitch spelled differently.
-   */
-  function sounds(written: string, valves: number[], instrument: Instrument, clef: Clef): number {
-    const target = soundingFromWritten(midiFromName(written), instrument, clef);
-    const pitch = soundedPitch(maskOf(valves), target, instrument);
-    return writtenFromSounding(pitch, instrument, clef);
-  }
-
-  const expectSounds = (
-    written: string,
-    valves: number[],
-    instrument: Instrument,
-    clef: Clef,
-    expected: string,
-  ) =>
-    expect(
-      sounds(written, valves, instrument, clef),
-      `${written} fingered ${valves.join('-') || 'open'} should sound ${expected}`,
-    ).toBe(midiFromName(expected));
-
-  it('gives the target exactly when the fingering is right', () => {
-    for (const [note, valves] of [
-      ['C4', []],
-      ['B3', [2]],
-      ['Bb3', [1]],
-      ['A3', [1, 2]],
-      ['G3', [1, 3]],
-      ['F#3', [1, 2, 3]],
-      ['G4', []],
-      ['A4', [1, 2]],
-      ['C5', []],
-      ['E5', []],
-    ] as Array<[string, number[]]>) {
-      expectSounds(note, valves, cornet, 'treble', note);
-    }
-  });
-
-  it('drops to the nearest note the held valves can reach', () => {
-    // Valve 1 where valve 2 was wanted comes out a semitone flat.
-    expectSounds('F#4', [1], cornet, 'treble', 'F4');
-    expectSounds('B3', [1], cornet, 'treble', 'Bb3');
-  });
-
-  it('sounds wrong when the fingering is wrong', () => {
-    // Open where 1-2 was wanted overshoots to the harmonic above.
-    expectSounds('A4', [], cornet, 'treble', 'G4');
-    // Valve 1 on an open note falls a tone.
-    expectSounds('C4', [1], cornet, 'treble', 'Bb3');
-    // All three valves down where open was wanted lands a semitone *above*, on
-    // the harmonic beyond — nearer than the note a fourth below, and what a
-    // player aiming at C would actually produce with those valves down.
-    expectSounds('C5', [1, 2, 3], cornet, 'treble', 'C#5');
-  });
-
-  it('honours the 4th valve when, and only when, the note needs it', () => {
-    // Written low F really is 1 plus the 4th, and the app asks only for 1 — so
-    // holding 1 must sound low F, not something five semitones away.
-    expectSounds('F3', [1], ebBass, 'treble', 'F3');
-    expectSounds('E3', [1, 2], ebBass, 'treble', 'E3');
-
-    // But a note that does not need the 4th must not get its help: valve 1 on a
-    // note fingered open still comes out a tone flat.
-    expectSounds('C4', [1], ebBass, 'treble', 'Bb3');
-  });
-
-  it('never returns the target for a fingering that cannot produce it', () => {
-    // Sweeping the range: if the held mask is not an accepted fingering, the
-    // note that sounds must differ from the one that was wanted.
-    const [low, high] = writtenRange(cornet, 'treble');
-    for (let written = low; written <= high; written++) {
-      const target = soundingFromWritten(written, cornet, 'treble');
-      const accepted = acceptedMasks(target, cornet);
-      for (let mask = 0; mask < 8; mask++) {
-        const pitch = soundedPitch(mask, target, cornet);
-        if (accepted.has(mask)) expect(pitch).toBe(target);
-        else expect(pitch, `written ${written} mask ${mask}`).not.toBe(target);
-      }
-    }
   });
 });
 

@@ -47,7 +47,6 @@ describe('constraining settings', () => {
     difficultyId: 'expert',
     kind: 'phrases' as const,
     readingMode: 'paged' as const,
-    playbackMode: 'fingered' as const,
     weakNoteDrilling: true,
   };
 

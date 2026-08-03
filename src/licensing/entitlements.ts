@@ -28,8 +28,6 @@ export interface Entitlements {
   allMaterial: boolean;
   /** Reading from a page rather than following a scrolling line. */
   pagedReading: boolean;
-  /** Hearing your own fingering rather than the written notes. */
-  fingeredPlayback: boolean;
   /** Biasing exercises toward the notes you get wrong. */
   weakNoteDrilling: boolean;
 }
@@ -40,7 +38,6 @@ export const FULL: Entitlements = {
   allDifficulties: true,
   allMaterial: true,
   pagedReading: true,
-  fingeredPlayback: true,
   weakNoteDrilling: true,
 };
 
@@ -50,7 +47,6 @@ export const FREE: Entitlements = {
   allDifficulties: false,
   allMaterial: false,
   pagedReading: false,
-  fingeredPlayback: false,
   weakNoteDrilling: false,
 };
 

@@ -73,7 +73,7 @@ npm run dev -- --host  # also serve on the LAN, for testing on a phone
 ```
 
 ```bash
-npm test               # 353 tests
+npm test               # 306 tests
 npm run build          # typecheck, bundle, generate the service worker
 npm run preview        # serve the production build
 ```
@@ -89,7 +89,7 @@ src/
   domain/      pitch, keys, rhythm, instruments, the fingering engine
   exercise/    seeded RNG, difficulty presets, generators
   engine/      transport clock, valve input, judging, session orchestration
-  audio/       sampled brass, fallback synth, backing pad, metronome, context
+  audio/       sampled brass, fallback synth, metronome, context
   render/      glyph outlines, stave geometry, note drawing, scrolling surface
   ui/          React screens — settings, play, results
   storage/     settings and per-note accuracy in localStorage
@@ -148,10 +148,6 @@ Samples sit three semitones apart and are pitch-shifted to reach everything
 between, so nothing is ever stretched by more than a tone. Roughly 1.4 MB in
 total, precached so every instrument works offline. If loading fails the app
 falls back to synthesis rather than refusing to run.
-
-The pad that plays underneath in "play what I finger" mode stays synthesised on
-purpose: these mp3 exports carry no sustain loops, so a sampled pad would decay
-and die under a held note, which is exactly where a pad has to hold.
 
 ## Testing notes
 

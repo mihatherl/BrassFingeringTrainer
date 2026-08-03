@@ -30,12 +30,6 @@ export interface Settings {
   metronomeEnabled: boolean;
   playbackMode: PlaybackMode;
   /**
-   * Level of the reference tone in "play what I finger" mode, where 1 is the
-   * default. Your own sound should always be the one in front; this only decides
-   * how far behind the backing sits.
-   */
-  backingLevel: number;
-  /**
    * Multiplies the window either side of the beat within which a fingering
    * counts, where 1 is the strict default.
    */
@@ -68,12 +62,6 @@ export const PLAYBACK_MODES: ReadonlyArray<{ id: PlaybackMode; name: string; blu
     name: 'Play the notes',
     blurb: 'A brass tone sounds the exercise as written, so you can hear what it should be.',
   },
-  {
-    id: 'fingered',
-    name: 'Play what I finger',
-    blurb:
-      'A soft backing holds the written notes while the brass sounds your own valves — so a wrong fingering comes out as a wrong note, not just a mark on the screen.',
-  },
   { id: 'off', name: 'Silent', blurb: 'Metronome only.' },
 ];
 
@@ -104,7 +92,6 @@ export const DEFAULT_SETTINGS: Settings = {
   countInBars: 1,
   metronomeEnabled: true,
   playbackMode: 'reference',
-  backingLevel: 1,
   timingTolerance: 1.5,
   weakNoteDrilling: true,
   scrollSpeed: 110,
@@ -218,7 +205,6 @@ export function sanitise(settings: Settings): Settings {
     playbackMode: PLAYBACK_MODES.some((m) => m.id === settings.playbackMode)
       ? settings.playbackMode
       : DEFAULT_SETTINGS.playbackMode,
-    backingLevel: clamp(settings.backingLevel, 0, 2),
     timingTolerance: clamp(
       settings.timingTolerance,
       TIMING_TOLERANCE_RANGE.min,
@@ -250,9 +236,6 @@ export function constrainToEntitlements(
     limited.kind = FREE_TIER.kinds[0];
   }
   if (!entitlements.pagedReading) limited.readingMode = FREE_TIER.readingMode;
-  if (!entitlements.fingeredPlayback && limited.playbackMode === 'fingered') {
-    limited.playbackMode = FREE_TIER.playbackMode;
-  }
   if (!entitlements.weakNoteDrilling) limited.weakNoteDrilling = false;
 
   return limited;

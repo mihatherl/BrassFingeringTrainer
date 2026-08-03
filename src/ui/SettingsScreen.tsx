@@ -347,25 +347,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           </div>
         </div>
 
-        {settings.playbackMode === 'fingered' && (
-          <label className="field">
-            <span className="field__label">
-              Backing level <strong>{Math.round(settings.backingLevel * 100)}%</strong>
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={200}
-              step={10}
-              value={Math.round(settings.backingLevel * 100)}
-              onChange={(event) => update('backingLevel', Number(event.target.value) / 100)}
-            />
-            <p className="field__note muted">
-              How loud the reference tone sits behind your own playing.
-            </p>
-          </label>
-        )}
-
         <label className="field field--inline">
           <input
             type="checkbox"
