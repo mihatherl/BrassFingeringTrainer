@@ -1,0 +1,584 @@
+/* Brass Fingering Trainer — a single stylesheet, themed by custom properties. */
+
+:root {
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --surface-raised: #f3f1ec;
+  --text: #16150f;
+  --text-muted: #6b6960;
+  --border: #ddd9d0;
+  --accent: #2f6fd0;
+  --accent-text: #ffffff;
+  --correct: #1a7f4b;
+  --wrong: #c02b2b;
+  --missed: #b7791f;
+  --valve: #e8e4db;
+  --valve-down: #2f6fd0;
+  --valve-down-text: #ffffff;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 4px 16px rgb(0 0 0 / 5%);
+
+  /*
+   * Room taken by the notch, Dynamic Island, rounded corners and home
+   * indicator. The page asks for `viewport-fit=cover` so the background reaches
+   * the edges of the screen, which means content has to be kept out of these
+   * regions deliberately — otherwise the clef and key signature, pinned to the
+   * left of the stave, end up underneath the island when the phone is turned on
+   * its side. Zero on every device without them.
+   */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16171b;
+    --surface: #1e2026;
+    --surface-raised: #262931;
+    --text: #f2f1ec;
+    --text-muted: #9a9ba3;
+    --border: #333640;
+    --accent: #63a1ff;
+    --accent-text: #0d1017;
+    --correct: #4ade80;
+    --wrong: #f87171;
+    --missed: #fbbf24;
+    --valve: #2c2f38;
+    --valve-down: #63a1ff;
+    --valve-down-text: #0d1017;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  /* Stops iOS bouncing the whole page while fingers are on the valve pad. */
+  overscroll-behavior: none;
+}
+
+.app {
+  height: 100%;
+}
+
+.screen {
+  height: 100%;
+  overflow-y: auto;
+  padding: calc(1.25rem + var(--safe-top)) calc(1.25rem + var(--safe-right))
+    calc(1.25rem + var(--safe-bottom)) calc(1.25rem + var(--safe-left));
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+.screen--centred {
+  display: grid;
+  place-items: center;
+}
+
+/* --- Play surface ------------------------------------------------------- */
+
+.screen--play {
+  display: flex;
+  flex-direction: column;
+  /*
+   * Only the safe-area insets, no decorative padding: the stave wants every
+   * pixel it can get, but none of them underneath the hardware.
+   */
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  max-width: none;
+  overflow: hidden;
+  /* Fingers on this screen should never scroll or select anything. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.play-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.play-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.play-stats__accuracy {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stave-canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  display: block;
+}
+
+/*
+ * Three valves are played by one hand, so the cluster keeps a fixed size and
+ * centres itself rather than stretching. Letting it fill the width puts the
+ * buttons a hand-span apart on a tablet or a phone held sideways, which is
+ * unplayable however much room there is.
+ */
+.valve-pad {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 0.5rem;
+  height: min(38vh, 13rem);
+  width: 100%;
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.valve {
+  appearance: none;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--valve);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 60ms linear,
+    transform 60ms linear;
+}
+
+.valve--down {
+  background: var(--valve-down);
+  border-color: var(--valve-down);
+  color: var(--valve-down-text);
+  transform: translateY(2px);
+}
+
+.valve__number {
+  font-size: clamp(2rem, 9vh, 3.5rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.valve__hint {
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+
+.start-gate {
+  text-align: center;
+  display: grid;
+  gap: 1rem;
+  max-width: 26rem;
+  padding: 1.5rem;
+}
+
+.start-gate h2 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+/* --- Panels and forms --------------------------------------------------- */
+
+.masthead {
+  margin-bottom: 1.25rem;
+}
+
+.masthead h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.screen--results .masthead h1 {
+  font-size: 3.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.masthead p {
+  margin: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.panel h2,
+.panel__summary {
+  margin: 0;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.panel h2 {
+  margin-bottom: 0.75rem;
+}
+
+/* A collapsible section header. The default disclosure triangle is replaced by
+   a chevron that turns, which reads better at this size. */
+.panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  /* Generous target: this is the main way around the screen on a phone. */
+  padding: 0.25rem 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.panel__summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  /* Lets the values line shrink and ellipsise instead of pushing the chevron off. */
+  min-width: 0;
+}
+
+/* The current selections, shown only while the section is shut — once it is
+   open the controls themselves say the same thing. */
+.panel__values {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel[open] .panel__values {
+  display: none;
+}
+
+.panel__summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.15rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-0.1rem, -0.1rem);
+  transition: transform 120ms ease;
+}
+
+.panel[open] > .panel__summary {
+  margin-bottom: 0.75rem;
+}
+
+.panel[open] > .panel__summary::after {
+  transform: rotate(-135deg) translate(-0.05rem, -0.05rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel__summary::after {
+    transition: none;
+  }
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.field {
+  display: block;
+  margin-bottom: 0.875rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field--inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field__label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.375rem;
+}
+
+.field__note {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+select,
+input[type='range'] {
+  width: 100%;
+}
+
+select {
+  appearance: none;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+}
+
+input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent);
+}
+
+.segmented {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.segmented--wrap {
+  flex-wrap: wrap;
+}
+
+.segmented__option {
+  flex: 1 1 auto;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.segmented__option.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.cards {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.card {
+  display: grid;
+  gap: 0.125rem;
+  text-align: left;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.card span {
+  font-size: 0.8125rem;
+}
+
+.card.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* --- Buttons ------------------------------------------------------------ */
+
+.button {
+  appearance: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.button--large {
+  padding: 0.875rem 1.5rem;
+  font-size: 1.0625rem;
+}
+
+.button--quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.credits {
+  text-align: center;
+  font-size: 0.75rem;
+  margin: 0 0 0.5rem;
+}
+
+.credits a {
+  color: inherit;
+}
+
+.actions {
+  display: grid;
+  gap: 0.5rem;
+  padding-bottom: 1rem;
+}
+
+.actions--sticky {
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 0 1rem;
+  background: linear-gradient(to top, var(--bg) 65%, transparent);
+}
+
+/* --- Results ------------------------------------------------------------ */
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.tally__item {
+  padding: 0.75rem 0.25rem;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  display: grid;
+  gap: 0.125rem;
+}
+
+.tally__item strong {
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.tally__item span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.tally__item--correct strong {
+  color: var(--correct);
+}
+
+.tally__item--wrong strong {
+  color: var(--wrong);
+}
+
+.tally__item--missed strong {
+  color: var(--missed);
+}
+
+.weak-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.375rem;
+}
+
+.weak-notes li {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--surface-raised);
+  border-radius: 8px;
+}
+
+.weak-notes__pitch {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.weak-notes__fingering {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.weak-notes__score {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Landscape phones have little vertical room; shrink the pad to protect the stave. */
+@media (orientation: landscape) and (max-height: 30rem) {
+  .valve-pad {
+    height: min(38vh, 8rem);
+    max-width: 22rem;
+  }
+
+  .valve__number {
+    font-size: clamp(1.5rem, 12vh, 2.25rem);
+  }
+
+  .valve__hint {
+    display: none;
+  }
+}

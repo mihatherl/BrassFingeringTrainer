@@ -1,0 +1,17 @@
+{
+  /*
+   * Tests get their own project so they can reach for Node APIs — reading the
+   * sample files off disk, for instance — without those types leaking into the
+   * app project, where using them would be a mistake the compiler should catch.
+   */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "node"],
+    "noEmit": true
+  },
+  /* Cleared, or the exclude inherited from the app project would cancel these. */
+  "exclude": [],
+  /* env.d.ts too: tests reach app code that relies on its global declarations. */
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/env.d.ts"]
+}

@@ -1,0 +1,54 @@
+# Builds the app and publishes it to GitHub Pages.
+#
+# The base path comes from GITHUB_REPOSITORY at build time (see vite.config.ts),
+# so renaming the repository needs no change here or anywhere else.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Lets a deploy be triggered by hand from the Actions tab.
+  workflow_dispatch:
+
+# One deployment at a time; a newer push supersedes a queued one but never
+# interrupts a run that is already publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Deploying something that does not typecheck or pass its tests would be
+      # worse than not deploying at all.
+      - run: npm test
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

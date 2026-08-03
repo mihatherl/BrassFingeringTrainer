@@ -1,0 +1,212 @@
+/**
+ * Stave geometry and the fixed furniture at the left of the display: clef, key
+ * signature and time signature.
+ *
+ * Everything is measured in stave spaces so the whole display scales with a
+ * single number. Vertical position is a linear function of diatonic step, which
+ * is why accidentals never move a note: F4 and F#4 share a step.
+ */
+
+import { LETTER_STEPS, diatonicStep, type SpelledPitch } from '../domain/pitch';
+import type { Clef } from '../domain/instruments';
+import { FLAT_ORDER, SHARP_ORDER, signatureLetters } from '../domain/keys';
+import { GLYPHS, drawGlyph, glyphWidth, type GlyphName } from './glyphs';
+
+export interface StaveMetrics {
+  clef: Clef;
+  /** Pixels per stave space. The single scale factor for the whole display. */
+  staveSpace: number;
+  topLineY: number;
+  bottomLineY: number;
+  middleLineY: number;
+  /** Diatonic step sitting on the bottom stave line. */
+  bottomLineStep: number;
+}
+
+/** Bottom stave line: E4 in treble, G2 in bass. */
+const BOTTOM_LINE_STEP: Record<Clef, number> = {
+  treble: (4 + 1) * 7 + LETTER_STEPS.E,
+  bass: (2 + 1) * 7 + LETTER_STEPS.G,
+};
+
+/** The line each clef's glyph origin is anchored to: G4 for treble, F3 for bass. */
+const CLEF_ANCHOR_STEP: Record<Clef, number> = {
+  treble: (4 + 1) * 7 + LETTER_STEPS.G,
+  bass: (3 + 1) * 7 + LETTER_STEPS.F,
+};
+
+const CLEF_GLYPH: Record<Clef, GlyphName> = { treble: 'gClef', bass: 'fClef' };
+
+export function staveMetrics(clef: Clef, topLineY: number, staveSpace: number): StaveMetrics {
+  return {
+    clef,
+    staveSpace,
+    topLineY,
+    bottomLineY: topLineY + 4 * staveSpace,
+    middleLineY: topLineY + 2 * staveSpace,
+    bottomLineStep: BOTTOM_LINE_STEP[clef],
+  };
+}
+
+/** Each diatonic step is half a stave space, counted upwards from the bottom line. */
+export function yForStep(m: StaveMetrics, step: number): number {
+  return m.bottomLineY - (step - m.bottomLineStep) * (m.staveSpace / 2);
+}
+
+export function yForPitch(m: StaveMetrics, pitch: SpelledPitch): number {
+  return yForStep(m, diatonicStep(pitch));
+}
+
+/** True when a step sits on a line rather than in a space (including ledgers). */
+export function isOnLine(m: StaveMetrics, step: number): boolean {
+  return (step - m.bottomLineStep) % 2 === 0;
+}
+
+export function drawStaveLines(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  fromX: number,
+  toX: number,
+): void {
+  ctx.lineWidth = Math.max(1, m.staveSpace * 0.13);
+  ctx.beginPath();
+  for (let line = 0; line < 5; line++) {
+    const y = Math.round(m.topLineY + line * m.staveSpace) + 0.5;
+    ctx.moveTo(fromX, y);
+    ctx.lineTo(toX, y);
+  }
+  ctx.stroke();
+}
+
+/**
+ * `crisp` snaps the line to the pixel grid, which is right for anything static.
+ * Scrolling bar lines must not be snapped: rounding a position that changes
+ * continuously makes the line judder a pixel at a time instead of gliding.
+ */
+export function drawBarLine(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  x: number,
+  crisp = true,
+): void {
+  const lineX = crisp ? Math.round(x) + 0.5 : x;
+  ctx.lineWidth = Math.max(1, m.staveSpace * 0.16);
+  ctx.beginPath();
+  ctx.moveTo(lineX, m.topLineY);
+  ctx.lineTo(lineX, m.bottomLineY);
+  ctx.stroke();
+}
+
+/** Draws the clef at `x`, returning the x to continue from. */
+export function drawClef(ctx: CanvasRenderingContext2D, m: StaveMetrics, x: number): number {
+  const glyph = CLEF_GLYPH[m.clef];
+  drawGlyph(ctx, glyph, x, yForStep(m, CLEF_ANCHOR_STEP[m.clef]), m.staveSpace);
+  return x + glyphWidth(glyph) * m.staveSpace + m.staveSpace * 0.7;
+}
+
+/**
+ * Where each accidental of a key signature sits.
+ *
+ * These octaves are conventional rather than derivable — engravers place them so
+ * the group stays inside the stave and reads as a shape — so they are simply
+ * listed, in the order the accidentals are written.
+ */
+const SIGNATURE_OCTAVES: Record<Clef, { sharps: number[]; flats: number[] }> = {
+  //                    F  C  G  D  A  E  B
+  treble: { sharps: [5, 5, 5, 5, 4, 5, 4], flats: [4, 5, 4, 5, 4, 5, 4] },
+  bass: { sharps: [3, 3, 3, 3, 2, 3, 2], flats: [2, 3, 2, 3, 2, 3, 2] },
+};
+
+export function drawKeySignature(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  x: number,
+  fifths: number,
+): number {
+  if (fifths === 0) return x;
+
+  const sharp = fifths > 0;
+  const letters = signatureLetters(fifths);
+  const order = sharp ? SHARP_ORDER : FLAT_ORDER;
+  const octaves = sharp ? SIGNATURE_OCTAVES[m.clef].sharps : SIGNATURE_OCTAVES[m.clef].flats;
+  const glyph: GlyphName = sharp ? 'accidentalSharp' : 'accidentalFlat';
+  const advance = glyphWidth(glyph) * m.staveSpace + m.staveSpace * 0.18;
+
+  let cursor = x;
+  for (const letter of letters) {
+    const octave = octaves[order.indexOf(letter)];
+    drawGlyph(ctx, glyph, cursor, yForPitch(m, { letter, alter: 0, octave }), m.staveSpace);
+    cursor += advance;
+  }
+  return cursor + m.staveSpace * 0.6;
+}
+
+export function drawTimeSignature(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  x: number,
+  beatsPerBar: number,
+  beatUnit: number,
+): number {
+  const top = digitGlyphs(beatsPerBar);
+  const bottom = digitGlyphs(beatUnit);
+  const width = Math.max(digitsWidth(top), digitsWidth(bottom)) * m.staveSpace;
+
+  drawDigits(ctx, m, top, x, width, m.middleLineY - m.staveSpace);
+  drawDigits(ctx, m, bottom, x, width, m.middleLineY + m.staveSpace);
+
+  return x + width + m.staveSpace;
+}
+
+function digitGlyphs(value: number): GlyphName[] {
+  return String(value)
+    .split('')
+    .map((d) => `timeSig${d}` as GlyphName);
+}
+
+function digitsWidth(glyphs: GlyphName[]): number {
+  return glyphs.reduce((sum, g) => sum + glyphWidth(g), 0);
+}
+
+/** Time signature digits are centred on each other and on the given y. */
+function drawDigits(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  glyphs: GlyphName[],
+  x: number,
+  boxWidth: number,
+  centreY: number,
+): void {
+  const width = digitsWidth(glyphs) * m.staveSpace;
+  let cursor = x + (boxWidth - width) / 2;
+  for (const glyph of glyphs) {
+    const { top, bottom } = GLYPHS[glyph].bbox;
+    const offset = -((top + bottom) / 2) * m.staveSpace;
+    drawGlyph(ctx, glyph, cursor, centreY + offset, m.staveSpace);
+    cursor += glyphWidth(glyph) * m.staveSpace;
+  }
+}
+
+/** Total width of the clef/key/time block, needed to position the strike line. */
+export function measureStaveHeader(
+  m: StaveMetrics,
+  fifths: number,
+  beatsPerBar: number,
+  beatUnit: number,
+): number {
+  const clefWidth = glyphWidth(CLEF_GLYPH[m.clef]) * m.staveSpace + m.staveSpace * 0.7;
+
+  let keyWidth = 0;
+  if (fifths !== 0) {
+    const glyph: GlyphName = fifths > 0 ? 'accidentalSharp' : 'accidentalFlat';
+    const advance = glyphWidth(glyph) * m.staveSpace + m.staveSpace * 0.18;
+    keyWidth = Math.abs(fifths) * advance + m.staveSpace * 0.6;
+  }
+
+  const timeWidth =
+    Math.max(digitsWidth(digitGlyphs(beatsPerBar)), digitsWidth(digitGlyphs(beatUnit))) *
+      m.staveSpace +
+    m.staveSpace;
+
+  return clefWidth + keyWidth + timeWidth;
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Brass Fingering Trainer">
+  <rect width="64" height="64" rx="14" fill="#c48a2c" />
+  <path d="M0 42h64v8a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50z" fill="#96651a" />
+  <g fill="#fff8e7" stroke="#784f12" stroke-width="1.5">
+    <circle cx="14.7" cy="28" r="7.4" />
+    <circle cx="32" cy="28" r="7.4" />
+    <circle cx="49.3" cy="28" r="7.4" />
+  </g>
+</svg>
