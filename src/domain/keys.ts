@@ -69,9 +69,22 @@ export function signatureLetters(fifths: number): Letter[] {
  * Chooses the spelling of a MIDI note within a key.
  *
  * Notes belonging to the key's diatonic scale are spelled with the letter the
- * signature already alters, so no accidental need be drawn. Chromatic notes are
- * spelled in the direction of the key: sharp keys raise, flat keys lower. This
- * is what makes Eb major produce Ab rather than G#.
+ * signature already alters, so no accidental need be drawn.
+ *
+ * Chromatic notes are spelled by what a player expects to read, in this order:
+ *
+ * 1. Cancel the signature. Raising a flattened degree is written as a natural —
+ *    the note above A flat in E flat major is A natural, never B double flat.
+ * 2. Move in the direction of the key: sharp keys raise, flat keys lower. This
+ *    is what makes E flat major produce G flat rather than F sharp.
+ * 3. Failing both, whatever needs a single accidental.
+ *
+ * Cancelling comes first because the alternative is worse in exactly the cases
+ * where it applies: F natural in G major is a natural sign, not E sharp.
+ *
+ * No spelling ever carries a double accidental. Every pitch class has one that
+ * does not, and a practice app has no business asking a player to read
+ * something a publisher would not print.
  */
 export function spellInKey(midi: number, fifths: number): SpelledPitch {
   const alters = keyAlterations(fifths);
@@ -84,21 +97,23 @@ export function spellInKey(midi: number, fifths: number): SpelledPitch {
   }
 
   const direction = fifths >= 0 ? 1 : -1;
-  for (const letter of LETTERS) {
-    const alter = alters[letter] + direction;
-    if (pitchClass(LETTER_SEMITONES[letter] + alter) === pc) {
-      return withOctave(letter, alter, midi);
-    }
-  }
+  const preferences: Array<(letter: Letter) => number> = [
+    () => 0,
+    (letter) => alters[letter] + direction,
+    () => direction,
+    () => -direction,
+  ];
 
-  // Unreachable for any key in MAJOR_KEYS, but spell something sane regardless.
-  for (const letter of LETTERS) {
-    for (const alter of [0, 1, -1, 2, -2]) {
+  for (const alterFor of preferences) {
+    for (const letter of LETTERS) {
+      const alter = alterFor(letter);
+      if (Math.abs(alter) > 1) continue;
       if (pitchClass(LETTER_SEMITONES[letter] + alter) === pc) {
         return withOctave(letter, alter, midi);
       }
     }
   }
+
   throw new Error(`Cannot spell MIDI ${midi}`);
 }
 
