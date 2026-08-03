@@ -7,6 +7,7 @@ import { difficultyById } from '../exercise/difficulty';
 import { generateExercise } from '../exercise/generate';
 import { summarise } from '../engine/judge';
 import type { NoteJudgement, Verdict } from '../engine/judge';
+import type { NoteStats } from '../storage/stats';
 import { ResultsScreen } from './ResultsScreen';
 
 afterEach(cleanup);
@@ -35,12 +36,12 @@ function summaryFor(pattern: Verdict[], upTo = exercise.notes.length) {
 
 const noop = () => undefined;
 
-function renderResults(summary: ReturnType<typeof summaryFor>) {
+function renderResults(summary: ReturnType<typeof summaryFor>, stats: NoteStats = new Map()) {
   render(
     <ResultsScreen
       summary={summary}
       exercise={exercise}
-      stats={new Map()}
+      stats={stats}
       onRepeat={noop}
       onNext={noop}
       onSettings={noop}
@@ -65,6 +66,23 @@ describe('the results screen', () => {
     renderResults(summaryFor(['correct']));
     expect(screen.getByText(/nothing to correct/i)).toBeTruthy();
     expect(screen.queryByText(/fingering under a note/i)).toBeNull();
+  });
+
+  it('draws the weak notes rather than naming them', () => {
+    // A list of pitch names asks the reader to translate "G flat 3" back into a
+    // position on a stave, and the player who needs the practice is the one for
+    // whom that translation is the difficulty.
+    // Three notes with a poor history behind them, which is what puts anything
+    // in the section at all.
+    const struggling: NoteStats = new Map(
+      exercise.notes.slice(0, 3).map((note) => [note.writtenMidi, { attempts: 10, correct: 2 }]),
+    );
+    renderResults(summaryFor(['wrong']), struggling);
+
+    expect(screen.getByRole('heading', { name: 'Worth drilling' })).toBeTruthy();
+    // The old list rendered one item per note; the chart is a single canvas.
+    expect(document.querySelectorAll('.review canvas')).toHaveLength(2);
+    expect(screen.queryByText(/^[A-G][#b♯♭]?\d$/)).toBeNull();
   });
 
   it('copes with a run that stopped part-way', () => {

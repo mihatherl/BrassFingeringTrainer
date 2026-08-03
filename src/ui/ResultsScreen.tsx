@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
-import { spellInKey } from '../domain/keys';
-import { formatPitch } from '../domain/pitch';
 import type { SessionSummary, Verdict } from '../engine/judge';
 import type { Exercise } from '../exercise/types';
 import { weakestNotes, type NoteStats } from '../storage/stats';
+import type { ChartNote } from '../render/note-chart';
 import { ReviewStave } from './ReviewStave';
+import { WeakNoteChart } from './WeakNoteChart';
 
 interface ResultsScreenProps {
   summary: SessionSummary;
@@ -27,7 +27,9 @@ export function ResultsScreen({
 }: ResultsScreenProps) {
   const instrument = instrumentById(exercise.instrumentId);
   const accuracy = Math.round(summary.accuracy * 100);
-  const weakest = weakestNotes(stats, 5);
+  // Memoised because its identity feeds the chart's draw callback, and a fresh
+  // array every render would redraw the canvas every render.
+  const weakest = useMemo(() => weakestNotes(stats, 5), [stats]);
 
   // Judgements arrive in playing order; the stave needs them by note index, and
   // a stopped exercise leaves the rest undefined — which draws them as unplayed.
@@ -37,15 +39,19 @@ export function ResultsScreen({
     return byIndex;
   }, [exercise, summary]);
 
-  const describe = (midi: number) => {
-    const spelled = spellInKey(midi, exercise.fifths);
-    const sounding = soundingFromWritten(midi, instrument, exercise.clef);
-    const fingering = primaryFingering(sounding, instrument);
-    return {
-      name: formatPitch(spelled),
-      fingering: fingering ? formatMask(fingering.mask) : '—',
-    };
-  };
+  const chart: ChartNote[] = useMemo(
+    () =>
+      weakest.map(({ midi, accuracy: noteAccuracy }) => {
+        const sounding = soundingFromWritten(midi, instrument, exercise.clef);
+        const fingering = primaryFingering(sounding, instrument);
+        return {
+          writtenMidi: midi,
+          fingering: fingering ? formatMask(fingering.mask) : '—',
+          accuracy: noteAccuracy,
+        };
+      }),
+    [weakest, instrument, exercise],
+  );
 
   return (
     <div className="screen screen--results">
@@ -91,20 +97,10 @@ export function ResultsScreen({
       {weakest.length > 0 && (
         <section className="panel">
           <h2>Worth drilling</h2>
-          <ul className="weak-notes">
-            {weakest.map(({ midi, accuracy: noteAccuracy }) => {
-              const { name, fingering } = describe(midi);
-              return (
-                <li key={midi}>
-                  <span className="weak-notes__pitch">{name}</span>
-                  <span className="weak-notes__fingering">{fingering}</span>
-                  <span className="weak-notes__score muted">{Math.round(noteAccuracy * 100)}%</span>
-                </li>
-              );
-            })}
-          </ul>
+          <WeakNoteChart notes={chart} clef={exercise.clef} fifths={exercise.fifths} />
           <p className="field__note muted">
-            Accumulated across sessions on {instrument.name} in {exercise.clef} clef.
+            Accumulated across sessions on {instrument.name} in {exercise.clef} clef, and spelled
+            in the key you have just played.
           </p>
         </section>
       )}
