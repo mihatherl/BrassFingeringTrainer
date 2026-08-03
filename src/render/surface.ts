@@ -43,10 +43,31 @@ const MIN_BEATS_VISIBLE = 3;
 /**
  * How close to the end of a page the playhead gets before the page turns.
  *
- * Turning only on the final bar would leave a single bar of warning just before
- * each turn; going a bar earlier keeps at least two bars in view throughout.
+ * One bar, so the turn comes as the last visible bar is reached — about four
+ * fifths of the way across a five-bar page. Turning earlier wastes the right
+ * hand side of the screen and interrupts more often than it needs to; the cost
+ * is a bar less warning in the moment before each turn, which the slide below
+ * largely absorbs.
  */
-const TURN_MARGIN_BARS = 2;
+const TURN_MARGIN_BARS = 1;
+
+/**
+ * How long the page takes to slide across, in milliseconds.
+ *
+ * A jump is cheaper and was what this did first, but it lands while the reader
+ * is concentrating hardest and their eye has to hunt for its place again. A
+ * slide keeps the notes continuous, so the eye is carried rather than reset.
+ *
+ * Fixed rather than derived from tempo: the view shifts several bars' worth of
+ * distance in half a second, which outpaces the music comfortably at any
+ * playable speed, so the note being read always moves left.
+ */
+const PAGE_TURN_MS = 550;
+
+/** Gentle at both ends: zero velocity at the start and the finish. */
+function easeInOut(t: number): number {
+  return 0.5 - 0.5 * Math.cos(Math.PI * t);
+}
 
 /**
  * How far a bar line sits to the left of its downbeat, in stave spaces.
@@ -141,6 +162,10 @@ export class StaveRenderer {
   private pixelsPerBeat = 100;
   /** Paged mode only: the first bar currently on screen. */
   private pageStartBar = 0;
+  /** The beat actually drawn at the left edge, which lags during a page turn. */
+  private shownOrigin = 0;
+  private slideTarget = 0;
+  private slide: { from: number; to: number; startedAt: number } | null = null;
 
   private options: StaveRendererOptions;
 
@@ -169,6 +194,8 @@ export class StaveRenderer {
     beatsVisible: number;
     barsPerPage: number;
     pageStartBar: number;
+    /** Beat drawn at the left edge — mid-slide this sits between pages. */
+    shownOrigin: number;
   } {
     return {
       pixelsPerBeat: this.pixelsPerBeat,
@@ -177,6 +204,7 @@ export class StaveRenderer {
       beatsVisible: (this.width - this.strikeX) / this.pixelsPerBeat,
       barsPerPage: this.barsPerPage(),
       pageStartBar: this.pageStartBar,
+      shownOrigin: this.shownOrigin,
     };
   }
 
@@ -276,7 +304,37 @@ export class StaveRenderer {
       this.pageStartBar = Math.min(currentBar, lastStart);
     }
 
-    return this.pageStartBar * beatsPerBar;
+    return this.slideTowards(this.pageStartBar * beatsPerBar);
+  }
+
+  /**
+   * Eases the display towards a new page rather than cutting to it.
+   *
+   * A turn arriving mid-bar is the worst possible moment to make someone find
+   * their place again, so the music slides instead. A turn that begins while
+   * one is already running starts from wherever the slide has reached, so the
+   * two never compound into a jump.
+   */
+  private slideTowards(target: number): number {
+    if (target !== this.slideTarget) {
+      this.slide = { from: this.shownOrigin, to: target, startedAt: performance.now() };
+      this.slideTarget = target;
+    }
+
+    if (!this.slide) {
+      this.shownOrigin = target;
+      return target;
+    }
+
+    const progress = (performance.now() - this.slide.startedAt) / PAGE_TURN_MS;
+    if (progress >= 1) {
+      this.shownOrigin = this.slide.to;
+      this.slide = null;
+    } else {
+      const { from, to } = this.slide;
+      this.shownOrigin = from + (to - from) * easeInOut(Math.max(0, progress));
+    }
+    return this.shownOrigin;
   }
 
   start(): void {

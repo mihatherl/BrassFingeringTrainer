@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
 import { Transport } from '../engine/clock';
 import { difficultyById } from '../exercise/difficulty';
@@ -376,6 +376,153 @@ describe('scrolling renderer', () => {
       expect(renderer.scale.barsPerPage, `${width}x${height}`).toBeGreaterThanOrEqual(1);
       expect(renderer.scale.beatsVisible).toBeGreaterThanOrEqual(4);
     }
+  });
+
+  describe('turning the page', () => {
+    /**
+     * Drives one renderer forward, with the wall clock under our control.
+     *
+     * Wide, tightly spaced and long: a page has to hold several bars for "turns
+     * at the last one" to mean anything, and the music has to outlast several
+     * pages or the paging clamps against the end instead of turning.
+     */
+    function pagedRenderer(width = 1800, height = 220, noteSpacing = 4) {
+      const exercise = generateExercise({
+        instrument: instrumentById('eb-bass'),
+        clef: 'treble',
+        fifths: -3,
+        difficulty: difficultyById('hard'),
+        kind: 'random',
+        bars: 32,
+        beatsPerBar: 4,
+        beatUnit: 4,
+        seed: 21,
+      });
+      const renderer = new StaveRenderer({
+        canvas: mockCanvas([], width, height),
+        exercise,
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        noteSpacing,
+        readingMode: 'paged',
+        verdictFor: () => undefined,
+      });
+      const secondsPerBeat = 60 / 100;
+      const drawAtBeat = (beat: number) => {
+        (renderer as unknown as { options: { transport: Transport } }).options.transport =
+          new Transport(fakeAudioContext(beat * secondsPerBeat), 100);
+        renderer.draw();
+      };
+      return { renderer, exercise, drawAtBeat };
+    }
+
+    let realNow: () => number;
+    let wall = 0;
+
+    beforeEach(() => {
+      realNow = performance.now;
+      wall = 0;
+      performance.now = () => wall;
+    });
+
+    afterEach(() => {
+      performance.now = realNow;
+    });
+
+    it('waits until the last visible bar before turning', () => {
+      // Turning halfway wastes the right of the screen and interrupts more often
+      // than it needs to.
+      const { renderer, exercise, drawAtBeat } = pagedRenderer();
+      const { barsPerPage } = renderer.scale;
+      expect(barsPerPage).toBeGreaterThan(2);
+
+      const beatsPerBar = exercise.beatsPerBar;
+      // Still on the first page while the playhead is short of the last bar.
+      drawAtBeat((barsPerPage - 2) * beatsPerBar);
+      expect(renderer.scale.pageStartBar).toBe(0);
+
+      // Reaching the last visible bar is what turns it.
+      drawAtBeat((barsPerPage - 1) * beatsPerBar);
+      expect(renderer.scale.pageStartBar).toBe(barsPerPage - 1);
+    });
+
+    it('slides to the new page rather than cutting to it', () => {
+      const { renderer, exercise, drawAtBeat } = pagedRenderer();
+      const { barsPerPage } = renderer.scale;
+      const beatsPerBar = exercise.beatsPerBar;
+
+      drawAtBeat(0);
+      const before = renderer.scale.shownOrigin;
+
+      // Trigger the turn, then hold the music still and let only time pass, so
+      // any movement is the slide and nothing else.
+      const turnBeat = (barsPerPage - 1) * beatsPerBar;
+      drawAtBeat(turnBeat);
+      const atStart = renderer.scale.shownOrigin;
+      expect(atStart).toBeCloseTo(before, 6); // eased from zero: no instant jump
+
+      const positions: number[] = [];
+      for (const elapsed of [100, 200, 300, 400, 500, 600]) {
+        wall = elapsed;
+        drawAtBeat(turnBeat);
+        positions.push(renderer.scale.shownOrigin);
+      }
+
+      // Monotonic, and finishing on the new page.
+      for (let i = 1; i < positions.length; i++) {
+        expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1]);
+      }
+      expect(positions[positions.length - 1]).toBeCloseTo(
+        renderer.scale.pageStartBar * beatsPerBar,
+        6,
+      );
+    });
+
+    it('eases in and out rather than moving at a constant rate', () => {
+      const { renderer, exercise, drawAtBeat } = pagedRenderer();
+      const { barsPerPage } = renderer.scale;
+      const turnBeat = (barsPerPage - 1) * exercise.beatsPerBar;
+
+      drawAtBeat(0);
+      const from = renderer.scale.shownOrigin;
+      drawAtBeat(turnBeat);
+      const to = renderer.scale.pageStartBar * exercise.beatsPerBar;
+
+      const at = (ms: number) => {
+        wall = ms;
+        drawAtBeat(turnBeat);
+        return (renderer.scale.shownOrigin - from) / (to - from);
+      };
+
+      // A gentle start and finish means less than a linear ramp would have
+      // covered early on, and more of it by the same margin late on.
+      expect(at(0.25 * 550)).toBeLessThan(0.25);
+      expect(at(0.75 * 550)).toBeGreaterThan(0.75);
+      // Halfway through time is halfway through the distance.
+      expect(at(0.5 * 550)).toBeCloseTo(0.5, 2);
+    });
+
+    it('never jumps when one turn follows hard on another', () => {
+      // A second turn arriving mid-slide must continue from where the first got
+      // to, not from the page it was heading for.
+      const { renderer, exercise, drawAtBeat } = pagedRenderer();
+      const beatsPerBar = exercise.beatsPerBar;
+      const { barsPerPage } = renderer.scale;
+
+      drawAtBeat(0);
+      drawAtBeat((barsPerPage - 1) * beatsPerBar);
+      wall = 100;
+      drawAtBeat((barsPerPage - 1) * beatsPerBar);
+      const midSlide = renderer.scale.shownOrigin;
+
+      // Second turn, only a fraction of a second later.
+      wall = 150;
+      drawAtBeat((barsPerPage - 1) * 2 * beatsPerBar);
+      const afterSecondTurn = renderer.scale.shownOrigin;
+
+      // Continues from mid-slide rather than snapping.
+      expect(Math.abs(afterSecondTurn - midSlide)).toBeLessThan(0.5);
+    });
   });
 
   it('shows a countdown while the transport is still before the first beat', () => {
