@@ -41,6 +41,9 @@ function mockCanvas(calls: RecordedCall[], width = 600) {
     translate: record('translate'),
     scale: record('scale'),
     setTransform: record('setTransform'),
+    // Roughly proportional, which is all the layout needs: hints measure their
+    // own text against the room available before printing.
+    measureText: (text: string) => ({ width: text.length * 6 }),
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 1,

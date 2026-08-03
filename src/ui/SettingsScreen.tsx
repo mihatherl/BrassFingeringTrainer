@@ -365,6 +365,19 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           <span>Favour notes I get wrong</span>
         </label>
 
+        <label className="field field--inline">
+          <input
+            type="checkbox"
+            checked={settings.fingeringHints}
+            onChange={(event) => update('fingeringHints', event.target.checked)}
+          />
+          <span>Show fingerings for notes I get wrong</span>
+        </label>
+        <p className="field__note muted">
+          Printed above the note, and only where there is time to read one — never in a run, and
+          at most one to a bar.
+        </p>
+
         <label className="field">
           <span className="field__label">
             Timing tolerance{' '}

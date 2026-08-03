@@ -13,7 +13,14 @@
 
 import { spellInKey } from '../domain/keys';
 import type { Exercise } from '../exercise/types';
-import { drawBeamGroup, drawNote, drawRest, noteheadWidth, type LayoutNote } from './notes';
+import {
+  drawBeamGroup,
+  drawFingeringHint,
+  drawNote,
+  drawRest,
+  noteheadWidth,
+  type LayoutNote,
+} from './notes';
 import type { Spacing } from './spacing';
 import {
   drawBarLine,
@@ -46,6 +53,8 @@ export interface SystemOptions {
   colourFor: (noteIndex: number) => string;
   /** Text to write under a note, or null for most of them. */
   annotationFor?: (noteIndex: number) => string | null;
+  /** Fingering to print above a note, for the ones the player struggles with. */
+  hintFor?: (noteIndex: number) => string | undefined;
   /** Whether this system ends the music, and so gets a closing double bar. */
   final: boolean;
 }
@@ -116,6 +125,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
 
   const loose: LayoutNote[] = [];
   const beamed = new Map<number, LayoutNote[]>();
+  const hints: Array<{ note: LayoutNote; text: string; room: number }> = [];
 
   exercise.notes.forEach((note, index) => {
     if (note.startBeat < firstBeat || note.startBeat >= lastBeat) return;
@@ -140,10 +150,21 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
 
     const annotation = options.annotationFor?.(index);
     if (annotation) annotate(ctx, metrics, centre, annotation, item.colour);
+
+    const hint = options.hintFor?.(index);
+    if (hint) {
+      const next = exercise.notes[index + 1];
+      const room =
+        next && next.startBeat < lastBeat ? xForBeat(next.startBeat) - centre : rightEdge - centre;
+      hints.push({ note: item, text: hint, room });
+    }
   });
 
   for (const note of loose) drawNote(ctx, metrics, note);
   for (const group of beamed.values()) drawBeamGroup(ctx, metrics, group);
+  for (const { note, text, room } of hints) {
+    drawFingeringHint(ctx, metrics, note, text, room, theme.hint);
+  }
 
   if (options.final) {
     ctx.strokeStyle = theme.stave;

@@ -36,6 +36,11 @@ export interface Settings {
   timingTolerance: number;
   weakNoteDrilling: boolean;
   /**
+   * Whether to print the fingering above notes the player keeps getting wrong.
+   * A prompt where the trouble is, not a fingering chart that happens to scroll.
+   */
+  fingeringHints: boolean;
+  /**
    * How fast the music travels, in pixels per second.
    *
    * The eye tracks absolute motion, so speed — not spacing — is what decides
@@ -94,6 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
   playbackMode: 'reference',
   timingTolerance: 1.5,
   weakNoteDrilling: true,
+  fingeringHints: true,
   scrollSpeed: 110,
   readingMode: 'scrolling',
 };

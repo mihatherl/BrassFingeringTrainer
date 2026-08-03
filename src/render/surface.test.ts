@@ -4,6 +4,8 @@ import { Transport } from '../engine/clock';
 import { difficultyById } from '../exercise/difficulty';
 import { generateExercise } from '../exercise/generate';
 import type { ExerciseKind } from '../exercise/types';
+import { drawFingeringHint, type LayoutNote } from './notes';
+import { staveMetrics } from './stave';
 import { DARK_THEME, LIGHT_THEME, StaveRenderer } from './surface';
 
 /**
@@ -43,6 +45,9 @@ function mockContext(calls: RecordedCall[]): CanvasRenderingContext2D {
     rect: record('rect'),
     clip: record('clip'),
     setTransform: record('setTransform'),
+    // Roughly proportional, which is all the layout needs: hints measure their
+    // own text against the room available before printing.
+    measureText: (text: string) => ({ width: text.length * 6 }),
   };
 
   // Drawing state is set by assignment rather than by calling anything, so the
@@ -418,6 +423,73 @@ describe('scrolling renderer', () => {
       expect(renderer.scale.barsPerPage, `${width}x${height}`).toBeGreaterThanOrEqual(1);
       expect(renderer.scale.beatsVisible).toBeGreaterThanOrEqual(4);
     }
+  });
+
+  describe('printing a fingering hint', () => {
+    function withHint(hint: string | undefined) {
+      const calls: RecordedCall[] = [];
+      new StaveRenderer({
+        canvas: mockCanvas(calls, 900, 320),
+        exercise: build('random', 'treble', -3, 5),
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'scrolling',
+        verdictFor: () => undefined,
+        hintFor: (index) => (index === 0 ? hint : undefined),
+      }).draw();
+      return calls.filter((c) => c.method === 'fillText').map((c) => c.args[0]);
+    }
+
+    it('prints nothing when no note asks for one', () => {
+      expect(withHint(undefined)).not.toContain('1-2');
+    });
+
+    it('prints the fingering above the note that asked', () => {
+      expect(withHint('1-2')).toContain('1-2');
+    });
+
+    it('keeps quiet when there is no room for one', () => {
+      // "If space permits" is settled by the layout rather than by `hints.ts`:
+      // which notes deserve one is a musical question, whether one fits is a
+      // question only the drawing can answer.
+      const metrics = staveMetrics('treble', 40, 12);
+      const note: LayoutNote = {
+        x: 100,
+        pitch: { letter: 'G', alter: 0, octave: 4 },
+        duration: { value: 'quarter', dotted: false },
+        showAccidental: false,
+        colour: '#000',
+      };
+
+      const printed = (room: number) => {
+        const calls: RecordedCall[] = [];
+        drawFingeringHint(mockContext(calls), metrics, note, '1-2-3', room, '#888');
+        return calls.some((c) => c.method === 'fillText');
+      };
+
+      expect(printed(8)).toBe(false);
+      expect(printed(400)).toBe(true);
+    });
+
+    it('draws it in the hint colour, not the note colour', () => {
+      // Present enough to read, quiet enough to read past.
+      const calls: RecordedCall[] = [];
+      new StaveRenderer({
+        canvas: mockCanvas(calls, 900, 320),
+        exercise: build('random', 'treble', -3, 5),
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'scrolling',
+        verdictFor: () => undefined,
+        hintFor: (index) => (index === 0 ? '1-2' : undefined),
+      }).draw();
+
+      const beforeText = calls.slice(0, calls.findIndex((c) => c.method === 'fillText'));
+      const lastFill = [...beforeText].reverse().find((c) => c.method === 'fillStyle=');
+      expect(lastFill?.args[0]).toBe(LIGHT_THEME.hint);
+    });
   });
 
   describe('confirming a note', () => {

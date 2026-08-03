@@ -220,6 +220,47 @@ export function drawRest(
   drawGlyph(ctx, glyph, x, m.middleLineY, m.staveSpace);
 }
 
+/**
+ * Prints a fingering above a note, if it will fit.
+ *
+ * Placed clear of whatever that note already has above it — its stem, its
+ * ledger lines — rather than at a fixed height, so a hint never lands on the
+ * notation it is meant to help with.
+ *
+ * The width check is the last word on `hints.ts`'s "if space permits". Which
+ * notes deserve a hint is a musical question answered from the exercise and the
+ * tempo; whether one fits is a question only the layout can answer, and it is
+ * answered here by measuring the text against the room to the next note.
+ */
+export function drawFingeringHint(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  note: LayoutNote,
+  text: string,
+  room: number,
+  colour: string,
+): void {
+  const size = Math.max(8, Math.round(m.staveSpace * 1.1));
+  ctx.save();
+  ctx.font = `600 ${size}px system-ui, sans-serif`;
+
+  if (ctx.measureText(text).width <= room) {
+    const y = yForStep(m, diatonicStep(note.pitch));
+    // Stems point away from the middle line, so an upward stem is the thing a
+    // hint has to clear on a low note, and ledger lines on a high one.
+    const above = stemUp(m, note.pitch) ? y - STEM_LENGTH * m.staveSpace : y;
+    ctx.fillStyle = colour;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+      text,
+      note.x + noteheadWidth(m, note.duration) / 2,
+      Math.min(m.topLineY, above) - m.staveSpace * 0.8,
+    );
+  }
+  ctx.restore();
+}
+
 export function noteheadWidth(m: StaveMetrics, duration: Duration): number {
   return glyphWidth(noteheadGlyph(duration)) * m.staveSpace;
 }

@@ -91,7 +91,8 @@ export function clearStats(instrumentId: string, clef: Clef): void {
   }
 }
 
-const MIN_ATTEMPTS_TO_JUDGE = 2;
+/** Below this, a note has not been seen often enough to call it weak. */
+export const MIN_ATTEMPTS_TO_JUDGE = 2;
 
 /**
  * Turns accuracy history into generator weights.

@@ -16,6 +16,8 @@ import { instrumentById } from '../domain/instruments';
 import { spellInKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { Session } from '../engine/session';
+import { fingeringHints } from '../exercise/hints';
+import { loadStats } from '../storage/stats';
 import type { NoteJudgement, SessionSummary, Verdict } from '../engine/judge';
 import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
@@ -80,6 +82,17 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     verdictsRef.current = new Array(exercise.notes.length).fill(undefined);
     setRecent([]);
 
+    // Which notes get their fingering printed. Settled once per run: the
+    // history behind it does not change mid-exercise, and a hint that came and
+    // went would be worse than none.
+    const hints = settings.fingeringHints
+      ? fingeringHints({
+          exercise,
+          stats: loadStats(exercise.instrumentId, exercise.clef),
+          secondsPerBeat: 60 / settings.tempo,
+        })
+      : new Map<number, string>();
+
     // The very same context `unlockAudio` resumed — a second one would stay
     // suspended and the exercise would run in silence.
     const session = new Session({
@@ -114,6 +127,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       scrollSpeed: settings.scrollSpeed,
       readingMode: settings.readingMode,
       verdictFor: (index) => verdictsRef.current[index],
+      hintFor: (index) => hints.get(index),
     });
     rendererRef.current = renderer;
 

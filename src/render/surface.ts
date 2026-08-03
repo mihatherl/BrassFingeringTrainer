@@ -37,6 +37,7 @@ import {
   accidentalRoom,
   dotRoom,
   drawBeamGroup,
+  drawFingeringHint,
   drawNote,
   drawRest,
   noteheadWidth,
@@ -135,6 +136,8 @@ export interface StaveTheme {
   strikeLine: string;
   strikeGlow: string;
   countIn: string;
+  /** Fingering hints: present enough to read, quiet enough to read past. */
+  hint: string;
 }
 
 export const LIGHT_THEME: StaveTheme = {
@@ -148,6 +151,7 @@ export const LIGHT_THEME: StaveTheme = {
   strikeLine: '#2f6fd0',
   strikeGlow: 'rgba(47, 111, 208, 0.10)',
   countIn: 'rgba(22, 21, 15, 0.35)',
+  hint: '#6b6960',
 };
 
 export const DARK_THEME: StaveTheme = {
@@ -161,6 +165,7 @@ export const DARK_THEME: StaveTheme = {
   strikeLine: '#63a1ff',
   strikeGlow: 'rgba(99, 161, 255, 0.14)',
   countIn: 'rgba(242, 241, 236, 0.35)',
+  hint: '#9a9ba3',
 };
 
 /** The theme matching the system colour scheme. */
@@ -202,6 +207,8 @@ export interface StaveRendererOptions {
   scrollSpeed: number;
   readingMode: ReadingMode;
   verdictFor: (noteIndex: number) => Verdict | undefined;
+  /** Fingering to print above a note, for the ones the player struggles with. */
+  hintFor?: (noteIndex: number) => string | undefined;
 }
 
 export class StaveRenderer {
@@ -755,6 +762,7 @@ export class StaveRenderer {
         lastBar,
         theme,
         colourFor: (note) => verdictColour(this.options.verdictFor(note), theme),
+        hintFor: this.options.hintFor,
         final,
       });
     });
@@ -764,6 +772,7 @@ export class StaveRenderer {
     const { exercise, theme } = this.options;
     const layout: LayoutNote[] = [];
     const groups = new Map<number, LayoutNote[]>();
+    const hints: Array<{ note: LayoutNote; text: string; room: number }> = [];
 
     exercise.notes.forEach((note, index) => {
       const x = xForBeat(note.startBeat);
@@ -779,6 +788,13 @@ export class StaveRenderer {
         colour: verdictColour(this.options.verdictFor(index), theme),
       };
 
+      const hint = this.options.hintFor?.(index);
+      if (hint) {
+        const next = exercise.notes[index + 1];
+        const room = next ? xForBeat(next.startBeat) - x : this.width - x;
+        hints.push({ note: item, text: hint, room });
+      }
+
       if (note.beamGroup >= 0) {
         const group = groups.get(note.beamGroup) ?? [];
         group.push(item);
@@ -790,6 +806,9 @@ export class StaveRenderer {
 
     for (const note of layout) drawNote(this.ctx, this.metrics, note);
     for (const group of groups.values()) drawBeamGroup(this.ctx, this.metrics, group);
+    for (const { note, text, room } of hints) {
+      drawFingeringHint(this.ctx, this.metrics, note, text, room, theme.hint);
+    }
   }
 
   private drawStrikeLine(): void {
