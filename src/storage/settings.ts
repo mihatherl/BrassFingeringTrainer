@@ -10,6 +10,7 @@
 import { INSTRUMENTS, availableClefs, type Clef } from '../domain/instruments';
 import type { ReadingMode } from '../render/surface';
 import type { PlaybackMode } from '../engine/session';
+import { FREE_TIER, type Entitlements } from '../licensing/entitlements';
 import { DIFFICULTIES } from '../exercise/difficulty';
 import { MAJOR_KEYS } from '../domain/keys';
 import type { ExerciseKind } from '../exercise/types';
@@ -223,6 +224,37 @@ export function sanitise(settings: Settings): Settings {
       TIMING_TOLERANCE_RANGE.max,
     ),
   };
+}
+
+/**
+ * Forces settings back inside what this copy is entitled to.
+ *
+ * Applied when an exercise is built, not only when the settings screen is drawn.
+ * The screen disables what is locked, but settings outlive it — saved before a
+ * purchase lapsed, or edited in storage — and the generator should not be the
+ * thing that has to notice.
+ */
+export function constrainToEntitlements(
+  settings: Settings,
+  entitlements: Entitlements,
+): Settings {
+  const limited = { ...settings };
+
+  if (!entitlements.allKeys) limited.fifths = FREE_TIER.fifths;
+  if (!entitlements.allLengths) limited.bars = Math.min(limited.bars, FREE_TIER.bars);
+  if (!entitlements.allDifficulties && !FREE_TIER.difficultyIds.includes(limited.difficultyId)) {
+    limited.difficultyId = FREE_TIER.difficultyIds[0];
+  }
+  if (!entitlements.allMaterial && !FREE_TIER.kinds.includes(limited.kind)) {
+    limited.kind = FREE_TIER.kinds[0];
+  }
+  if (!entitlements.pagedReading) limited.readingMode = FREE_TIER.readingMode;
+  if (!entitlements.fingeredPlayback && limited.playbackMode === 'fingered') {
+    limited.playbackMode = FREE_TIER.playbackMode;
+  }
+  if (!entitlements.weakNoteDrilling) limited.weakNoteDrilling = false;
+
+  return limited;
 }
 
 function clamp(value: number, min: number, max: number): number {

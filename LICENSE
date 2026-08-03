@@ -1,0 +1,26 @@
+Copyright (c) 2026 Michael Hatherall. All rights reserved.
+
+The source code in this repository is published so that it can be read, and for
+no other purpose. No permission is granted to copy, modify, distribute, publish,
+sublicense or sell it, or any derivative of it, in whole or in part.
+
+Using the application as hosted is of course welcome. This notice concerns the
+source code only.
+
+If you would like to do something with this code that the above does not permit,
+please ask — the answer is likely to be yes.
+
+--------------------------------------------------------------------------------
+
+This restriction does not extend to the third-party material bundled here, which
+carries its own, more permissive terms and remains available under them:
+
+  * The music glyph outlines in src/render/glyphs.ts, derived from the Bravura
+    font by Steinberg Media Technologies GmbH, under the SIL Open Font License
+    1.1. See licences/BRAVURA-OFL.txt.
+
+  * The instrument samples in public/samples/, derived from the FluidR3_GM
+    soundfont by Frank Wen, under the Creative Commons Attribution 3.0 licence.
+    See licences/FLUIDR3-CC-BY-3.0.txt.
+
+See THIRD-PARTY-NOTICES.md for the attributions these require.

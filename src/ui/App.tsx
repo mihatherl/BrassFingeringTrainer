@@ -5,7 +5,13 @@ import { generateExercise } from '../exercise/generate';
 import { randomSeed } from '../exercise/rng';
 import type { Exercise } from '../exercise/types';
 import type { SessionSummary } from '../engine/judge';
-import { loadSettings, saveSettings, type Settings } from '../storage/settings';
+import {
+  constrainToEntitlements,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from '../storage/settings';
+import { currentEntitlements } from '../licensing/licence';
 import { loadStats, noteWeights, recordSession, type NoteStats } from '../storage/stats';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
@@ -20,13 +26,19 @@ interface Finished {
 }
 
 export function App() {
-  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [chosen, setChosen] = useState<Settings>(loadSettings);
   const [screen, setScreen] = useState<Screen>('settings');
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [finished, setFinished] = useState<Finished | null>(null);
 
+  // Applied when the exercise is built, not merely when the settings screen is
+  // drawn: settings outlive the screen, and the generator should not be the
+  // thing that has to notice a lapsed purchase.
+  const entitlements = useMemo(() => currentEntitlements(), []);
+
   const build = useCallback(
     (seed: number): Exercise => {
+      const settings = constrainToEntitlements(chosen, entitlements);
       const instrument = instrumentById(settings.instrumentId);
       // Weak-note weighting reads the same stats the results screen shows, so
       // what the app says needs work is exactly what it then serves up.
@@ -47,7 +59,7 @@ export function App() {
         noteWeights: weights,
       });
     },
-    [settings],
+    [chosen, entitlements],
   );
 
   const startNew = useCallback(() => {
@@ -61,7 +73,7 @@ export function App() {
   }, [build, finished]);
 
   const updateSettings = useCallback((next: Settings) => {
-    setSettings(next);
+    setChosen(next);
     saveSettings(next);
   }, []);
 
@@ -79,7 +91,7 @@ export function App() {
     if (screen === 'play' && exercise) {
       return (
         <PlayScreen
-          settings={settings}
+          settings={constrainToEntitlements(chosen, entitlements)}
           exercise={exercise}
           onFinish={onFinish}
           onExit={() => setScreen('settings')}
@@ -100,8 +112,8 @@ export function App() {
       );
     }
 
-    return <SettingsScreen settings={settings} onChange={updateSettings} onStart={startNew} />;
-  }, [screen, exercise, finished, settings, onFinish, repeat, startNew, updateSettings]);
+    return <SettingsScreen settings={chosen} onChange={updateSettings} onStart={startNew} />;
+  }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings]);
 
   return <div className="app">{content}</div>;
 }
