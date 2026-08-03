@@ -73,7 +73,7 @@ npm run dev -- --host  # also serve on the LAN, for testing on a phone
 ```
 
 ```bash
-npm test               # 300 tests
+npm test               # 301 tests
 npm run build          # typecheck, bundle, generate the service worker
 npm run preview        # serve the production build
 ```

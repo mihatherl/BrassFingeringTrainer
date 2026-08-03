@@ -97,6 +97,33 @@ describe('the visual clock', () => {
     expect(t.visualBeat()).toBeCloseTo(2, 6);
   });
 
+  it('goes nowhere at all if the audio clock is stopped', () => {
+    /*
+     * Why a suspended AudioContext has to be caught before an exercise starts.
+     *
+     * Musical position is derived entirely from `currentTime`. A context that
+     * is not running has a clock that does not advance, so every beat query
+     * returns the same answer: the count-in sticks on its first number, the
+     * scheduler's horizon never moves, and not one metronome click is ever
+     * scheduled. Nothing throws. It simply stops.
+     */
+    const t = transport();
+    audioTime = 0; // frozen: a suspended context never advances this
+
+    const first = t.currentBeat();
+    perfTime = 250;
+    const later = t.currentBeat();
+    perfTime = 3000;
+    const muchLater = t.currentBeat();
+
+    expect(later).toBe(first);
+    expect(muchLater).toBe(first);
+
+    // And the smoothing cannot paper over it: it is capped precisely so that a
+    // stopped clock reads as stopped rather than drifting off on its own.
+    expect(t.visualBeat() - first).toBeLessThanOrEqual(0.1 / 0.5);
+  });
+
   it('leaves the judging clock unsmoothed', () => {
     const t = transport();
     audioTime = 1.0;

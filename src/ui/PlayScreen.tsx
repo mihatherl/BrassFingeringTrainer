@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { getAudioContext, unlockAudio } from '../audio/context';
+import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
 import { instrumentById } from '../domain/instruments';
 import { Session } from '../engine/session';
@@ -35,6 +35,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
 
   const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stalled, setStalled] = useState(false);
   const [mask, setMask] = useState(0);
   const [progress, setProgress] = useState({ done: 0, correct: 0 });
   // Held across the gate so the session can be handed the loaded voice.
@@ -97,6 +98,19 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     renderer.start();
     session.start();
 
+    /*
+     * A last line of defence.
+     *
+     * If the context is stopped despite everything above, the clock never moves
+     * and the exercise freezes on the first count with no error anywhere. That
+     * is far worse than an honest failure, so the clock is checked once shortly
+     * after starting and the player is offered a way out.
+     */
+    const startedAt = getAudioContext().currentTime;
+    const stallCheck = window.setTimeout(() => {
+      if (getAudioContext().currentTime === startedAt) setStalled(true);
+    }, 600);
+
     // Keeps the screen awake mid-exercise; unsupported browsers simply carry on.
     let wakeLock: WakeLockSentinel | null = null;
     navigator.wakeLock
@@ -107,6 +121,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       .catch(() => undefined);
 
     return () => {
+      window.clearTimeout(stallCheck);
       session.stop();
       renderer.stop();
       unsubscribe();
@@ -153,6 +168,12 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
                   // response. Synthesis still works, so play on.
                   voiceRef.current = undefined;
                 }
+
+                // Loading the samples takes long enough that the context can
+                // have been suspended again since the tap, and a suspended
+                // context has a clock that never advances — which would start
+                // the exercise against a frozen count-in and no metronome.
+                await ensureRunning();
                 setStarted(true);
               })();
             }}
@@ -165,6 +186,38 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
             disabled={loading}
             onClick={onExit}
           >
+            Back to settings
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stalled) {
+    return (
+      <div className="screen screen--centred">
+        <div className="start-gate">
+          <h2>Audio didn’t start</h2>
+          <p className="muted">
+            The browser stopped the sound before the exercise got going, which leaves the count-in
+            stuck. Tapping again almost always sorts it.
+          </p>
+          <button
+            type="button"
+            className="button button--primary button--large"
+            onClick={() => {
+              void ensureRunning().then((running) => {
+                if (!running) return;
+                // Unmounting and remounting the play surface is what restarts
+                // the transport against a clock that is now moving.
+                setStalled(false);
+                setStarted(false);
+              });
+            }}
+          >
+            Try again
+          </button>
+          <button type="button" className="button button--quiet" onClick={onExit}>
             Back to settings
           </button>
         </div>
