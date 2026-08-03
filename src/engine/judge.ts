@@ -49,6 +49,30 @@ export function toleranceFor(
   return scale * Math.min(MAX_TOLERANCE, Math.max(MIN_TOLERANCE, scaled));
 }
 
+/**
+ * Whether a note can already be called correct, part-way through its window.
+ *
+ * The same test `judgeNote` applies at the end, asked early: a note is right as
+ * soon as an accepted combination has been held at any instant since the window
+ * opened, and nothing later can take that back. Asking it every few
+ * milliseconds is what lets the display confirm a note as it is played, rather
+ * than waiting for a verdict that cannot be known until the window closes — by
+ * which time the act that earned it is long past.
+ *
+ * It says nothing about a note being wrong. That is only knowable at the end,
+ * since the player may still be on their way to the right fingering.
+ */
+export function isAlreadyCorrect(
+  note: NoteEvent,
+  onsetTime: number,
+  tolerance: number,
+  input: ValveInput,
+  now: number,
+): boolean {
+  const accepted = new Set(note.acceptedMasks);
+  return input.statesDuring(onsetTime - tolerance, now).some((s) => accepted.has(s.mask));
+}
+
 export function judgeNote(
   note: NoteEvent,
   noteIndex: number,

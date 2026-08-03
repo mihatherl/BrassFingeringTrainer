@@ -21,7 +21,14 @@ import { Transport } from './clock';
 import { ValveInput } from './input';
 import { IdleDetector } from './idle';
 import { SettledMask } from './settled-mask';
-import { judgeNote, summarise, toleranceFor, type NoteJudgement, type SessionSummary } from './judge';
+import {
+  isAlreadyCorrect,
+  judgeNote,
+  summarise,
+  toleranceFor,
+  type NoteJudgement,
+  type SessionSummary,
+} from './judge';
 
 /**
  * What the player hears.
@@ -51,6 +58,17 @@ export interface SessionOptions {
   /** Multiplies the judging window, where 1 is the default. */
   timingTolerance?: number;
   onJudgement?: (judgement: NoteJudgement) => void;
+  /**
+   * Fires the instant a note's fingering comes right, rather than when the note
+   * is finally judged.
+   *
+   * A verdict cannot arrive until the timing window closes, which is a long way
+   * after the act that earned it — long enough that a signal then has lost its
+   * referent, and near enough the following note to be mistaken for a cue to
+   * play it. Confirmation has to land on the action itself or not at all, so it
+   * is reported separately and only when the answer is right.
+   */
+  onCorrect?: (noteIndex: number) => void;
   onFinish?: (summary: SessionSummary) => void;
 }
 
@@ -132,6 +150,8 @@ export class Session {
   private nextNoteToSchedule = 0;
   private nextNoteToVoice = 0;
   private nextNoteToResolve = 0;
+  /** Notes already confirmed as right, so each is announced only once. */
+  private readonly noticed: boolean[];
   private finished = false;
 
   private readonly options: SessionOptions;
@@ -147,6 +167,7 @@ export class Session {
   constructor(options: SessionOptions) {
     this.options = options;
     this.gaps = findGaps(options.exercise);
+    this.noticed = new Array(options.exercise.notes.length).fill(false);
     const { context, exercise, tempo, countInBars } = options;
     this.transport = new Transport(context, tempo);
     this.input = new ValveInput(() => context.currentTime);
@@ -176,8 +197,12 @@ export class Session {
     this.idle.reset();
     this.settledMask.reset();
     this.transport.start((from, to) => this.schedule(from, to), -this.countInBeats);
+    this.noticed.fill(false);
     this.resolveTimer = window.setInterval(() => {
       this.voice();
+      // Before resolving, so a note that comes right in the same tick its
+      // window closes is still confirmed rather than only judged.
+      this.noticeCorrect();
       this.resolve();
     }, RESOLVE_INTERVAL_MS);
   }
@@ -341,6 +366,42 @@ export class Session {
     });
   }
 
+
+  /**
+   * Announces notes the moment their fingering comes right.
+   *
+   * The same test the judge will apply, asked early and repeatedly rather than
+   * once at the end: a note is right as soon as an accepted combination has
+   * been held at any instant since its window opened. Asking every tick means
+   * the answer arrives within a few milliseconds of the fingers, which is the
+   * only thing that makes it read as confirmation of what was just played.
+   *
+   * Windows overlap at speed, so this scans forward rather than tracking a
+   * single note — the note after next can come right before this one does.
+   */
+  private noticeCorrect(): void {
+    const { exercise, context } = this.options;
+    const now = context.currentTime;
+    const scale = this.options.timingTolerance ?? 1;
+
+    for (let index = this.nextNoteToResolve; index < exercise.notes.length; index++) {
+      const note = exercise.notes[index];
+      const onset = this.transport.timeForBeat(note.startBeat);
+      const tolerance = toleranceFor(
+        durationBeats(note.duration),
+        this.transport.secondsPerBeat,
+        scale,
+      );
+      // Notes are in order, so once one is still to come, so is the rest.
+      if (now < onset - tolerance) break;
+      if (this.noticed[index]) continue;
+
+      if (isAlreadyCorrect(note, onset, tolerance, this.input, now)) {
+        this.noticed[index] = true;
+        this.options.onCorrect?.(index);
+      }
+    }
+  }
 
   /**
    * Resolves notes whose judging window has closed.

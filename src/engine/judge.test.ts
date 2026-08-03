@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { maskOf } from '../domain/fingering';
 import type { NoteEvent } from '../exercise/types';
 import { ValveInput } from './input';
-import { judgeNote, summarise, toleranceFor } from './judge';
+import { isAlreadyCorrect, judgeNote, summarise, toleranceFor } from './judge';
 
 /**
  * The clock is driven by hand so these tests exercise real timing behaviour
@@ -205,6 +205,91 @@ describe('judging with a relaxed window', () => {
     input.keyDown(3);
     const note = noteExpecting([maskOf([1, 2])]);
     expect(judgeNote(note, 0, 1.0, 1, SECONDS_PER_BEAT, input, 3).verdict).toBe('wrong');
+  });
+});
+
+describe('confirming a note as it is played', () => {
+  /*
+   * The display confirms a note the moment it comes right, because a verdict
+   * cannot be known until the window closes — most of a note after the act that
+   * earned it, and close enough to the next note to be taken for a cue.
+   */
+  const ONSET = 1.0;
+  const TOLERANCE = toleranceFor(1, SECONDS_PER_BEAT);
+
+  const correctYet = (note: NoteEvent) =>
+    isAlreadyCorrect(note, ONSET, TOLERANCE, input, now);
+
+  it('says nothing until the right fingering arrives', () => {
+    const note = noteExpecting([maskOf([1, 2])]);
+
+    now = ONSET - TOLERANCE;
+    expect(correctYet(note)).toBe(false);
+
+    now = ONSET;
+    input.keyDown(1);
+    expect(correctYet(note)).toBe(false);
+
+    input.keyDown(2);
+    expect(correctYet(note)).toBe(true);
+  });
+
+  it('confirms within the tick the fingering lands, not at the end of the window', () => {
+    const note = noteExpecting([maskOf([1])]);
+
+    now = ONSET - TOLERANCE;
+    input.keyDown(1);
+
+    // A hundredth of a second later, which is one turn of the session loop.
+    now = ONSET - TOLERANCE + 0.01;
+    expect(correctYet(note)).toBe(true);
+    // The verdict itself is still the better part of half a second away.
+    expect(ONSET + TOLERANCE - now).toBeGreaterThan(0.2);
+  });
+
+  it('does not take it back once given', () => {
+    // Nothing later can undo a note that was played correctly, so the
+    // confirmation stands even after the fingers have moved on.
+    const note = noteExpecting([maskOf([1])]);
+
+    now = ONSET;
+    input.keyDown(1);
+    now = ONSET + 0.02;
+    input.keyUp(1);
+    input.keyDown(3);
+
+    now = ONSET + TOLERANCE;
+    expect(correctYet(note)).toBe(true);
+  });
+
+  it('ignores a fingering that came and went before the window opened', () => {
+    const note = noteExpecting([maskOf([2])]);
+
+    now = ONSET - TOLERANCE - 0.5;
+    input.keyDown(2);
+    now = ONSET - TOLERANCE - 0.1;
+    input.keyUp(2);
+
+    now = ONSET;
+    expect(correctYet(note)).toBe(false);
+  });
+
+  it('agrees with the verdict once the window has closed', () => {
+    // Two ways of asking the same question; they must never disagree.
+    for (const held of [[1, 2], [1], [3], []]) {
+      now = 0;
+      input = new ValveInput(() => now);
+      const note = noteExpecting([maskOf([1, 2])]);
+
+      now = ONSET;
+      for (const valve of held) input.keyDown(valve);
+
+      now = ONSET + TOLERANCE;
+      const verdict = judgeNote(note, 0, ONSET, 1, SECONDS_PER_BEAT, input).verdict;
+      expect(correctYet(note), `holding ${held.join('-') || 'nothing'}`).toBe(
+        verdict === 'correct',
+      );
+    }
   });
 });
 

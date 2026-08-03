@@ -26,5 +26,5 @@ dist-ssr
 # Local dev server log
 .serve.log
 
-# Claude Code machine-local settings
-.claude/settings.local.json
+# Claude Code machine-local settings, including its transient writes
+.claude/settings.local.json*

@@ -92,11 +92,11 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       brassVoice: voiceRef.current,
       backingLevel: settings.backingLevel,
       timingTolerance: settings.timingTolerance,
+      // Fires as the fingers arrive, not when the note is finally judged, so
+      // the green reads as confirmation of what was just played.
+      onCorrect: () => rendererRef.current?.flashCorrect(),
       onJudgement: (judgement: NoteJudgement) => {
         verdictsRef.current[judgement.noteIndex] = judgement.verdict;
-        // The note itself is already past the line and clipped by the time this
-        // arrives, so the verdict has to be shown somewhere that stays put.
-        rendererRef.current?.flashVerdict(judgement.verdict);
         setProgress((current) => ({
           done: current.done + 1,
           correct: current.correct + (judgement.verdict === 'correct' ? 1 : 0),

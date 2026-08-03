@@ -87,17 +87,23 @@ function easeInOut(t: number): number {
 const BAR_LINE_SETBACK = 1.75;
 
 /**
- * How long the strike line holds a verdict colour, in milliseconds.
+ * How long the strike line holds its confirming colour, in milliseconds.
  *
- * The only feedback a player can take in without looking away from the music.
- * A note is judged at its onset plus the timing tolerance, by which time the
- * note itself has already passed under the header and been clipped away — so
- * whatever the verdict is going to say, it has to be said at the line.
+ * The only feedback a player can take in without looking away from the music,
+ * and the only kind worth showing here: green, the instant the fingering comes
+ * right, and nothing at all otherwise.
+ *
+ * A verdict cannot be known until the timing window closes, which can be most
+ * of a note later. Shown then, a red flash no longer points at anything the
+ * player can place — and arriving near the following note, it reads as a cue to
+ * play it. Confirmation lands on the act that earned it or it does not belong
+ * on screen; the notes that went wrong are dealt with afterwards, where there
+ * is time to look.
  *
  * Short and sharp: long enough to register at the edge of vision, over well
  * before the next note at any playable tempo.
  */
-const VERDICT_FLASH_MS = 320;
+const CORRECT_FLASH_MS = 320;
 
 export type ReadingMode = 'scrolling' | 'paged';
 
@@ -212,7 +218,8 @@ export class StaveRenderer {
   private shownOrigin = 0;
   private slideTarget = 0;
   private slide: { from: number; to: number; startedAt: number } | null = null;
-  private flash: { verdict: Verdict; at: number } | null = null;
+  /** When the last confirmation landed, on the wall clock. */
+  private flash: number | null = null;
 
   private options: StaveRendererOptions;
 
@@ -268,26 +275,26 @@ export class StaveRenderer {
   }
 
   /**
-   * Marks a note as judged, pulsing the strike line in the verdict's colour.
+   * Confirms that a note has been fingered correctly, pulsing the strike line.
    *
    * Driven from outside rather than watched for, because the renderer has no
-   * way of knowing when a verdict arrives: `verdictFor` is a lookup it polls
-   * every frame, and polling cannot tell a fresh answer from an old one.
+   * way of knowing when this happens: `verdictFor` is a lookup it polls every
+   * frame, and polling cannot tell a fresh answer from an old one.
    */
-  flashVerdict(verdict: Verdict): void {
-    this.flash = { verdict, at: performance.now() };
+  flashCorrect(): void {
+    this.flash = performance.now();
   }
 
-  /** Current pulse, if any. Exposed for tests. */
-  get verdictFlash(): { verdict: Verdict; strength: number } | null {
-    if (!this.flash) return null;
-    const progress = (performance.now() - this.flash.at) / VERDICT_FLASH_MS;
+  /** Strength of the current pulse, 0 when there is none. Exposed for tests. */
+  get correctFlash(): number {
+    if (this.flash === null) return 0;
+    const progress = (performance.now() - this.flash) / CORRECT_FLASH_MS;
     if (progress >= 1) {
       this.flash = null;
-      return null;
+      return 0;
     }
     // Squared decay: bright on arrival, then out of the way quickly.
-    return { verdict: this.flash.verdict, strength: (1 - Math.max(0, progress)) ** 2 };
+    return (1 - Math.max(0, progress)) ** 2;
   }
 
   setScrollSpeed(scrollSpeed: number): void {
@@ -590,7 +597,7 @@ export class StaveRenderer {
     const { ctx } = this;
     const { theme } = this.options;
     const glowWidth = Math.max(8, this.metrics.staveSpace * 1.2);
-    const flash = this.verdictFlash;
+    const flash = this.correctFlash;
     const top = this.metrics.topLineY - this.metrics.staveSpace * 2.5;
     const bottom = this.metrics.bottomLineY + this.metrics.staveSpace * 2.5;
 
@@ -598,25 +605,25 @@ export class StaveRenderer {
     ctx.fillRect(this.strikeX - glowWidth / 2, 0, glowWidth, this.height);
 
     /*
-     * The verdict, said where the player is already looking.
+     * Confirmation, where the player is already looking.
      *
      * A widening band rather than a brighter one: peripheral vision picks up
      * movement far more readily than colour, so the spread is what catches the
      * eye and the colour is what it finds when it gets there.
      */
-    if (flash) {
-      const spread = glowWidth * (1 + 2.5 * flash.strength);
+    if (flash > 0) {
+      const spread = glowWidth * (1 + 2.5 * flash);
       ctx.save();
-      ctx.fillStyle = verdictColour(flash.verdict, theme);
-      ctx.globalAlpha = 0.4 * flash.strength;
+      ctx.fillStyle = theme.correct;
+      ctx.globalAlpha = 0.4 * flash;
       ctx.fillRect(this.strikeX - spread / 2, 0, spread, this.height);
       ctx.restore();
     }
 
     ctx.save();
-    if (flash) {
-      ctx.strokeStyle = verdictColour(flash.verdict, theme);
-      ctx.lineWidth = 2 + 3 * flash.strength;
+    if (flash > 0) {
+      ctx.strokeStyle = theme.correct;
+      ctx.lineWidth = 2 + 3 * flash;
     } else {
       ctx.strokeStyle = theme.strikeLine;
       ctx.lineWidth = 2;

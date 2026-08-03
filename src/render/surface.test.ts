@@ -420,12 +420,14 @@ describe('scrolling renderer', () => {
     }
   });
 
-  describe('showing a verdict', () => {
+  describe('confirming a note', () => {
     /*
-     * A note is judged at its onset plus the timing tolerance, by which point
-     * it has already crossed the strike line and been clipped away under the
-     * header — so the colour on the notehead is never seen in this mode. The
-     * line has to say it instead.
+     * Green, the instant the fingering comes right, and nothing otherwise.
+     *
+     * A verdict is not known until the timing window closes, which can be most
+     * of a note after the act that earned it — too late to point at anything
+     * the player can place, and near enough the next note to be taken for a cue
+     * to play it. So the line confirms and never corrects.
      */
     let realNow: () => number;
     let wall = 0;
@@ -454,45 +456,41 @@ describe('scrolling renderer', () => {
 
     it('fades out and then stops', () => {
       const renderer = scrollingRenderer();
-      expect(renderer.verdictFlash).toBeNull();
+      expect(renderer.correctFlash).toBe(0);
 
-      renderer.flashVerdict('wrong');
-      expect(renderer.verdictFlash?.strength).toBe(1);
+      renderer.flashCorrect();
+      expect(renderer.correctFlash).toBe(1);
 
       wall = 160;
-      const half = renderer.verdictFlash;
-      expect(half?.verdict).toBe('wrong');
-      expect(half!.strength).toBeGreaterThan(0);
-      expect(half!.strength).toBeLessThan(1);
+      expect(renderer.correctFlash).toBeGreaterThan(0);
+      expect(renderer.correctFlash).toBeLessThan(1);
 
       // Well before the next note at any playable tempo.
       wall = 400;
-      expect(renderer.verdictFlash).toBeNull();
+      expect(renderer.correctFlash).toBe(0);
     });
 
-    it('paints the line in the verdict colour while it lasts', () => {
+    it('paints the line green while it lasts, and blue otherwise', () => {
       const calls: RecordedCall[] = [];
       const renderer = scrollingRenderer(calls);
+      const strokes = () =>
+        calls.filter((c) => c.method === 'strokeStyle=').map((c) => c.args[0]);
 
       renderer.draw();
-      expect(calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.wrong)).toBe(
-        false,
-      );
+      expect(strokes()).toContain(LIGHT_THEME.strikeLine);
+      expect(strokes()).not.toContain(LIGHT_THEME.correct);
 
       calls.length = 0;
-      renderer.flashVerdict('wrong');
+      renderer.flashCorrect();
       renderer.draw();
-      expect(calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.wrong)).toBe(
-        true,
-      );
+      expect(strokes()).toContain(LIGHT_THEME.correct);
 
       // And back to normal once it has run its course.
       wall = 400;
       calls.length = 0;
       renderer.draw();
-      expect(
-        calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.strikeLine),
-      ).toBe(true);
+      expect(strokes()).toContain(LIGHT_THEME.strikeLine);
+      expect(strokes()).not.toContain(LIGHT_THEME.correct);
     });
 
     it('says nothing in paged mode, where the notes themselves stay put', () => {
@@ -509,11 +507,11 @@ describe('scrolling renderer', () => {
         verdictFor: () => undefined,
       });
 
-      renderer.flashVerdict('wrong');
+      renderer.flashCorrect();
       renderer.draw();
-      expect(calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.wrong)).toBe(
-        false,
-      );
+      expect(
+        calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.correct),
+      ).toBe(false);
     });
   });
 
