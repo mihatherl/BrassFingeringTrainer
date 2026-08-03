@@ -21,6 +21,11 @@ export interface LayoutNote {
   colour: string;
 }
 
+/** Gap between an accidental and the notehead it belongs to, in stave spaces. */
+const ACCIDENTAL_GAP = 0.28;
+/** Gap between a notehead and its augmentation dot. */
+const DOT_GAP = 0.3;
+
 const STEM_LENGTH = 3.5;
 const STEM_THICKNESS = 0.12;
 const BEAM_THICKNESS = 0.5;
@@ -95,8 +100,7 @@ export function drawNote(
   if (note.showAccidental) {
     const glyph = accidentalGlyph(note.pitch.alter);
     if (glyph) {
-      const width = glyphWidth(glyph) * m.staveSpace;
-      drawGlyph(ctx, glyph, note.x - width - m.staveSpace * 0.28, y, m.staveSpace);
+      drawGlyph(ctx, glyph, note.x - accidentalRoom(m, note.pitch), y, m.staveSpace);
     }
   }
 
@@ -105,7 +109,7 @@ export function drawNote(
   if (note.duration.dotted) {
     // Dots sit in a space, so a note on a line pushes its dot up to the space above.
     const dotY = isOnLine(m, diatonicStep(note.pitch)) ? y - m.staveSpace / 2 : y;
-    drawGlyph(ctx, 'augmentationDot', note.x + headWidth + m.staveSpace * 0.3, dotY, m.staveSpace);
+    drawGlyph(ctx, 'augmentationDot', note.x + headWidth + DOT_GAP * m.staveSpace, dotY, m.staveSpace);
   }
 
   if (note.duration.value === 'whole') return;
@@ -218,4 +222,23 @@ export function drawRest(
 
 export function noteheadWidth(m: StaveMetrics, duration: Duration): number {
   return glyphWidth(noteheadGlyph(duration)) * m.staveSpace;
+}
+
+/**
+ * Room an accidental takes in front of its notehead, gap included.
+ *
+ * An accidental is drawn to the left of the note it alters, so it occupies the
+ * space between that note and the one before — which is why spacing has to know
+ * about it. Left out, a sharp simply lands on top of its neighbour.
+ */
+export function accidentalRoom(m: StaveMetrics, pitch: SpelledPitch): number {
+  const glyph = accidentalGlyph(pitch.alter);
+  if (!glyph) return 0;
+  return (glyphWidth(glyph) + ACCIDENTAL_GAP) * m.staveSpace;
+}
+
+/** Room an augmentation dot takes behind its notehead, gap included. */
+export function dotRoom(m: StaveMetrics, duration: Duration): number {
+  if (!duration.dotted) return 0;
+  return (DOT_GAP + glyphWidth('augmentationDot')) * m.staveSpace;
 }

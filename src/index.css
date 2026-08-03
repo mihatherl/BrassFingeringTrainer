@@ -122,26 +122,39 @@ body {
   -webkit-user-select: none;
 }
 
+/*
+ * Kept as thin as it can be read at.
+ *
+ * Every pixel here comes straight out of the stave, and sideways the stave is
+ * sized by its height — so a comfortable-looking bar is paid for in notation
+ * that is too small to read. None of this is looked at while playing.
+ */
 .play-bar {
   grid-area: bar;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.15rem 0.5rem;
   border-bottom: 1px solid var(--border);
+}
+
+.play-bar .button {
+  padding: 0.25rem 0.7rem;
+  font-size: 0.85rem;
 }
 
 .play-stats {
   display: flex;
   align-items: baseline;
-  gap: 1rem;
+  gap: 0.75rem;
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
 
 .play-stats__accuracy {
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text);
 }

@@ -31,7 +31,7 @@ import type { Exercise } from '../exercise/types';
  * Below about one, adjacent noteheads touch and then overlap. The margin above
  * that is what stops a run of semiquavers reading as a smear.
  */
-export const NOTE_CLEARANCE = 1.15;
+export const NOTE_CLEARANCE = 1.3;
 
 /** How much room a note keeps when its value is halved. */
 const HALVING_RATIO = 0.75;
@@ -69,6 +69,15 @@ export interface SpacingOptions {
    * shrinks the page rather than falling off the end of it.
    */
   maxBarWidth?: number;
+  /**
+   * Anything a note needs beyond its own notehead, by note index.
+   *
+   * An accidental hangs to the *left* of the note it alters, so it takes room
+   * from the gap in front of it; a dot hangs to the right and takes room from
+   * the gap behind. Neither is part of the notehead, and a spacing rule that
+   * counts only noteheads will happily lay a sharp on top of its neighbour.
+   */
+  extraWidthFor?: (noteIndex: number) => { before: number; after: number };
 }
 
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
@@ -83,23 +92,60 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
   const shortest = gaps.length > 0 ? Math.min(...gaps) : 1;
   const unit = options.minColumnWidth / shortest ** EXPONENT;
 
-  const offsets = [0];
-  for (const gap of gaps) offsets.push(offsets[offsets.length - 1] + unit * gap ** EXPONENT);
+  /*
+   * Each column has two parts, and only one of them can give.
+   *
+   * The elastic part is what the duration asks for. The floor is what the
+   * glyphs physically occupy — the notehead clearance, plus this note's dot and
+   * the next note's accidental, both of which live in this gap rather than in a
+   * note's own width. Squeezing that is how a sharp ends up on top of whatever
+   * precedes it.
+   */
+  const elastic = gaps.map((gap) => unit * gap ** EXPONENT);
+  const noteAt = notesByBeat(exercise);
+  const floors = gaps.map((_, index) => floorWidth(noteAt, columns, index, options));
 
-  const raw = (beat: number) => interpolate(columns, offsets, beat);
+  const offsetsAt = (give: number) => {
+    const offsets = [0];
+    for (let i = 0; i < gaps.length; i++) {
+      offsets.push(offsets[i] + Math.max(floors[i], give * elastic[i]));
+    }
+    return offsets;
+  };
 
-  // One scale for the whole exercise rather than per bar: shrinking only the
-  // crowded bars would make the spacing lie about which notes are quick.
-  let scale = 1;
-  if (options.maxBarWidth !== undefined && options.maxBarWidth > 0) {
+  const widestBar = (offsets: number[]) => {
+    const at = (beat: number) => interpolate(columns, offsets, beat);
     let widest = 0;
     for (let bar = 0; bar * beatsPerBar < totalBeats; bar++) {
-      widest = Math.max(widest, raw((bar + 1) * beatsPerBar) - raw(bar * beatsPerBar));
+      widest = Math.max(widest, at((bar + 1) * beatsPerBar) - at(bar * beatsPerBar));
     }
-    if (widest > options.maxBarWidth) scale = options.maxBarWidth / widest;
+    return widest;
+  };
+
+  let offsets = offsetsAt(1);
+  let scale = 1;
+  const limit = options.maxBarWidth;
+
+  if (limit !== undefined && limit > 0 && widestBar(offsets) > limit) {
+    // Take the elastic room away first, by halving the interval until the
+    // widest bar fits. Twenty passes settles it to well under a pixel.
+    let tooTight = 0;
+    let roomy = 1;
+    for (let pass = 0; pass < 20; pass++) {
+      const give = (tooTight + roomy) / 2;
+      if (widestBar(offsetsAt(give)) <= limit) tooTight = give;
+      else roomy = give;
+    }
+    offsets = offsetsAt(tooTight);
+
+    // Still over means the glyphs alone will not fit, and something has to
+    // give: a bar running off the side of the screen is worse than a cramped
+    // one, since at least a cramped bar can be read slowly.
+    const stubborn = widestBar(offsets);
+    if (stubborn > limit) scale = limit / stubborn;
   }
 
-  const xOf = (beat: number) => raw(beat) * scale;
+  const xOf = (beat: number) => interpolate(columns, offsets, beat) * scale;
   const width = xOf(totalBeats);
   const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
 
@@ -122,6 +168,32 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
       return Math.max(1, bars);
     },
   };
+}
+
+/** What a column must hold whatever its duration asks for. */
+function floorWidth(
+  noteAt: Map<number, number>,
+  columns: number[],
+  index: number,
+  options: SpacingOptions,
+): number {
+  const extra = options.extraWidthFor;
+  if (!extra) return options.minColumnWidth;
+
+  const here = noteAt.get(columns[index]);
+  const next = noteAt.get(columns[index + 1]);
+  return (
+    options.minColumnWidth +
+    (here === undefined ? 0 : extra(here).after) +
+    (next === undefined ? 0 : extra(next).before)
+  );
+}
+
+/** Which note, if any, begins at each beat. */
+function notesByBeat(exercise: Exercise): Map<number, number> {
+  const byBeat = new Map<number, number>();
+  exercise.notes.forEach((note, index) => byBeat.set(note.startBeat, index));
+  return byBeat;
 }
 
 /**

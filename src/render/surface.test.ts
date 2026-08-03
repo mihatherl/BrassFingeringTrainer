@@ -584,6 +584,110 @@ describe('scrolling renderer', () => {
       expect(slow.pixelsPerBeat).toBe(fast.pixelsPerBeat);
     });
 
+    /** A page tall enough to stack: a phone held upright. */
+    function stackedRenderer(width = 390, height = 402, difficultyId = 'easy') {
+      const exercise = generateExercise({
+        instrument: instrumentById('eb-bass'),
+        clef: 'treble',
+        fifths: -3,
+        difficulty: difficultyById(difficultyId),
+        kind: 'random',
+        bars: 16,
+        beatsPerBar: 4,
+        beatUnit: 4,
+        seed: 9,
+      });
+      const renderer = new StaveRenderer({
+        canvas: mockCanvas([], width, height),
+        exercise,
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'paged',
+        verdictFor: () => undefined,
+      });
+      const drawAtBeat = (beat: number) => {
+        (renderer as unknown as { options: { transport: Transport } }).options.transport =
+          new Transport(fakeAudioContext(beat * 0.6), 100);
+        renderer.draw();
+      };
+      return { renderer, exercise, drawAtBeat };
+    }
+
+    it('stacks lines of music on a page tall enough to hold them', () => {
+      // A phone held upright has room for three lines above the buttons and was
+      // showing one, which is peering through a slot rather than reading a page.
+      const upright = stackedRenderer().renderer.scale;
+      expect(upright.systemsShown).toBeGreaterThan(1);
+
+      // Sideways there is no spare height, so it stays a single line.
+      const sideways = stackedRenderer(750, 217).renderer.scale;
+      expect(sideways.systemsShown).toBe(1);
+    });
+
+    it('shows several times as many bars for it', () => {
+      const stacked = stackedRenderer().renderer.scale;
+      const oneLine = stackedRenderer(390, 150).renderer.scale;
+
+      expect(oneLine.systemsShown).toBe(1);
+      expect(stacked.barsPerPage).toBeGreaterThan(oneLine.barsPerPage * 2);
+    });
+
+    it('keeps the bar being played on screen, all the way through', () => {
+      // The invariant that matters: whatever the stack does, the player can see
+      // the bar they are on.
+      const { renderer, exercise, drawAtBeat } = stackedRenderer();
+      const beatsPerBar = exercise.beatsPerBar;
+      let previousStart = 0;
+
+      for (let beat = 0; beat < exercise.totalBeats; beat += 0.5) {
+        wall += 600; // let each scroll finish
+        drawAtBeat(beat);
+        const { pageStartBar, barsPerPage } = renderer.scale;
+        const bar = Math.floor(beat / beatsPerBar);
+
+        expect(pageStartBar, `beat ${beat}`).toBeGreaterThanOrEqual(previousStart);
+        expect(bar, `beat ${beat}`).toBeGreaterThanOrEqual(pageStartBar);
+        expect(bar, `beat ${beat}`).toBeLessThan(pageStartBar + barsPerPage);
+        previousStart = pageStartBar;
+      }
+    });
+
+    it('holds still while there is a line left in hand', () => {
+      // Reaching the *bottom* line is what moves the stack, not reaching the
+      // end of the line being read — so there is always one line spare.
+      const { renderer, exercise, drawAtBeat } = stackedRenderer();
+      const beatsPerBar = exercise.beatsPerBar;
+
+      drawAtBeat(0);
+      const firstScreen = renderer.scale;
+      // The first line's worth of bars cannot move it; the stack has more below.
+      const barsOnFirstLine = Math.floor(firstScreen.barsPerPage / firstScreen.systemsShown);
+
+      wall += 600;
+      drawAtBeat(Math.max(0, barsOnFirstLine - 1) * beatsPerBar);
+      expect(renderer.scale.pageStartBar).toBe(0);
+    });
+
+    it('slides rather than cutting when it does move', () => {
+      const { renderer, exercise, drawAtBeat } = stackedRenderer();
+      const beatsPerBar = exercise.beatsPerBar;
+
+      drawAtBeat(0);
+      const before = renderer.scale.shownOrigin;
+
+      // Far enough in to have reached the bottom line.
+      const late = Math.floor(exercise.totalBeats / beatsPerBar / 2) * beatsPerBar;
+      drawAtBeat(late);
+      expect(renderer.scale.pageStartBar).toBeGreaterThan(0);
+      // Eased from where it was, so nothing jumps.
+      expect(renderer.scale.shownOrigin).toBeCloseTo(before, 6);
+
+      wall += 600;
+      drawAtBeat(late);
+      expect(renderer.scale.shownOrigin).toBeCloseTo(renderer.scale.pageOrigin, 6);
+    });
+
     it('waits until the last visible bar before turning', () => {
       // Turning halfway wastes the right of the screen and interrupts more often
       // than it needs to.

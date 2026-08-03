@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Duration } from '../domain/rhythm';
 import type { Exercise, NoteEvent } from '../exercise/types';
 import { engraveSpacing } from './spacing';
+import { justifiedX } from './system';
 
 /**
  * Engraved spacing.
@@ -61,8 +62,22 @@ function exerciseOf(bars: Array<Array<Duration['value']>>, beatsPerBar = 4): Exe
   };
 }
 
-function barWidths(exercise: Exercise, maxBarWidth?: number): number[] {
-  const spacing = engraveSpacing(exercise, { minColumnWidth: MIN, maxBarWidth });
+/** Narrowest gap between consecutive columns, which is where a collision shows. */
+function narrowestGap(exercise: Exercise, options: Parameters<typeof engraveSpacing>[1]): number {
+  const spacing = engraveSpacing(exercise, options);
+  const beats = [...new Set(exercise.notes.map((n) => n.startBeat))].sort((a, b) => a - b);
+  let narrowest = Infinity;
+  for (let i = 1; i < beats.length; i++) {
+    narrowest = Math.min(narrowest, spacing.xOf(beats[i]) - spacing.xOf(beats[i - 1]));
+  }
+  return narrowest;
+}
+
+function barWidths(
+  exercise: Exercise,
+  options: Parameters<typeof engraveSpacing>[1] = { minColumnWidth: MIN },
+): number[] {
+  const spacing = engraveSpacing(exercise, options);
   const widths: number[] = [];
   for (let bar = 0; bar * exercise.beatsPerBar < exercise.totalBeats; bar++) {
     widths.push(
@@ -122,15 +137,94 @@ describe('engraved spacing', () => {
     expect(semibreve).toBeLessThan(crotchet * 2);
   });
 
-  it('scales the whole exercise down together when a bar will not fit', () => {
-    // Squeezing only the offending bar would make the spacing lie about which
-    // notes are quick.
-    const exercise = exerciseOf([['whole'], new Array(16).fill('sixteenth')]);
-    const free = barWidths(exercise);
-    const squeezed = barWidths(exercise, Math.max(...free) / 2);
+  it('leaves room in front of a note for its accidental', () => {
+    // An accidental is drawn to the *left* of the note it alters, so it lives
+    // in the gap before it. Counted as part of the note instead, a sharp simply
+    // lands on top of whatever precedes it.
+    const exercise = exerciseOf([['quarter', 'quarter', 'quarter', 'quarter']]);
+    const sharp = 12;
 
-    expect(Math.max(...squeezed)).toBeCloseTo(Math.max(...free) / 2, 6);
-    expect(squeezed[0] / squeezed[1]).toBeCloseTo(free[0] / free[1], 6);
+    expect(narrowestGap(exercise, { minColumnWidth: MIN })).toBeCloseTo(MIN, 6);
+    expect(
+      narrowestGap(exercise, {
+        minColumnWidth: MIN,
+        extraWidthFor: () => ({ before: sharp, after: 0 }),
+      }),
+    ).toBeCloseTo(MIN + sharp, 6);
+  });
+
+  it('leaves room behind a dotted note for its dot', () => {
+    const exercise = exerciseOf([['quarter', 'quarter', 'quarter', 'quarter']]);
+    const dot = 6;
+
+    expect(
+      narrowestGap(exercise, {
+        minColumnWidth: MIN,
+        extraWidthFor: () => ({ before: 0, after: dot }),
+      }),
+    ).toBeCloseTo(MIN + dot, 6);
+  });
+
+  it('gives up elastic room before it gives up glyph room', () => {
+    // A bar too wide for its line has to lose something. What the duration asks
+    // for can go; what the glyphs physically occupy cannot, or the notes touch.
+    //
+    // The busy bar is deliberately mixed rather than solid semiquavers: a bar
+    // made entirely of the shortest note is already at its floor everywhere and
+    // has nothing elastic left to give.
+    const exercise = exerciseOf([
+      ['quarter', 'quarter', 'eighth', 'eighth', 'sixteenth', 'sixteenth', 'sixteenth', 'sixteenth'],
+      ['quarter', 'quarter', 'quarter', 'quarter'],
+    ]);
+    // Small enough that the bar can still be made to fit around it.
+    const sharp = 2;
+    const roomy = { minColumnWidth: MIN, extraWidthFor: () => ({ before: sharp, after: 0 }) };
+    const limit = Math.max(...barWidths(exercise, roomy)) * 0.9;
+    const squeezed = { ...roomy, maxBarWidth: limit };
+
+    expect(Math.max(...barWidths(exercise, squeezed))).toBeLessThanOrEqual(limit + 1e-6);
+    // The room the noteheads and accidentals need survived it.
+    expect(narrowestGap(exercise, squeezed)).toBeGreaterThanOrEqual(MIN + sharp - 1e-6);
+  });
+
+  it('crams only when the glyphs alone will not fit', () => {
+    // Four noteheads will not go into two noteheads' room whatever is done, and
+    // a cramped bar can at least be read slowly — one running off the side of
+    // the screen cannot be read at all.
+    const exercise = exerciseOf([['quarter', 'quarter', 'quarter', 'quarter']]);
+    const gap = narrowestGap(exercise, { minColumnWidth: MIN, maxBarWidth: MIN * 2 });
+
+    expect(gap).toBeLessThan(MIN);
+    expect(gap).toBeGreaterThan(0);
+  });
+
+  it('stretches a line to its margin, keeping the proportions', () => {
+    // Justification adds air evenly, so a busy bar stays wider than a sparse
+    // one — it does not level them out.
+    const exercise = exerciseOf([['whole'], ['quarter', 'quarter', 'quarter', 'quarter']]);
+    const spacing = engraveSpacing(exercise, { minColumnWidth: MIN });
+    const natural = spacing.xOf(8) - spacing.xOf(0);
+    const margin = 40;
+
+    const ragged = justifiedX(spacing, 0, 8, margin, natural * 1.5, false);
+    const justified = justifiedX(spacing, 0, 8, margin, natural * 1.5, true);
+
+    expect(ragged(8) - margin).toBeCloseTo(natural, 6);
+    expect(justified(8) - margin).toBeCloseTo(natural * 1.5, 6);
+
+    const ratio = (x: (beat: number) => number) => (x(4) - x(0)) / (x(8) - x(4));
+    expect(ratio(justified)).toBeCloseTo(ratio(ragged), 6);
+  });
+
+  it('never squeezes a line to justify it', () => {
+    // Deciding what fits is the spacing rule's job and it has already had its
+    // say; justification only ever adds room.
+    const exercise = exerciseOf([['quarter', 'quarter', 'quarter', 'quarter']]);
+    const spacing = engraveSpacing(exercise, { minColumnWidth: MIN });
+    const natural = spacing.xOf(4) - spacing.xOf(0);
+
+    const cramped = justifiedX(spacing, 0, 4, 0, natural / 2, true);
+    expect(cramped(4)).toBeCloseTo(natural, 6);
   });
 
   it('maps beats to pixels and back again', () => {

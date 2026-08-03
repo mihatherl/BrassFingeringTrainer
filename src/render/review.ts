@@ -18,22 +18,11 @@ import { formatMask } from '../domain/fingering';
 import { spellInKey } from '../domain/keys';
 import type { Verdict } from '../engine/judge';
 import type { Exercise } from '../exercise/types';
-import { drawBeamGroup, drawNote, drawRest, noteheadWidth, type LayoutNote } from './notes';
-import {
-  drawBarLine,
-  drawClef,
-  drawKeySignature,
-  drawStaveLines,
-  drawTimeSignature,
-  measureStaveHeader,
-  staveMetrics,
-  type StaveMetrics,
-} from './stave';
+import { accidentalRoom, dotRoom, noteheadWidth } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
+import { measureStaveHeader, staveMetrics } from './stave';
+import { drawSystem, justifiedX } from './system';
 import { verdictColour, type StaveTheme } from './surface';
-
-/** Matches the play surface, so a bar line never sits astride its downbeat. */
-const BAR_LINE_SETBACK = 1.75;
 
 /**
  * Height of one system in stave spaces.
@@ -42,9 +31,6 @@ const BAR_LINE_SETBACK = 1.75;
  * and accidentals above, ledger lines and the fingering annotation below.
  */
 const SYSTEM_SPACES = 13;
-
-/** Where the annotation sits, in stave spaces below the bottom line. */
-const ANNOTATION_OFFSET = 4.6;
 
 export interface ReviewOptions {
   exercise: Exercise;
@@ -76,7 +62,7 @@ export function drawReview(canvas: HTMLCanvasElement, options: ReviewOptions): n
   ctx.fillRect(0, 0, width, height);
 
   for (let system = 0; system < layout.systems; system++) {
-    drawSystem(ctx, options, layout, system);
+    drawReviewSystem(ctx, options, layout, system);
   }
 
   return height;
@@ -85,6 +71,8 @@ export function drawReview(canvas: HTMLCanvasElement, options: ReviewOptions): n
 export interface ReviewLayout {
   staveSpace: number;
   headerWidth: number;
+  /** Room a line of music has, once the clef and key signature have had theirs. */
+  usableWidth: number;
   spacing: Spacing;
   /** First bar of each system. Systems hold different numbers of bars. */
   systemStarts: number[];
@@ -112,6 +100,17 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   const spacing = engraveSpacing(exercise, {
     minColumnWidth: head * NOTE_CLEARANCE,
     maxBarWidth: usable,
+    // Accidentals hang in front of their notes and dots behind them; without
+    // this a sharp lands on top of whatever precedes it.
+    extraWidthFor: (index) => {
+      const note = exercise.notes[index];
+      return {
+        before: note.showAccidental
+          ? accidentalRoom(metrics, spellInKey(note.writtenMidi, exercise.fifths))
+          : 0,
+        after: dotRoom(metrics, note.duration),
+      };
+    },
   });
 
   // Systems are filled greedily, as an engraver fills a line: take bars until
@@ -126,6 +125,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   return {
     staveSpace,
     headerWidth,
+    usableWidth: usable,
     spacing,
     systemStarts,
     systems: systemStarts.length,
@@ -133,7 +133,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   };
 }
 
-function drawSystem(
+function drawReviewSystem(
   ctx: CanvasRenderingContext2D,
   options: ReviewOptions,
   layout: ReviewLayout,
@@ -141,95 +141,39 @@ function drawSystem(
 ): void {
   const { exercise, verdicts, theme } = options;
   const { staveSpace, headerWidth, spacing, systemStarts } = layout;
+  const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
 
   // Three and a half spaces of clearance above the stave for ledger lines and
   // accidentals; the annotation gets what is left underneath.
   const topLineY = system * layout.systemHeight + staveSpace * 3.5;
-  const metrics = staveMetrics(exercise.clef, topLineY, staveSpace);
+  const lastBar = systemStarts[system + 1] ?? totalBars;
 
   const firstBar = systemStarts[system];
-  const nextBar = systemStarts[system + 1] ?? Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
-  const firstBeat = firstBar * exercise.beatsPerBar;
-  const lastBeat = Math.min(exercise.totalBeats, nextBar * exercise.beatsPerBar);
-  const originX = spacing.xOf(firstBeat);
-  const xForBeat = (beat: number) => headerWidth + spacing.xOf(beat) - originX;
+  const final = lastBar >= totalBars;
 
-  ctx.strokeStyle = theme.stave;
-  ctx.fillStyle = theme.stave;
-  drawStaveLines(ctx, metrics, 0, xForBeat(lastBeat) - BAR_LINE_SETBACK * staveSpace);
-
-  let x = staveSpace * 0.4;
-  x = drawClef(ctx, metrics, x);
-  x = drawKeySignature(ctx, metrics, x, exercise.fifths);
-  drawTimeSignature(ctx, metrics, x, exercise.beatsPerBar, exercise.beatUnit);
-
-  // Every bar line except the one at the head of the system, which the clef
-  // stands in for.
-  ctx.strokeStyle = theme.stave;
-  for (let beat = firstBeat + exercise.beatsPerBar; beat <= lastBeat; beat += exercise.beatsPerBar) {
-    drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);
-  }
-
-  for (const rest of exercise.rests) {
-    if (rest.startBeat < firstBeat || rest.startBeat >= lastBeat) continue;
-    drawRest(ctx, metrics, xForBeat(rest.startBeat), rest.duration, theme.stave);
-  }
-
-  const loose: LayoutNote[] = [];
-  const beamed = new Map<number, LayoutNote[]>();
-
-  exercise.notes.forEach((note, index) => {
-    if (note.startBeat < firstBeat || note.startBeat >= lastBeat) return;
-
-    const headWidth = noteheadWidth(metrics, note.duration);
-    const centre = xForBeat(note.startBeat);
-    const verdict = verdicts[index];
-    const item: LayoutNote = {
-      x: centre - headWidth / 2,
-      pitch: spellInKey(note.writtenMidi, exercise.fifths),
-      duration: note.duration,
-      showAccidental: note.showAccidental,
-      colour: verdictColour(verdict, theme),
-    };
-
-    if (note.beamGroup >= 0) {
-      const group = beamed.get(note.beamGroup) ?? [];
-      group.push(item);
-      beamed.set(note.beamGroup, group);
-    } else {
-      loose.push(item);
-    }
-
-    if (verdict !== undefined && verdict !== 'correct') {
-      annotate(ctx, metrics, centre, formatMask(note.primaryMask), verdictColour(verdict, theme));
-    }
+  drawSystem(ctx, {
+    exercise,
+    metrics: staveMetrics(exercise.clef, topLineY, staveSpace),
+    // Every line justified to the margin, bar the last — see `justifiedX`.
+    xForBeat: justifiedX(
+      spacing,
+      firstBar * exercise.beatsPerBar,
+      Math.min(exercise.totalBeats, lastBar * exercise.beatsPerBar),
+      headerWidth,
+      layout.usableWidth,
+      !final,
+    ),
+    firstBar,
+    lastBar,
+    theme,
+    colourFor: (index) => verdictColour(verdicts[index], theme),
+    // Only the mistakes. A fingering under every note would be a wall of digits
+    // to search rather than an answer to find.
+    annotationFor: (index) => {
+      const verdict = verdicts[index];
+      if (verdict === undefined || verdict === 'correct') return null;
+      return formatMask(exercise.notes[index].primaryMask);
+    },
+    final,
   });
-
-  for (const note of loose) drawNote(ctx, metrics, note);
-  for (const group of beamed.values()) drawBeamGroup(ctx, metrics, group);
-
-  // The end of the music, rather than the end of a system that happens to be full.
-  if (lastBeat >= exercise.totalBeats) {
-    ctx.strokeStyle = theme.stave;
-    const end = xForBeat(lastBeat) - BAR_LINE_SETBACK * staveSpace;
-    drawBarLine(ctx, metrics, end);
-    ctx.fillStyle = theme.stave;
-    ctx.fillRect(end + staveSpace * 0.35, metrics.topLineY, staveSpace * 0.35, staveSpace * 4);
-  }
-}
-
-function annotate(
-  ctx: CanvasRenderingContext2D,
-  metrics: StaveMetrics,
-  centreX: number,
-  text: string,
-  colour: string,
-): void {
-  ctx.save();
-  ctx.fillStyle = colour;
-  ctx.font = `600 ${Math.round(metrics.staveSpace * 1.25)}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(text, centreX, metrics.bottomLineY + metrics.staveSpace * ANNOTATION_OFFSET);
-  ctx.restore();
 }

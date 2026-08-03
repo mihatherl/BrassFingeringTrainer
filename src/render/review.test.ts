@@ -4,6 +4,7 @@ import { difficultyById } from '../exercise/difficulty';
 import { generateExercise } from '../exercise/generate';
 import type { Verdict } from '../engine/judge';
 import { drawReview, planReview } from './review';
+import { justifiedX } from './system';
 import { LIGHT_THEME } from './surface';
 
 /**
@@ -122,6 +123,37 @@ describe('planning the review', () => {
     }
 
     expect(Math.max(...widths)).toBeGreaterThan(Math.min(...widths) * 1.1);
+  });
+
+  it('justifies every line to the margin except the last', () => {
+    // Engraved music does not leave a quarter of a line blank because the next
+    // bar would not quite fit; the bars that did fit are stretched to fill it.
+    const exercise = build('easy', 16);
+    const plan = planReview(600, exercise);
+    const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+    expect(plan.systems).toBeGreaterThan(1);
+
+    plan.systemStarts.forEach((start, i) => {
+      const end = plan.systemStarts[i + 1] ?? totalBars;
+      const final = end >= totalBars;
+      const x = justifiedX(
+        plan.spacing,
+        start * exercise.beatsPerBar,
+        Math.min(exercise.totalBeats, end * exercise.beatsPerBar),
+        plan.headerWidth,
+        plan.usableWidth,
+        !final,
+      );
+      const used = x(Math.min(exercise.totalBeats, end * exercise.beatsPerBar)) - plan.headerWidth;
+
+      if (final) {
+        // Left ragged: stretching a couple of remaining bars across a full line
+        // would imply a breadth that is not there.
+        expect(used, `system ${i}`).toBeLessThanOrEqual(plan.usableWidth + 1e-6);
+      } else {
+        expect(used, `system ${i}`).toBeCloseTo(plan.usableWidth, 6);
+      }
+    });
   });
 
   it('never lets a bar overflow the line it is on', () => {

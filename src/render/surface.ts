@@ -33,8 +33,17 @@ import type { SpelledPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
 import type { Verdict } from '../engine/judge';
 import type { Exercise } from '../exercise/types';
-import { drawBeamGroup, drawNote, drawRest, noteheadWidth, type LayoutNote } from './notes';
+import {
+  accidentalRoom,
+  dotRoom,
+  drawBeamGroup,
+  drawNote,
+  drawRest,
+  noteheadWidth,
+  type LayoutNote,
+} from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
+import { drawSystem, justifiedX } from './system';
 import {
   drawBarLine,
   drawClef,
@@ -48,6 +57,14 @@ import {
 
 /** Floor on how little of the coming music may be visible, however narrow the screen. */
 const MIN_BEATS_VISIBLE = 3;
+
+/**
+ * Height of one system in stave spaces.
+ *
+ * Four for the stave itself; the rest is what hangs off it — ledger lines and
+ * accidentals above and below. Also what decides how many systems a page holds.
+ */
+const SYSTEM_SPACES = 11;
 
 /**
  * How close to the end of a page the playhead gets before the page turns.
@@ -205,8 +222,15 @@ export class StaveRenderer {
    * Null while scrolling, which is spaced by speed instead.
    */
   private spacing: Spacing | null = null;
+  /** Systems drawn one above another. One unless the page is tall enough. */
+  private systemsShown = 1;
+  private systemHeight = 0;
+  /** First bar of each system, when the page is stacked. */
+  private systemStarts: number[] = [];
   /** Paged mode only: the first bar currently on screen. */
   private pageStartBar = 0;
+  /** Stacked pages only: the line of music at the top of the screen. */
+  private topSystem = 0;
   /** Latest bar a page may begin on; settled by `layout`, not per frame. */
   private lastPageStartBar = 0;
   /**
@@ -252,25 +276,24 @@ export class StaveRenderer {
     staveSpace: number;
     beatsVisible: number;
     barsPerPage: number;
+    /** Lines of music one above another; one unless the page is tall enough. */
+    systemsShown: number;
     pageStartBar: number;
     /** Pixels into the music at the left edge — mid-slide this sits between pages. */
     shownOrigin: number;
     /** Where the current page begins, which is where a slide is heading. */
     pageOrigin: number;
   } {
-    const reading = this.width - this.strikeX;
     return {
       pixelsPerBeat: this.spacing?.averagePixelsPerBeat ?? this.pixelsPerBeat,
       strikeX: this.strikeX,
       staveSpace: this.metrics.staveSpace,
-      beatsVisible: this.spacing
-        ? this.spacing.beatAt(this.pageOrigin() + reading) -
-          this.spacing.beatAt(this.pageOrigin())
-        : reading / this.pixelsPerBeat,
+      beatsVisible: this.beatsVisible(),
       barsPerPage: this.barsPerPage(),
+      systemsShown: this.systemsShown,
       pageStartBar: this.pageStartBar,
       shownOrigin: this.shownOrigin,
-      pageOrigin: this.pageOrigin(),
+      pageOrigin: this.slideTargetNow(),
     };
   }
 
@@ -323,20 +346,39 @@ export class StaveRenderer {
   }
 
   private layout(): void {
-    // Scaled by width as well as height. Sizing on height alone leaves the clef,
-    // key and time signature eating most of a narrow screen, which is exactly
-    // the space the player needs for seeing what is coming.
-    //
-    // The height term and the ceiling are what a landscape screen runs into, and
-    // both are set generously: a wide screen was otherwise showing tiny notes
-    // and half a page of music nobody was going to read that far ahead. Since
-    // note spacing is a multiple of the stave size, enlarging the stave also
-    // brings the horizon in — one lever does both.
-    const staveSpace = Math.min(30, this.height / 11, this.width / 30);
+    const paged = this.options.readingMode === 'paged';
+
+    /*
+     * Stave size, and — when reading a page — how many staves.
+     *
+     * The width alone decides how large a stave can usefully be: sized on the
+     * height instead, the clef, key and time signature eat most of a narrow
+     * screen, which is exactly the space the player needs for seeing what is
+     * coming. The height then decides how many of those staves will fit.
+     *
+     * Scrolling reads one endless line, so it takes a single system and lets it
+     * grow into whatever height there is. Paged reading stacks them: a phone
+     * held upright has room for three lines of music above the buttons and was
+     * showing one, which is not reading a page so much as peering through a
+     * slot.
+     *
+     * Rounding rather than flooring is deliberate. A screen with room for one
+     * and three quarter systems is better spent on two slightly smaller ones
+     * than on one with a quarter of the height left blank.
+     */
+    const widthAllows = Math.min(30, this.width / 30);
+    this.systemsShown = paged
+      ? Math.max(1, Math.round(this.height / (SYSTEM_SPACES * widthAllows)))
+      : 1;
+    const staveSpace = Math.max(
+      6,
+      Math.min(widthAllows, this.height / (SYSTEM_SPACES * this.systemsShown)),
+    );
+    this.systemHeight = SYSTEM_SPACES * staveSpace;
     this.metrics = staveMetrics(
       this.options.exercise.clef,
-      this.height / 2 - 2 * Math.max(6, staveSpace),
-      Math.max(6, staveSpace),
+      this.height / 2 - 2 * staveSpace,
+      staveSpace,
     );
 
     const { exercise } = this.options;
@@ -347,8 +389,6 @@ export class StaveRenderer {
     // Sit the strike line just past the header rather than a further slice of
     // the width; everything to its right is reading time.
     this.strikeX = this.headerWidth + this.metrics.staveSpace * 1.5;
-
-    const paged = this.options.readingMode === 'paged';
 
     // The least room the shortest note in this exercise can be given without
     // colliding with its neighbour. The floor under both modes.
@@ -369,10 +409,12 @@ export class StaveRenderer {
     if (paged) {
       this.spacing = engraveSpacing(exercise, {
         minColumnWidth: head * NOTE_CLEARANCE,
-        // A page is measured in bars, so at least one whole bar has to fit.
-        maxBarWidth: this.width - this.strikeX - this.metrics.staveSpace,
+        // A line is measured in bars, so at least one whole bar has to fit.
+        maxBarWidth: this.usableWidth(),
+        extraWidthFor: (index) => this.extraWidthFor(index),
       });
       this.pixelsPerBeat = this.spacing.averagePixelsPerBeat;
+      this.systemStarts = this.planSystems();
       this.lastPageStartBar = this.findLastPageStart();
       return;
     }
@@ -391,9 +433,61 @@ export class StaveRenderer {
     this.lastPageStartBar = this.findLastPageStart();
   }
 
-  /** Whole bars that fit to the right of the header, from the current page. */
+  /**
+   * Room a note needs beyond its notehead: an accidental in front, a dot behind.
+   *
+   * Both are drawn relative to the notehead but neither is part of it, so the
+   * spacing has to be told — otherwise a sharp is laid straight over whatever
+   * precedes it.
+   */
+  private extraWidthFor(index: number): { before: number; after: number } {
+    const note = this.options.exercise.notes[index];
+    return {
+      before: note.showAccidental ? accidentalRoom(this.metrics, this.spellings[index]) : 0,
+      after: dotRoom(this.metrics, note.duration),
+    };
+  }
+
+  /**
+   * Room a line of music has, once the clef and key signature have had theirs.
+   *
+   * A stacked page has no strike line, so its music begins directly after the
+   * header rather than after the line as well.
+   */
+  private usableWidth(): number {
+    const from = this.stacked() ? this.headerWidth : this.strikeX;
+    return this.width - from - this.metrics.staveSpace;
+  }
+
+  /** Whether the page is tall enough to hold more than one line of music. */
+  private stacked(): boolean {
+    return this.options.readingMode === 'paged' && this.systemsShown > 1;
+  }
+
+  /** Where each line of music begins, filled greedily as an engraver fills a page. */
+  private planSystems(): number[] {
+    const { beatsPerBar, totalBeats } = this.options.exercise;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const usable = this.usableWidth();
+    const starts: number[] = [];
+    for (let bar = 0; bar < totalBars; bar += this.barsFrom(bar, usable)) starts.push(bar);
+    return starts;
+  }
+
+  private systemContaining(bar: number): number {
+    let index = 0;
+    while (index + 1 < this.systemStarts.length && this.systemStarts[index + 1] <= bar) index++;
+    return index;
+  }
+
+  /** Whole bars on screen: one line's worth, or the whole stack's. */
   private barsPerPage(): number {
-    return this.barsFrom(this.pageStartBar, this.width - this.strikeX - this.metrics.staveSpace);
+    if (!this.stacked()) return this.barsFrom(this.pageStartBar, this.usableWidth());
+
+    const { beatsPerBar, totalBeats } = this.options.exercise;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const below = this.topSystem + this.systemsShown;
+    return (this.systemStarts[below] ?? totalBars) - this.systemStarts[this.topSystem];
   }
 
   /** Distance into the music at the left edge, in pixels. */
@@ -401,9 +495,30 @@ export class StaveRenderer {
     return this.spacing ? this.spacing.xOf(beat) : beat * this.pixelsPerBeat;
   }
 
-  /** Where the current page begins, ignoring any slide in progress. */
+  /** Where the current page begins horizontally, ignoring any slide. */
   private pageOrigin(): number {
     return this.xAt(this.pageStartBar * this.options.exercise.beatsPerBar);
+  }
+
+  /**
+   * Where a slide is heading.
+   *
+   * A stack moves vertically and a single line moves horizontally, so this is a
+   * distance down the stack in the first case and along the music in the second.
+   * One animated quantity either way, which is why they share the easing.
+   */
+  private slideTargetNow(): number {
+    return this.stacked() ? this.topSystem * this.systemHeight : this.pageOrigin();
+  }
+
+  /** How much music is on screen, for tests and for debugging layout. */
+  private beatsVisible(): number {
+    const { beatsPerBar } = this.options.exercise;
+    if (this.stacked()) return this.barsPerPage() * beatsPerBar;
+    if (!this.spacing) return (this.width - this.strikeX) / this.pixelsPerBeat;
+
+    const from = this.pageOrigin();
+    return this.spacing.beatAt(from + this.width - this.strikeX) - this.spacing.beatAt(from);
   }
 
   /**
@@ -513,14 +628,31 @@ export class StaveRenderer {
   /** Renders a single frame; also used to show a static preview before starting. */
   draw(): void {
     const { ctx } = this;
-    const { theme, exercise, transport } = this.options;
+    const { theme, transport } = this.options;
     // Interpolated rather than raw, so scrolling is smooth between audio ticks.
     const beat = transport.visualBeat();
-    const origin = this.originX(beat);
 
     ctx.fillStyle = theme.background;
     ctx.fillRect(0, 0, this.width, this.height);
 
+    if (this.stacked()) this.drawStack(beat);
+    else this.drawSingleLine(beat);
+
+    if (beat < 0) this.drawCountIn(beat);
+  }
+
+  /**
+   * One endless line of music, moving under a fixed origin.
+   *
+   * Used for scrolling, and for a page too short to hold two staves. A short
+   * page cannot advance a whole line at a time — there would be nothing left on
+   * screen to read — so it re-lays the music from the bar being played instead,
+   * which keeps that bar in view across the turn.
+   */
+  private drawSingleLine(beat: number): void {
+    const { ctx } = this;
+    const { theme, exercise } = this.options;
+    const origin = this.originX(beat);
     const xForBeat = (b: number) => this.strikeX + this.xAt(b) - origin;
 
     // Scrolling content is clipped so it slides under the fixed header rather
@@ -558,7 +690,74 @@ export class StaveRenderer {
     // would give away the very thing the player is meant to be working out.
     if (this.options.readingMode === 'scrolling') this.drawStrikeLine();
     this.drawHeader();
-    if (beat < 0) this.drawCountIn(beat);
+  }
+
+  /**
+   * Several lines of music, one above another, scrolling a line at a time.
+   *
+   * Reaching the bottom line moves it to the top and brings a fresh one in
+   * underneath, so there is always a whole line of music in hand — the reader
+   * is never left finishing a line with nothing beyond it. That is the point of
+   * the stack, more than the extra bars: it is how a player uses the bottom of
+   * a page while their eye is already on the next one.
+   */
+  private drawStack(beat: number): void {
+    const { ctx } = this;
+    const { theme, exercise } = this.options;
+    const spacing = this.spacing;
+    if (!spacing) return;
+    const { beatsPerBar, totalBeats } = exercise;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+
+    const current = this.systemContaining(Math.max(0, Math.floor(beat / beatsPerBar)));
+    if (current < this.topSystem || current >= this.topSystem + this.systemsShown - 1) {
+      this.topSystem = current;
+    }
+    // Never so far down that the stack runs out from under the last line.
+    this.topSystem = Math.min(
+      this.topSystem,
+      Math.max(0, this.systemStarts.length - this.systemsShown),
+    );
+    this.pageStartBar = this.systemStarts[this.topSystem];
+
+    const shown = this.slideTowards(this.topSystem * this.systemHeight);
+    const stackHeight =
+      Math.min(this.systemsShown, this.systemStarts.length) * this.systemHeight;
+    const padTop = Math.max(0, (this.height - stackHeight) / 2);
+
+    this.systemStarts.forEach((firstBar, index) => {
+      const top = padTop + index * this.systemHeight - shown;
+      if (top + this.systemHeight < 0 || top > this.height) return;
+
+      const lastBar = this.systemStarts[index + 1] ?? totalBars;
+      // Three and a half spaces of clearance above the stave for ledger lines
+      // and accidentals, and as much again beneath.
+      const metrics = staveMetrics(
+        exercise.clef,
+        top + this.metrics.staveSpace * 3.5,
+        this.metrics.staveSpace,
+      );
+
+      const final = lastBar >= totalBars;
+      drawSystem(ctx, {
+        exercise,
+        metrics,
+        // Every line justified to the margin, bar the last — see `justifiedX`.
+        xForBeat: justifiedX(
+          spacing,
+          firstBar * beatsPerBar,
+          Math.min(totalBeats, lastBar * beatsPerBar),
+          this.headerWidth,
+          this.usableWidth(),
+          !final,
+        ),
+        firstBar,
+        lastBar,
+        theme,
+        colourFor: (note) => verdictColour(this.options.verdictFor(note), theme),
+        final,
+      });
+    });
   }
 
   private drawNotes(xForBeat: (beat: number) => number): void {
