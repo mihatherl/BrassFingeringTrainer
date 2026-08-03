@@ -10,7 +10,7 @@ import { toleranceFor } from '../engine/judge';
 import type { ExerciseKind } from '../exercise/types';
 import {
   BARS_OPTIONS,
-  NOTE_SPACING_RANGE,
+  SCROLL_SPEED_RANGE,
   PLAYBACK_MODES,
   READING_MODES,
   TEMPO_RANGE,
@@ -313,19 +313,20 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
 
         <label className="field">
           <span className="field__label">
-            Note spacing <strong>{settings.noteSpacing}</strong>
+            Scroll speed <strong>{settings.scrollSpeed}</strong>
           </span>
           <input
             type="range"
-            min={NOTE_SPACING_RANGE.min}
-            max={NOTE_SPACING_RANGE.max}
-            step={1}
-            value={settings.noteSpacing}
-            onChange={(event) => update('noteSpacing', Number(event.target.value))}
+            min={SCROLL_SPEED_RANGE.min}
+            max={SCROLL_SPEED_RANGE.max}
+            step={10}
+            value={settings.scrollSpeed}
+            onChange={(event) => update('scrollSpeed', Number(event.target.value))}
           />
           <p className="field__note muted">
-            How much room each beat gets. Tighter fits more music on screen; wider is easier to
-            read during fast runs. A larger screen shows more bars rather than spreading these out.
+            How fast the music travels across the screen. The same on every device and at every
+            tempo — a bigger screen shows more bars rather than moving faster. Dense runs of short
+            notes may still go past quicker, so they stay far enough apart to read.
           </p>
         </label>
 

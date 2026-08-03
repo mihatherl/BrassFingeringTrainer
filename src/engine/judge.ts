@@ -108,6 +108,14 @@ export interface SessionSummary {
   /** Accuracy per written pitch, feeding weak-note drilling. */
   byNote: Map<number, { attempts: number; correct: number }>;
   longestStreak: number;
+  /**
+   * Every verdict, in the order the notes were played.
+   *
+   * Carried through rather than summarised away so the results screen can put
+   * the exercise back on a stave with each note in its own colour — the totals
+   * say how it went, but only the notation says *where*.
+   */
+  judgements: NoteJudgement[];
 }
 
 export function summarise(notes: NoteEvent[], judgements: NoteJudgement[]): SessionSummary {
@@ -153,5 +161,6 @@ export function summarise(notes: NoteEvent[], judgements: NoteJudgement[]): Sess
     averageOffset: offsetCount === 0 ? 0 : offsetTotal / offsetCount,
     byNote,
     longestStreak,
+    judgements,
   };
 }

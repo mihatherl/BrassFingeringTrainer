@@ -28,7 +28,7 @@ function mockContext(calls: RecordedCall[]): CanvasRenderingContext2D {
       calls.push({ method, args });
     };
 
-  return {
+  const context: Record<string, unknown> = {
     fillRect: record('fillRect'),
     fillText: record('fillText'),
     beginPath: record('beginPath'),
@@ -43,13 +43,31 @@ function mockContext(calls: RecordedCall[]): CanvasRenderingContext2D {
     rect: record('rect'),
     clip: record('clip'),
     setTransform: record('setTransform'),
+  };
+
+  // Drawing state is set by assignment rather than by calling anything, so the
+  // colours a frame actually used are only visible if the properties record too.
+  const state: Record<string, unknown> = {
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 1,
+    globalAlpha: 1,
     font: '',
     textAlign: 'left',
     textBaseline: 'alphabetic',
-  } as unknown as CanvasRenderingContext2D;
+  };
+  for (const [name, initial] of Object.entries(state)) {
+    let value = initial;
+    Object.defineProperty(context, name, {
+      get: () => value,
+      set: (next: unknown) => {
+        value = next;
+        calls.push({ method: `${name}=`, args: [next] });
+      },
+    });
+  }
+
+  return context as unknown as CanvasRenderingContext2D;
 }
 
 function mockCanvas(calls: RecordedCall[], width = 900, height = 320): HTMLCanvasElement {
@@ -106,7 +124,7 @@ describe('scrolling renderer', () => {
       exercise,
       transport,
       theme: LIGHT_THEME,
-      noteSpacing: 7,
+      scrollSpeed: 110,
       readingMode: 'scrolling',
       verdictFor: () => undefined,
     });
@@ -135,7 +153,7 @@ describe('scrolling renderer', () => {
             exercise,
             transport: new Transport(fakeAudioContext(beat * secondsPerBeat), 140),
             theme: fifths % 2 === 0 ? DARK_THEME : LIGHT_THEME,
-            noteSpacing: 7,
+            scrollSpeed: 110,
             readingMode: 'scrolling',
             // Cycle the verdicts so every feedback colour is exercised.
             verdictFor: (index) => (['correct', 'wrong', 'missed', undefined] as const)[index % 4],
@@ -147,13 +165,25 @@ describe('scrolling renderer', () => {
     }
   });
 
-  function rendererFor(width: number, height: number, noteSpacing = 7) {
+  function rendererFor(width: number, height: number, scrollSpeed = 110) {
     return new StaveRenderer({
       canvas: mockCanvas([], width, height),
-      exercise: build('random', 'treble', -3, 12),
+      // Crotchets and minims: sparse enough that the legibility floor never
+      // binds, so these tests measure the speed rule and nothing else.
+      exercise: generateExercise({
+        instrument: instrumentById('eb-bass'),
+        clef: 'treble',
+        fifths: -3,
+        difficulty: difficultyById('beginner'),
+        kind: 'random',
+        bars: 8,
+        beatsPerBar: 4,
+        beatUnit: 4,
+        seed: 12,
+      }),
       transport: new Transport(fakeAudioContext(0), 100),
       theme: LIGHT_THEME,
-      noteSpacing,
+      scrollSpeed,
       readingMode: 'scrolling',
       verdictFor: () => undefined,
     });
@@ -190,13 +220,63 @@ describe('scrolling renderer', () => {
     expect(beatsPerStaveSpace(landscape) / beatsPerStaveSpace(portrait)).toBeLessThan(1.6);
   });
 
-  it('honours the requested spacing exactly when there is room', () => {
-    // Wide enough that even the loosest spacing still leaves the minimum
-    // lookahead, so nothing is being clamped.
-    for (const spacing of [5, 7, 10, 14]) {
-      const { pixelsPerBeat, staveSpace } = rendererFor(1800, 220, spacing).scale;
-      expect(pixelsPerBeat / staveSpace).toBeCloseTo(spacing, 6);
+  it('travels at exactly the speed asked for', () => {
+    // Wide enough that the minimum lookahead never binds, and sparse enough
+    // material that the legibility floor does not either.
+    const secondsPerBeat = 60 / 100;
+    for (const speed of [60, 110, 160, 200]) {
+      const { pixelsPerBeat } = rendererFor(1800, 220, speed).scale;
+      expect(pixelsPerBeat / secondsPerBeat).toBeCloseTo(speed, 6);
     }
+  });
+
+  it('travels at the same speed whatever the screen', () => {
+    // The complaint this replaces: a bigger stave meant a bigger distance per
+    // beat, so fixing legibility on a wide screen made the music fly past.
+    const secondsPerBeat = 60 / 100;
+    const speedOf = (w: number, h: number) => rendererFor(w, h).scale.pixelsPerBeat / secondsPerBeat;
+
+    const landscape = speedOf(780, 260);
+    const tablet = speedOf(1180, 500);
+    const desktop = speedOf(1800, 220);
+
+    for (const speed of [landscape, tablet, desktop]) {
+      expect(speed).toBeLessThanOrEqual(110 + 1);
+    }
+    // And the wider screens hit it exactly rather than being clamped down.
+    expect(tablet).toBeCloseTo(110, 5);
+    expect(desktop).toBeCloseTo(110, 5);
+  });
+
+  it('keeps short notes apart even where that outruns the chosen speed', () => {
+    // Semiquavers at a slow speed would otherwise overlap. Unreadable and slow
+    // is no improvement on unreadable and quick.
+    const dense = generateExercise({
+      instrument: instrumentById('eb-bass'),
+      clef: 'treble',
+      fifths: -3,
+      difficulty: difficultyById('expert'),
+      kind: 'random',
+      bars: 8,
+      beatsPerBar: 4,
+      beatUnit: 4,
+      seed: 5,
+    });
+
+    const renderer = new StaveRenderer({
+      canvas: mockCanvas([], 1800, 220),
+      exercise: dense,
+      transport: new Transport(fakeAudioContext(0), 100),
+      theme: LIGHT_THEME,
+      scrollSpeed: 50,
+      readingMode: 'scrolling',
+      verdictFor: () => undefined,
+    });
+
+    const { pixelsPerBeat, staveSpace } = renderer.scale;
+    const shortest = 0.25; // expert material runs to semiquavers
+    const noteheadWidth = 1.18 * staveSpace;
+    expect(pixelsPerBeat * shortest).toBeGreaterThan(noteheadWidth);
   });
 
   it('draws notes larger in landscape than it used to', () => {
@@ -224,7 +304,7 @@ describe('scrolling renderer', () => {
       exercise,
       transport: new Transport(fakeAudioContext(0), 100),
       theme: LIGHT_THEME,
-      noteSpacing: 7,
+      scrollSpeed: 110,
       readingMode: 'scrolling',
       verdictFor: () => undefined,
     });
@@ -262,9 +342,9 @@ describe('scrolling renderer', () => {
     }
   });
 
-  it('shows more music at tighter spacing on the same screen', () => {
-    expect(rendererFor(1400, 320, 5).scale.beatsVisible).toBeGreaterThan(
-      rendererFor(1400, 320, 12).scale.beatsVisible,
+  it('shows more music at a slower speed on the same screen', () => {
+    expect(rendererFor(1400, 320, 60).scale.beatsVisible).toBeGreaterThan(
+      rendererFor(1400, 320, 200).scale.beatsVisible,
     );
   });
 
@@ -278,7 +358,7 @@ describe('scrolling renderer', () => {
         exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
-        noteSpacing: 7,
+        scrollSpeed: 110,
         readingMode,
         verdictFor: () => undefined,
       }).draw();
@@ -289,44 +369,6 @@ describe('scrolling renderer', () => {
 
     expect(strikeGlows('scrolling')).toBeGreaterThan(0);
     expect(strikeGlows('paged')).toBe(0);
-  });
-
-  it('holds the page still, then turns it', () => {
-    const exercise = build('random', 'treble', -3, 21);
-    const secondsPerBeat = 60 / 100;
-
-    const renderer = new StaveRenderer({
-      canvas: mockCanvas([], 1400, 320),
-      exercise,
-      transport: new Transport(fakeAudioContext(0), 100),
-      theme: LIGHT_THEME,
-      noteSpacing: 5,
-      readingMode: 'paged',
-      verdictFor: () => undefined,
-    });
-
-    const { barsPerPage } = renderer.scale;
-    expect(barsPerPage).toBeGreaterThan(1);
-
-    // Drive the same renderer forward so the page state carries across frames,
-    // which is what makes a turn a turn rather than a scroll.
-    const starts: number[] = [];
-    for (let beat = 0; beat < exercise.totalBeats; beat += 0.25) {
-      (renderer as unknown as { options: { transport: Transport } }).options.transport =
-        new Transport(fakeAudioContext(beat * secondsPerBeat), 100);
-      renderer.draw();
-      starts.push(renderer.scale.pageStartBar);
-    }
-
-    // It must sit still for long stretches rather than creeping every frame.
-    const distinct = [...new Set(starts)];
-    expect(distinct.length).toBeGreaterThan(1); // it does turn
-    expect(distinct.length).toBeLessThan(starts.length / 8); // but rarely
-
-    // Never backwards, and never past the music.
-    for (let i = 1; i < starts.length; i++) expect(starts[i]).toBeGreaterThanOrEqual(starts[i - 1]);
-    const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
-    expect(Math.max(...starts)).toBeLessThanOrEqual(totalBars - barsPerPage);
   });
 
   it('keeps the bar being played on screen at all times', () => {
@@ -340,7 +382,7 @@ describe('scrolling renderer', () => {
       exercise,
       transport: new Transport(fakeAudioContext(0), 100),
       theme: LIGHT_THEME,
-      noteSpacing: 7,
+      scrollSpeed: 110,
       readingMode: 'paged',
       verdictFor: () => undefined,
     });
@@ -369,13 +411,110 @@ describe('scrolling renderer', () => {
         exercise: build('random', 'treble', -3, 7),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
-        noteSpacing: 14, // widest spacing, the hardest case
+        scrollSpeed: 220, // fastest, which leaves the least room for a bar
         readingMode: 'paged',
         verdictFor: () => undefined,
       });
       expect(renderer.scale.barsPerPage, `${width}x${height}`).toBeGreaterThanOrEqual(1);
       expect(renderer.scale.beatsVisible).toBeGreaterThanOrEqual(4);
     }
+  });
+
+  describe('showing a verdict', () => {
+    /*
+     * A note is judged at its onset plus the timing tolerance, by which point
+     * it has already crossed the strike line and been clipped away under the
+     * header — so the colour on the notehead is never seen in this mode. The
+     * line has to say it instead.
+     */
+    let realNow: () => number;
+    let wall = 0;
+
+    beforeEach(() => {
+      realNow = performance.now;
+      wall = 0;
+      performance.now = () => wall;
+    });
+
+    afterEach(() => {
+      performance.now = realNow;
+    });
+
+    function scrollingRenderer(calls: RecordedCall[] = []) {
+      return new StaveRenderer({
+        canvas: mockCanvas(calls, 900, 320),
+        exercise: build('random', 'treble', -3, 5),
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'scrolling',
+        verdictFor: () => undefined,
+      });
+    }
+
+    it('fades out and then stops', () => {
+      const renderer = scrollingRenderer();
+      expect(renderer.verdictFlash).toBeNull();
+
+      renderer.flashVerdict('wrong');
+      expect(renderer.verdictFlash?.strength).toBe(1);
+
+      wall = 160;
+      const half = renderer.verdictFlash;
+      expect(half?.verdict).toBe('wrong');
+      expect(half!.strength).toBeGreaterThan(0);
+      expect(half!.strength).toBeLessThan(1);
+
+      // Well before the next note at any playable tempo.
+      wall = 400;
+      expect(renderer.verdictFlash).toBeNull();
+    });
+
+    it('paints the line in the verdict colour while it lasts', () => {
+      const calls: RecordedCall[] = [];
+      const renderer = scrollingRenderer(calls);
+
+      renderer.draw();
+      expect(calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.wrong)).toBe(
+        false,
+      );
+
+      calls.length = 0;
+      renderer.flashVerdict('wrong');
+      renderer.draw();
+      expect(calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.wrong)).toBe(
+        true,
+      );
+
+      // And back to normal once it has run its course.
+      wall = 400;
+      calls.length = 0;
+      renderer.draw();
+      expect(
+        calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.strikeLine),
+      ).toBe(true);
+    });
+
+    it('says nothing in paged mode, where the notes themselves stay put', () => {
+      // There is no strike line to flash, and none is wanted: a marker showing
+      // where the beat has got to would give away what the player is counting.
+      const calls: RecordedCall[] = [];
+      const renderer = new StaveRenderer({
+        canvas: mockCanvas(calls, 900, 320),
+        exercise: build('random', 'treble', -3, 5),
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'paged',
+        verdictFor: () => undefined,
+      });
+
+      renderer.flashVerdict('wrong');
+      renderer.draw();
+      expect(calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.wrong)).toBe(
+        false,
+      );
+    });
   });
 
   describe('turning the page', () => {
@@ -386,7 +525,7 @@ describe('scrolling renderer', () => {
      * at the last one" to mean anything, and the music has to outlast several
      * pages or the paging clamps against the end instead of turning.
      */
-    function pagedRenderer(width = 1800, height = 220, noteSpacing = 4) {
+    function pagedRenderer(width = 1800, height = 220, scrollSpeed = 110, tempo = 100) {
       const exercise = generateExercise({
         instrument: instrumentById('eb-bass'),
         clef: 'treble',
@@ -401,16 +540,16 @@ describe('scrolling renderer', () => {
       const renderer = new StaveRenderer({
         canvas: mockCanvas([], width, height),
         exercise,
-        transport: new Transport(fakeAudioContext(0), 100),
+        transport: new Transport(fakeAudioContext(0), tempo),
         theme: LIGHT_THEME,
-        noteSpacing,
+        scrollSpeed,
         readingMode: 'paged',
         verdictFor: () => undefined,
       });
-      const secondsPerBeat = 60 / 100;
+      const secondsPerBeat = 60 / tempo;
       const drawAtBeat = (beat: number) => {
         (renderer as unknown as { options: { transport: Transport } }).options.transport =
-          new Transport(fakeAudioContext(beat * secondsPerBeat), 100);
+          new Transport(fakeAudioContext(beat * secondsPerBeat), tempo);
         renderer.draw();
       };
       return { renderer, exercise, drawAtBeat };
@@ -427,6 +566,24 @@ describe('scrolling renderer', () => {
 
     afterEach(() => {
       performance.now = realNow;
+    });
+
+    it('spaces the page by legibility alone, not by tempo or scroll speed', () => {
+      // Nothing on a page moves, so neither has any bearing on how it is set.
+      // Tying them together made the page emptier the slower the exercise ran,
+      // which then turned every bar or two however much screen there was.
+      const layouts = [
+        pagedRenderer(1800, 220, 60),
+        pagedRenderer(1800, 220, 220),
+      ].map(({ renderer }) => renderer.scale);
+
+      expect(layouts[0].pixelsPerBeat).toBe(layouts[1].pixelsPerBeat);
+      expect(layouts[0].barsPerPage).toBe(layouts[1].barsPerPage);
+
+      // The same page whether the exercise runs at 60 or at 160.
+      const slow = pagedRenderer(1800, 220, 110, 60).renderer.scale;
+      const fast = pagedRenderer(1800, 220, 110, 160).renderer.scale;
+      expect(slow.pixelsPerBeat).toBe(fast.pixelsPerBeat);
     });
 
     it('waits until the last visible bar before turning', () => {
@@ -472,10 +629,7 @@ describe('scrolling renderer', () => {
       for (let i = 1; i < positions.length; i++) {
         expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1]);
       }
-      expect(positions[positions.length - 1]).toBeCloseTo(
-        renderer.scale.pageStartBar * beatsPerBar,
-        6,
-      );
+      expect(positions[positions.length - 1]).toBeCloseTo(renderer.scale.pageOrigin, 6);
     });
 
     it('eases in and out rather than moving at a constant rate', () => {
@@ -486,7 +640,7 @@ describe('scrolling renderer', () => {
       drawAtBeat(0);
       const from = renderer.scale.shownOrigin;
       drawAtBeat(turnBeat);
-      const to = renderer.scale.pageStartBar * exercise.beatsPerBar;
+      const to = renderer.scale.pageOrigin;
 
       const at = (ms: number) => {
         wall = ms;
@@ -501,6 +655,36 @@ describe('scrolling renderer', () => {
       // Halfway through time is halfway through the distance.
       expect(at(0.5 * 550)).toBeCloseTo(0.5, 2);
     });
+
+    it('sits still for long stretches rather than creeping', () => {
+      // The distinction between turning a page and scrolling one.
+      const { renderer, exercise, drawAtBeat } = pagedRenderer();
+      const starts: number[] = [];
+
+      for (let beat = 0; beat < exercise.totalBeats; beat += 0.25) {
+        wall += 600; // let each slide finish, so only real turns are counted
+        drawAtBeat(beat);
+        starts.push(renderer.scale.pageStartBar);
+      }
+
+      const distinct = [...new Set(starts)];
+      expect(distinct.length).toBeGreaterThan(1); // it does turn
+      expect(distinct.length).toBeLessThan(starts.length / 8); // but rarely
+
+      // Never backwards, and never past the end of the music.
+      for (let i = 1; i < starts.length; i++) {
+        expect(starts[i]).toBeGreaterThanOrEqual(starts[i - 1]);
+      }
+      // Whatever the last page starts on, the final bar is on it. Pages hold
+      // different numbers of bars now, so "total less a page" is no longer a
+      // number that means anything.
+      const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+      wall += 600;
+      drawAtBeat(exercise.totalBeats - 0.25);
+      const lastPage = renderer.scale;
+      expect(lastPage.pageStartBar + lastPage.barsPerPage).toBeGreaterThanOrEqual(totalBars);
+    });
+
 
     it('never jumps when one turn follows hard on another', () => {
       // A second turn arriving mid-slide must continue from where the first got
@@ -536,7 +720,7 @@ describe('scrolling renderer', () => {
         exercise,
         transport: new Transport(fakeAudioContext(beat * secondsPerBeat), 120),
         theme: LIGHT_THEME,
-        noteSpacing: 7,
+        scrollSpeed: 110,
         readingMode: 'scrolling',
         verdictFor: () => undefined,
       }).draw();

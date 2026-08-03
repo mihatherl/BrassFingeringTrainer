@@ -230,4 +230,16 @@ describe('summarising a run', () => {
     expect(summary.byNote.get(60)).toEqual({ attempts: 3, correct: 3 });
     expect(summary.byNote.get(62)).toEqual({ attempts: 1, correct: 0 });
   });
+
+  it('keeps the individual verdicts, not only the totals', () => {
+    // The results screen puts the exercise back on a stave with each note in
+    // its own colour. Totals cannot say which note went wrong.
+    const notes = [noteExpecting([0]), noteExpecting([0])];
+    const judgements = [
+      { noteIndex: 0, verdict: 'correct' as const, heldMask: 0, timingOffset: 0 },
+      { noteIndex: 1, verdict: 'missed' as const, heldMask: 0, timingOffset: null },
+    ];
+
+    expect(summarise(notes, judgements).judgements).toEqual(judgements);
+  });
 });

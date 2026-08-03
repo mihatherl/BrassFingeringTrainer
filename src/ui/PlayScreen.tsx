@@ -1,20 +1,26 @@
 /**
- * The play surface: scrolling notation above, valve buttons below.
+ * The play surface: notation, the last few notes played, and the valve buttons.
  *
  * React mounts the canvas and then stays out of the way — the renderer and the
  * session own the animation and audio loops directly. Nothing in the hot path
  * goes through React state, so a re-render can never cost a frame of timing.
+ * The score and the recent-notes list do re-render, but only once a note has
+ * been judged, which is well after anything about it was time-critical.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
+import { formatMask } from '../domain/fingering';
 import { instrumentById } from '../domain/instruments';
+import { spellInKey } from '../domain/keys';
+import { formatPitch } from '../domain/pitch';
 import { Session } from '../engine/session';
 import type { NoteJudgement, SessionSummary, Verdict } from '../engine/judge';
-import { DARK_THEME, LIGHT_THEME, StaveRenderer } from '../render/surface';
+import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
+import { RecentNotes, type RecentNote } from './RecentNotes';
 import { ValvePad } from './ValvePad';
 
 interface PlayScreenProps {
@@ -24,13 +30,33 @@ interface PlayScreenProps {
   onExit: () => void;
 }
 
-function prefersDark(): boolean {
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+/**
+ * How many played notes stay on screen.
+ *
+ * Enough to cover a phrase's worth of glancing back, few enough to take in at
+ * once — and few enough to sit beside the valve pad on a phone held sideways,
+ * which is the tightest space it has to fit.
+ */
+const RECENT_NOTES = 5;
+
+/** Turns a judgement into something readable at a glance. */
+function describeNote(exercise: Exercise, judgement: NoteJudgement): RecentNote {
+  const note = exercise.notes[judgement.noteIndex];
+  return {
+    id: judgement.noteIndex,
+    name: formatPitch(spellInKey(note.writtenMidi, exercise.fifths)),
+    verdict: judgement.verdict,
+    // A missed note means nothing was held. Saying "open" would credit the
+    // player with a fingering they never chose.
+    held: judgement.verdict === 'missed' ? null : formatMask(judgement.heldMask),
+    expected: formatMask(note.primaryMask),
+  };
 }
 
 export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef<Session | null>(null);
+  const rendererRef = useRef<StaveRenderer | null>(null);
   const verdictsRef = useRef<Array<Verdict | undefined>>([]);
 
   const [started, setStarted] = useState(false);
@@ -38,6 +64,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   const [stalled, setStalled] = useState(false);
   const [mask, setMask] = useState(0);
   const [progress, setProgress] = useState({ done: 0, correct: 0 });
+  const [recent, setRecent] = useState<RecentNote[]>([]);
   // Held across the gate so the session can be handed the loaded voice.
   const voiceRef = useRef<Voice | undefined>(undefined);
 
@@ -51,6 +78,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     if (!canvas) return;
 
     verdictsRef.current = new Array(exercise.notes.length).fill(undefined);
+    setRecent([]);
 
     // The very same context `unlockAudio` resumed — a second one would stay
     // suspended and the exercise would run in silence.
@@ -66,10 +94,14 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       timingTolerance: settings.timingTolerance,
       onJudgement: (judgement: NoteJudgement) => {
         verdictsRef.current[judgement.noteIndex] = judgement.verdict;
+        // The note itself is already past the line and clipped by the time this
+        // arrives, so the verdict has to be shown somewhere that stays put.
+        rendererRef.current?.flashVerdict(judgement.verdict);
         setProgress((current) => ({
           done: current.done + 1,
           correct: current.correct + (judgement.verdict === 'correct' ? 1 : 0),
         }));
+        setRecent((current) => [describeNote(exercise, judgement), ...current].slice(0, RECENT_NOTES));
       },
       onFinish: (summary) => finishRef.current(summary),
     });
@@ -79,11 +111,12 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       canvas,
       exercise,
       transport: session.transport,
-      theme: prefersDark() ? DARK_THEME : LIGHT_THEME,
-      noteSpacing: settings.noteSpacing,
+      theme: currentTheme(),
+      scrollSpeed: settings.scrollSpeed,
       readingMode: settings.readingMode,
       verdictFor: (index) => verdictsRef.current[index],
     });
+    rendererRef.current = renderer;
 
     const unsubscribe = session.input.subscribe(setMask);
     const detachKeyboard = session.input.attachKeyboard();
@@ -92,7 +125,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     resizeObserver.observe(canvas);
 
     const colourScheme = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const onSchemeChange = () => renderer.setTheme(prefersDark() ? DARK_THEME : LIGHT_THEME);
+    const onSchemeChange = () => renderer.setTheme(currentTheme());
     colourScheme?.addEventListener('change', onSchemeChange);
 
     renderer.start();
@@ -130,6 +163,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       colourScheme?.removeEventListener('change', onSchemeChange);
       wakeLock?.release().catch(() => undefined);
       sessionRef.current = null;
+      rendererRef.current = null;
     };
   }, [started, exercise, settings]);
 
@@ -241,7 +275,13 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         </div>
       </div>
 
-      <canvas ref={canvasRef} className="stave-canvas" />
+      <RecentNotes notes={recent} />
+
+      {/* The canvas is positioned inside a frame rather than being the grid
+          item itself; see `.stave-frame`. */}
+      <div className="stave-frame">
+        <canvas ref={canvasRef} className="stave-canvas" />
+      </div>
 
       <ValvePad
         mask={mask}

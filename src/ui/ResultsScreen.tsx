@@ -1,10 +1,12 @@
+import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
 import { spellInKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
-import type { SessionSummary } from '../engine/judge';
+import type { SessionSummary, Verdict } from '../engine/judge';
 import type { Exercise } from '../exercise/types';
 import { weakestNotes, type NoteStats } from '../storage/stats';
+import { ReviewStave } from './ReviewStave';
 
 interface ResultsScreenProps {
   summary: SessionSummary;
@@ -26,6 +28,14 @@ export function ResultsScreen({
   const instrument = instrumentById(exercise.instrumentId);
   const accuracy = Math.round(summary.accuracy * 100);
   const weakest = weakestNotes(stats, 5);
+
+  // Judgements arrive in playing order; the stave needs them by note index, and
+  // a stopped exercise leaves the rest undefined — which draws them as unplayed.
+  const verdicts = useMemo(() => {
+    const byIndex: Array<Verdict | undefined> = new Array(exercise.notes.length).fill(undefined);
+    for (const judgement of summary.judgements) byIndex[judgement.noteIndex] = judgement.verdict;
+    return byIndex;
+  }, [exercise, summary]);
 
   const describe = (midi: number) => {
     const spelled = spellInKey(midi, exercise.fifths);
@@ -66,6 +76,16 @@ export function ResultsScreen({
             Average {Math.round(summary.averageOffset * 1000)} ms late on the notes you got right.
           </p>
         )}
+      </section>
+
+      <section className="panel">
+        <h2>What you played</h2>
+        <ReviewStave exercise={exercise} verdicts={verdicts} />
+        <p className="field__note muted">
+          {summary.correct === summary.total
+            ? 'Every note in green — nothing to correct.'
+            : 'The fingering under a note is the one it wanted.'}
+        </p>
       </section>
 
       {weakest.length > 0 && (

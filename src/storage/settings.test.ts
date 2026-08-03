@@ -115,12 +115,12 @@ describe('sanitising', () => {
     const settings = sanitise({
       ...DEFAULT_SETTINGS,
       tempo: 10_000,
-      noteSpacing: -5,
+      scrollSpeed: -5,
       countInBars: 99,
       bars: 0,
     });
     expect(settings.tempo).toBeLessThanOrEqual(220);
-    expect(settings.noteSpacing).toBeGreaterThanOrEqual(4);
+    expect(settings.scrollSpeed).toBeGreaterThanOrEqual(4);
     expect(settings.countInBars).toBeLessThanOrEqual(2);
     expect(settings.bars).toBeGreaterThanOrEqual(1);
   });

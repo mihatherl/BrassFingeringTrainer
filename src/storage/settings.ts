@@ -42,13 +42,14 @@ export interface Settings {
   timingTolerance: number;
   weakNoteDrilling: boolean;
   /**
-   * Horizontal space per beat, in stave spaces.
+   * How fast the music travels, in pixels per second.
    *
-   * A physical scale rather than a proportion of the screen, so notes keep the
-   * same spacing and the same apparent speed whatever the device; a larger
-   * screen shows more bars rather than the same bars stretched wider.
+   * The eye tracks absolute motion, so speed — not spacing — is what decides
+   * whether notation is comfortable to read. Fixing it means the music reads at
+   * the same rate on a phone and a tablet, and at any tempo; spacing and the
+   * number of bars on screen fall out of it.
    */
-  noteSpacing: number;
+  scrollSpeed: number;
   /**
    * Whether the music scrolls past a strike line, or sits still and turns the
    * page. Paged reading leaves the counting to the player, which is the part of
@@ -57,7 +58,7 @@ export interface Settings {
   readingMode: ReadingMode;
 }
 
-export const NOTE_SPACING_RANGE = { min: 4, max: 14 } as const;
+export const SCROLL_SPEED_RANGE = { min: 50, max: 220 } as const;
 
 export const TIMING_TOLERANCE_RANGE = { min: 0.5, max: 3 } as const;
 
@@ -106,7 +107,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backingLevel: 1,
   timingTolerance: 1.5,
   weakNoteDrilling: true,
-  noteSpacing: 7,
+  scrollSpeed: 110,
   readingMode: 'scrolling',
 };
 
@@ -210,7 +211,7 @@ export function sanitise(settings: Settings): Settings {
     tempo: clamp(settings.tempo, TEMPO_RANGE.min, TEMPO_RANGE.max),
     bars: clamp(settings.bars, 1, 64),
     countInBars: clamp(settings.countInBars, 0, 2),
-    noteSpacing: clamp(settings.noteSpacing, NOTE_SPACING_RANGE.min, NOTE_SPACING_RANGE.max),
+    scrollSpeed: clamp(settings.scrollSpeed, SCROLL_SPEED_RANGE.min, SCROLL_SPEED_RANGE.max),
     readingMode: READING_MODES.some((m) => m.id === settings.readingMode)
       ? settings.readingMode
       : DEFAULT_SETTINGS.readingMode,

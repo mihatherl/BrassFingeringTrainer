@@ -1,0 +1,175 @@
+/**
+ * Engraved spacing: how much room each note gets.
+ *
+ * Printed music does not divide a line into equal bars. A bar of demisemiquaver
+ * runs takes most of a system; a bar holding one semibreve is short. Spacing
+ * follows the notes, not the barlines, and a page fits whatever it fits.
+ *
+ * Nor is the room proportional to duration — a semibreve does not take sixteen
+ * times a semiquaver, or a page of held notes would be nothing but white. The
+ * rule engravers use is that each halving of a note's value takes about three
+ * quarters of the room, which is a power law with a fractional exponent. Four
+ * times the duration comes out at not quite twice the width.
+ *
+ * The unit is anchored to the shortest note in the exercise, which is given
+ * exactly the least room it can have without colliding with its neighbour.
+ * Everything longer is then measured against it. So a study in crotchets packs
+ * as tightly as crotchets can go, while the same screen showing semiquavers
+ * spaces its crotchets nearly twice as wide — which is the point, since in that
+ * exercise a crotchet really is the long note.
+ *
+ * This is for music that stands still. Scrolling music is spaced by how fast it
+ * should travel, and giving it uneven spacing would make it surge and stall as
+ * it crossed the strike line.
+ */
+
+import type { Exercise } from '../exercise/types';
+
+/**
+ * Least room the shortest note may have, in notehead widths.
+ *
+ * Below about one, adjacent noteheads touch and then overlap. The margin above
+ * that is what stops a run of semiquavers reading as a smear.
+ */
+export const NOTE_CLEARANCE = 1.15;
+
+/** How much room a note keeps when its value is halved. */
+const HALVING_RATIO = 0.75;
+
+/** The power law that ratio implies: width ∝ duration ^ 0.415… */
+const EXPONENT = Math.log2(1 / HALVING_RATIO);
+
+export interface Spacing {
+  /**
+   * Distance from the start of the music to a beat position, in pixels.
+   *
+   * Defined outside the exercise as well as inside it: the count-in sits at
+   * negative beats, and the last note needs somewhere for its bar line to go.
+   */
+  xOf(beat: number): number;
+  /** The inverse, for working out how much music a width holds. */
+  beatAt(x: number): number;
+  /** Width of the whole exercise. */
+  readonly width: number;
+  /** Whole bars that fit in `available` pixels, starting at `fromBar`. Never 0. */
+  barsFitting(fromBar: number, available: number): number;
+  /** Mean pixels per beat. Not what anything is positioned by; for reporting. */
+  readonly averagePixelsPerBeat: number;
+}
+
+export interface SpacingOptions {
+  /**
+   * Least room any column may have — a notehead plus enough to tell it from the
+   * next one. The shortest note in the exercise is given exactly this.
+   */
+  minColumnWidth: number;
+  /**
+   * Widest a single bar may be. Below this nothing is squeezed; above it the
+   * whole exercise is scaled down together, so a bar too wide for the screen
+   * shrinks the page rather than falling off the end of it.
+   */
+  maxBarWidth?: number;
+}
+
+export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
+  const { beatsPerBar, totalBeats } = exercise;
+  const columns = columnBeats(exercise);
+
+  // Gaps between consecutive columns are the durations that matter: what a note
+  // is written as decides its glyph, but what follows it decides its room.
+  const gaps: number[] = [];
+  for (let i = 0; i < columns.length - 1; i++) gaps.push(columns[i + 1] - columns[i]);
+
+  const shortest = gaps.length > 0 ? Math.min(...gaps) : 1;
+  const unit = options.minColumnWidth / shortest ** EXPONENT;
+
+  const offsets = [0];
+  for (const gap of gaps) offsets.push(offsets[offsets.length - 1] + unit * gap ** EXPONENT);
+
+  const raw = (beat: number) => interpolate(columns, offsets, beat);
+
+  // One scale for the whole exercise rather than per bar: shrinking only the
+  // crowded bars would make the spacing lie about which notes are quick.
+  let scale = 1;
+  if (options.maxBarWidth !== undefined && options.maxBarWidth > 0) {
+    let widest = 0;
+    for (let bar = 0; bar * beatsPerBar < totalBeats; bar++) {
+      widest = Math.max(widest, raw((bar + 1) * beatsPerBar) - raw(bar * beatsPerBar));
+    }
+    if (widest > options.maxBarWidth) scale = options.maxBarWidth / widest;
+  }
+
+  const xOf = (beat: number) => raw(beat) * scale;
+  const width = xOf(totalBeats);
+  const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+
+  return {
+    xOf,
+    beatAt: (x: number) => interpolate(offsets.map((o) => o * scale), columns, x),
+    width,
+    averagePixelsPerBeat: totalBeats > 0 ? width / totalBeats : 0,
+    barsFitting(fromBar, available) {
+      const start = xOf(fromBar * beatsPerBar);
+      let bars = 0;
+      while (
+        fromBar + bars < totalBars &&
+        xOf((fromBar + bars + 1) * beatsPerBar) - start <= available
+      ) {
+        bars++;
+      }
+      // A bar too wide for the space still has to be shown; the alternative is
+      // a page holding nothing.
+      return Math.max(1, bars);
+    },
+  };
+}
+
+/**
+ * Every position that needs its own column.
+ *
+ * Note and rest onsets because something is drawn there, and bar starts because
+ * a bar line has to land on a column boundary rather than part-way through an
+ * interpolation — otherwise a bar with a syncopated first note pulls its own
+ * line out of place.
+ */
+function columnBeats(exercise: Exercise): number[] {
+  const beats = new Set<number>([0, exercise.totalBeats]);
+  for (const note of exercise.notes) beats.add(note.startBeat);
+  for (const rest of exercise.rests) beats.add(rest.startBeat);
+  for (let bar = 0; bar * exercise.beatsPerBar < exercise.totalBeats; bar++) {
+    beats.add(bar * exercise.beatsPerBar);
+  }
+  return [...beats].sort((a, b) => a - b);
+}
+
+/**
+ * Maps a value through a pair of matched, ascending sequences.
+ *
+ * Used in both directions — beats to pixels and back — so the two stay exact
+ * inverses of one another by construction. Outside the range it continues at
+ * the rate of the nearest segment, which is what puts the count-in somewhere
+ * sensible and gives the final bar line room.
+ */
+function interpolate(from: number[], to: number[], value: number): number {
+  const last = from.length - 1;
+  if (last < 1) return to[0] ?? 0;
+
+  if (value <= from[0]) {
+    const rate = (to[1] - to[0]) / (from[1] - from[0]);
+    return to[0] + (value - from[0]) * rate;
+  }
+  if (value >= from[last]) {
+    const rate = (to[last] - to[last - 1]) / (from[last] - from[last - 1]);
+    return to[last] + (value - from[last]) * rate;
+  }
+
+  let low = 0;
+  let high = last;
+  while (high - low > 1) {
+    const mid = (low + high) >> 1;
+    if (from[mid] <= value) low = mid;
+    else high = mid;
+  }
+  const span = from[high] - from[low];
+  return span === 0 ? to[low] : to[low] + ((value - from[low]) / span) * (to[high] - to[low]);
+}
