@@ -92,10 +92,15 @@ b(t) = ((m·b₀ + c)·e^(m(t−t₀)/60) − c) / m
 - `toleranceFor` needs the local tempo at the note being judged, not a global
   one.
 
-## The on-screen conductor
+## The on-screen conductor — spiked, and it works
 
-Agreed to spike. An animated stick above the music, where a conductor actually
-sits in a player's vision.
+`public/spike/conductor.html`. Tested on 2026-08-08 against an Eb bass: the beat
+reads from a bare moving dot and can be played to "as I would a real
+conductor", and **a rit. can be followed** by dragging the tempo. That second
+one was the doubtful question and the reason for building the spike at all.
+
+An animated stick above the music, where a conductor actually sits in a
+player's vision.
 
 **The reason it is worth building**: a click tells you where the beat *is*; a
 conductor tells you where it is going to be. Players who only practise to a
@@ -120,11 +125,22 @@ Portrait and tablets have the room.
 **Keep the metronome.** Not either/or — watch the stick while hearing the click,
 then turn the click off. That is how you would teach it to a person.
 
-**The spike**: a single dot moving round a 4/4 pattern from the audio clock,
-plus a tempo slider so a drag becomes a rit. That answers both questions —
-can you find the beat, and can you follow it when it moves — in an hour, before
-anyone draws a torso. The second question is the doubtful one: a real conductor
-gives you a whole body, a breath and eye contact; a dot gives you a position.
+**What the spike measured.** The brief was "the ictus is carried by
+acceleration", so the first thing built was a check on whether it actually was.
+It was not: easing the sideways travel — the obvious thing to do, so that the
+hand pauses at each ictus — makes horizontal speed peak *between* beats and
+cancels most of the vertical whip, giving only 1.9x the speed at the beat.
+Sideways travel must be linear, which takes it to 3.2x. Peaking the arc early so
+the hand "falls into" the next beat sounds right and measures worse, because a
+longer descent from a fixed height is a slower one. The symmetric parabola wins.
+
+The spike shows that ratio on screen beside a slider for the rebound depth, so
+the figure can be tuned by eye and reported rather than guessed at.
+
+**What this does to the order.** The tempo map now has two customers rather than
+one — the conductor needs it as much as imported music does, and it is what
+makes a fermata practisable. There is a case for moving it ahead of key
+changes.
 
 ## Fermata
 

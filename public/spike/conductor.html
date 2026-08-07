@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Conductor spike — Brass Fingering Trainer</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf7; --surface: #fff; --text: #16150f;
+        --muted: #6b6960; --border: #ddd9d0; --accent: #2f6fd0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16171b; --surface: #1e2026; --text: #f2f1ec;
+          --muted: #9a9ba3; --border: #333640; --accent: #63a1ff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem
+          max(0.75rem, env(safe-area-inset-bottom));
+        background: var(--bg); color: var(--text);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      h1 { font-size: 1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--muted); }
+      .panel {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; padding: 0.75rem; margin-bottom: 0.75rem;
+      }
+      .controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+      button, select {
+        font: inherit; padding: 0.5rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      }
+      button.primary {
+        background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+      }
+      label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+      input[type='range'] { flex: 1 1 10rem; min-width: 8rem; }
+      .stage { position: relative; }
+      canvas { display: block; width: 100%; height: 55vh; min-height: 240px; }
+      .beat-number {
+        position: absolute; right: 0.5rem; top: 0.25rem;
+        font-size: 2.5rem; font-weight: 600; color: var(--muted); opacity: 0.5;
+      }
+      .hint { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+      strong { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>Conductor spike — can you find the beat in the motion?</h1>
+
+    <div class="panel">
+      <div class="controls">
+        <button id="start" class="primary" type="button">Start</button>
+        <select id="beats" aria-label="Time signature">
+          <option value="4" selected>4/4</option>
+          <option value="3">3/4</option>
+          <option value="2">2/4</option>
+        </select>
+        <label><input id="click" type="checkbox" /> Metronome</label>
+        <label><input id="reveal" type="checkbox" /> Show beat number</label>
+        <label><input id="plain" type="checkbox" /> Hide the pattern</label>
+      </div>
+      <div class="controls" style="margin-top: 0.6rem">
+        <input id="tempo" type="range" min="40" max="200" step="1" value="80" aria-label="Tempo" />
+        <span id="tempo-value"><strong>80 bpm</strong></span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <input id="rebound" type="range" min="20" max="90" step="5" value="55" aria-label="Rebound" />
+        <span>rebound &mdash; ictus is <strong id="ratio">—</strong> faster than the float</span>
+      </div>
+      <p class="hint" id="status">Needs a tap to start, for the audio clock.</p>
+    </div>
+
+    <div class="panel stage">
+      <canvas id="canvas"></canvas>
+      <div class="beat-number" id="beat-number"></div>
+    </div>
+
+    <div class="panel">
+      <p class="hint" style="margin-top: 0">
+        <strong>Nothing flashes on the beat.</strong> No colour change, no pulse, and the beat
+        number is off by default — every one of those would give the beat away by some means other
+        than the movement, which is the only thing being tested. If the ictus does not read from a
+        dot it will not read from a drawn conductor either.
+      </p>
+      <p class="hint">
+        <strong>Two questions.</strong> First: can you find the beat at all, with the metronome
+        off? Turn it on afterwards to check whether where you thought the beat was is where it
+        actually is. Second, and the doubtful one: drag the tempo while playing. That is a rit., and
+        it is the thing a metronome can never teach. If you cannot follow it here, the conductor is
+        a nice touch for steady playing and no more.
+      </p>
+      <p class="hint">
+        The rebound between beats is a parabola, so the dot is fastest at the ictus and slowest
+        between beats — the same profile as a thrown ball, and as a conductor's hand. Its depth is
+        the one number worth arguing about, so it is on a slider: find the setting where the beat
+        reads most clearly and tell me the figure beside it.
+      </p>
+    </div>
+
+    <script type="module" src="./conductor.js"></script>
+  </body>
+</html>
