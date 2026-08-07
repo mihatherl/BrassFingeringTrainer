@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pitch spike — Brass Fingering Trainer</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf7;
+        --surface: #ffffff;
+        --text: #16150f;
+        --muted: #6b6960;
+        --border: #ddd9d0;
+        --accent: #2f6fd0;
+        --good: #1a7f4b;
+        --bad: #c02b2b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16171b;
+          --surface: #1e2026;
+          --text: #f2f1ec;
+          --muted: #9a9ba3;
+          --border: #333640;
+          --accent: #63a1ff;
+          --good: #4ade80;
+          --bad: #f87171;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem
+          max(0.75rem, env(safe-area-inset-bottom));
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      h1 { font-size: 1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--muted); }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+      }
+      .note { display: flex; align-items: baseline; gap: 0.75rem; }
+      .note__name { font-size: clamp(3rem, 18vw, 5rem); font-weight: 600; line-height: 1; }
+      .note__name--quiet { color: var(--muted); opacity: 0.35; }
+      .note__side { display: grid; gap: 0.1rem; font-size: 0.85rem; color: var(--muted); }
+      .note__fingering { font-size: 1.5rem; font-weight: 600; color: var(--accent); }
+      .cents { height: 1.5rem; position: relative; margin-top: 0.5rem; }
+      .cents__track {
+        position: absolute; inset: 0; border: 1px solid var(--border); border-radius: 4px;
+      }
+      .cents__centre {
+        position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border);
+      }
+      .cents__needle {
+        position: absolute; top: 2px; bottom: 2px; width: 3px; border-radius: 2px;
+        background: var(--good); transition: left 60ms linear, background-color 120ms linear;
+      }
+      .readouts {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+        gap: 0.5rem; font-size: 0.8rem; color: var(--muted);
+      }
+      .readouts strong { display: block; font-size: 1.1rem; color: var(--text); font-weight: 600; }
+      canvas { display: block; width: 100%; height: 220px; border-radius: 8px; }
+      .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      button, select {
+        font: inherit; padding: 0.5rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      .hint { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+      .level { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+      .level__fill { height: 100%; width: 0; background: var(--good); transition: width 60ms linear; }
+      a { color: var(--accent); }
+      .notes {
+        list-style: none; margin: 0.5rem 0 0; padding: 0;
+        display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.85rem;
+      }
+      .notes li {
+        border: 1px solid var(--border); border-radius: 6px; padding: 0.15rem 0.45rem;
+      }
+      .notes li span { color: var(--muted); margin-left: 0.35rem; }
+      input[type='file'] { font: inherit; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <h1>Pitch spike — does it track a brass instrument?</h1>
+
+    <div class="panel">
+      <div class="controls">
+        <button id="start" class="primary" type="button">Start listening</button>
+        <select id="instrument" aria-label="Instrument">
+          <option value="27" selected>E♭ bass</option>
+          <option value="22">B♭ bass</option>
+          <option value="34">Euphonium / baritone</option>
+          <option value="39">Tenor horn</option>
+          <option value="46">Cornet</option>
+        </select>
+        <select id="window-size" aria-label="Analysis window">
+          <option value="4096" selected>Short window (quick)</option>
+          <option value="8192">Long window (steadier)</option>
+        </select>
+        <button id="pause" type="button" disabled>Freeze</button>
+      </div>
+      <p class="hint" id="status">
+        Needs a tap to start, and permission for the microphone. Nothing leaves the device.
+      </p>
+      <div class="level"><div class="level__fill" id="level"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="note">
+        <div class="note__name note__name--quiet" id="name">—</div>
+        <div class="note__side">
+          <div><span id="fingering" class="note__fingering">—</span></div>
+          <div id="cents-text">—</div>
+        </div>
+      </div>
+      <div class="cents">
+        <div class="cents__track"></div>
+        <div class="cents__centre"></div>
+        <div class="cents__needle" id="needle" style="left: calc(50% - 1.5px)"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <canvas id="plot"></canvas>
+      <p class="hint">
+        The last 12 seconds. Vertical leaps of an octave are the failure to watch for; gaps are
+        frames where nothing convincing was found. Low notes need a long window to resolve at all
+        and a short one responds faster, so the bottom of the range is where the two settings are
+        worth comparing.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="readouts">
+        <div>Frequency<strong id="hz">—</strong></div>
+        <div>Confidence<strong id="confidence">—</strong></div>
+        <div>Voiced<strong id="voiced">—</strong></div>
+        <div>Octave jumps<strong id="jumps">0</strong></div>
+        <div>Window<strong id="window">—</strong></div>
+        <div>Analysis rate<strong id="rate">—</strong></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 style="font-size: 0.9rem; margin: 0; color: var(--muted); font-weight: 600">
+        Notes it thinks you played
+      </h2>
+      <ol id="notes" class="notes"></ol>
+      <p class="hint">
+        A run of readings only counts as a note once it has been held for 80ms, so a stray frame or
+        two never becomes one. This is the number that matters: nothing downstream will ever act on
+        a single frame.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="controls">
+        <label for="file">Analyse a recording</label>
+        <input id="file" type="file" accept="audio/*" />
+      </div>
+      <p class="hint" id="file-status">
+        Anything the browser can decode — m4a from a phone, wav, mp3. The whole file is analysed
+        at once and plotted above, which shows far more than the live view can.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="controls">
+        <button id="record" type="button" disabled>Save last 15s</button>
+        <a id="download" hidden download="brass-spike.wav">Download recording</a>
+      </div>
+      <p class="hint">
+        The last 15 seconds are always being kept, unprocessed, so this saves what has just
+        happened rather than starting a countdown. Play until something goes wrong, then hit save —
+        the moment you were reacting to is still in the buffer.
+      </p>
+    </div>
+
+    <script type="module" src="./spike.js"></script>
+  </body>
+</html>

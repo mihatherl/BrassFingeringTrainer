@@ -57,6 +57,17 @@ export default defineConfig({
         // The sample set is precached rather than fetched on demand, so every
         // instrument works offline rather than only the ones already tried.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}'],
+        /*
+         * The microphone spike is not part of the app.
+         *
+         * It is a throwaway page for answering one question — whether pitch
+         * detection tracks a brass instrument well enough to build on — and it
+         * must not be precached or it would go stale like the app does, nor
+         * caught by the navigation fallback, which would serve the app shell in
+         * its place.
+         */
+        globIgnores: ['spike/**'],
+        navigateFallbackDenylist: [/\/spike\//],
       },
       manifest: {
         name: 'Brass Fingering Trainer',
