@@ -149,9 +149,28 @@ ui.tempo.addEventListener('input', () => {
   ui.tempoValue.textContent = `${ui.tempo.value} bpm`;
 });
 
+/*
+ * The rebound depth is not a preference, it is the legato-to-marcato axis.
+ *
+ * A conductor beating a lyrical phrase uses a smooth, continuous gesture with
+ * little rebound; one driving a march gives a sharp ictus and lets the hand
+ * stop between beats. Both are correct conducting, and a player has to read
+ * either — so the setting is a difficulty axis as much as a style one. A smooth
+ * conductor is genuinely harder to follow, which is the point of practising it.
+ */
+const STYLES = [
+  { upTo: 32, name: 'smooth' },
+  { upTo: 47, name: 'flowing' },
+  { upTo: 62, name: 'lively' },
+  { upTo: 77, name: 'crisp' },
+  { upTo: 100, name: 'marcato' },
+];
+
 const showRatio = () => {
   const pattern = PATTERNS[Number(ui.beats.value)];
-  ui.ratio.textContent = `${readability(pattern, Number(ui.rebound.value) / 100).toFixed(1)}x`;
+  const value = Number(ui.rebound.value);
+  const style = STYLES.find((s) => value <= s.upTo).name;
+  ui.ratio.textContent = `${style} — ictus ${readability(pattern, value / 100).toFixed(1)}x`;
 };
 ui.rebound.addEventListener('input', showRatio);
 ui.beats.addEventListener('change', showRatio);

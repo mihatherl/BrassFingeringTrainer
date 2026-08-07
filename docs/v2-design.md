@@ -137,6 +137,23 @@ longer descent from a fixed height is a slower one. The symmetric parabola wins.
 The spike shows that ratio on screen beside a slider for the rebound depth, so
 the figure can be tuned by eye and reported rather than guessed at.
 
+**The rebound depth is the legato-to-marcato axis, and it should stay
+configurable.** A conductor beating a lyrical phrase uses a smooth continuous
+gesture with little rebound; one driving a march gives a sharp ictus and lets
+the hand stop between beats. Both are correct conducting, and the user described
+the default as "a lively conductor" — so the setting is named in those terms
+rather than in numbers.
+
+It is also a **difficulty axis**, which is the part worth building on: a smooth
+conductor is genuinely harder to follow, and learning to find the beat in a
+vague gesture is a real skill that no metronome can teach. And it could vary
+through a piece, since a real conductor changes style with the music — an
+obvious thing for imported music to carry, alongside the tempo marks.
+
+One caution: there is a floor below which the gesture stops being vague and
+starts carrying no information at all. The measured ratio is the guide, and the
+app should not let the slider go below whatever proves unreadable.
+
 **What this does to the order.** The tempo map now has two customers rather than
 one — the conductor needs it as much as imported music does, and it is what
 makes a fermata practisable. There is a case for moving it ahead of key
