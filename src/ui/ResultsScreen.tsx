@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
+import { keyAt } from '../domain/keys';
 import type { SessionSummary, Verdict } from '../engine/judge';
 import { soundingHeads } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
@@ -103,7 +104,9 @@ export function ResultsScreen({
       {weakest.length > 0 && (
         <section className="panel">
           <h2>Worth drilling</h2>
-          <WeakNoteChart notes={chart} clef={exercise.clef} fifths={exercise.fifths} />
+          {/* A tally of pitches rather than a timeline, so it has no beat to
+              ask about: it is spelled in the key the exercise opened in. */}
+          <WeakNoteChart notes={chart} clef={exercise.clef} fifths={keyAt(exercise.keys, 0)} />
           <p className="field__note muted">
             Accumulated across sessions on {instrument.name} in {exercise.clef} clef, and spelled
             in the key you have just played.

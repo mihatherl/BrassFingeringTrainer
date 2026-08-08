@@ -142,7 +142,9 @@ export function generateExercise(options: GenerateOptions): Exercise {
     rests,
     instrumentId: options.instrument.id,
     clef: options.clef,
-    fifths: options.fifths,
+    // One key for the whole exercise, for now. The shape is a list because a
+    // part changes key; nothing generates a second entry yet.
+    keys: [{ fromBeat: 0, fifths: options.fifths }],
     metre,
     totalBeats: options.bars * metre.barBeats,
     seed: options.seed,

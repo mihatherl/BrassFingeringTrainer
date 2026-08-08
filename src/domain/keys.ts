@@ -23,6 +23,54 @@ export interface KeySignature {
   relativeMinor: string;
 }
 
+/** A key coming into force, and the beat it does so on. */
+export interface KeyChange {
+  /** Beats from the start of the exercise. The first is always 0. */
+  fromBeat: number;
+  fifths: number;
+}
+
+/**
+ * The key in force at a beat.
+ *
+ * Deliberately the same shape as `metre.ts`'s "what is in force at beat b" —
+ * a piece can change key partway through, and one day metre as well, and both
+ * want asking the same way rather than each inventing its own lookup.
+ *
+ * Total over negative beats, because the count-in sits there: before the first
+ * change, the first key applies. A list is never empty in practice, but an
+ * empty one answers C major rather than throwing, since a renderer midway
+ * through a frame is no place to discover a malformed exercise.
+ */
+export function keyAt(changes: readonly KeyChange[], beat: number): number {
+  let fifths = changes[0]?.fifths ?? 0;
+  for (const change of changes) {
+    if (change.fromBeat > beat) break;
+    fifths = change.fifths;
+  }
+  return fifths;
+}
+
+/** Whether the key ever changes, for the many places that only care if it does. */
+export function changesKey(changes: readonly KeyChange[]): boolean {
+  return changes.length > 1;
+}
+
+/**
+ * The key with the most accidentals the exercise ever reaches.
+ *
+ * For anything that has to reserve room once and keep it: a signature's width
+ * follows its accidental count, and a header that grew mid-exercise would move
+ * every note on the line with it.
+ */
+export function widestKey(changes: readonly KeyChange[]): number {
+  let widest = 0;
+  for (const change of changes) {
+    if (Math.abs(change.fifths) > Math.abs(widest)) widest = change.fifths;
+  }
+  return widest;
+}
+
 /** Order in which sharps and flats are added to a key signature. */
 export const SHARP_ORDER: readonly Letter[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 export const FLAT_ORDER: readonly Letter[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];

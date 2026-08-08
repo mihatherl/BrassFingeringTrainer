@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parsePitch } from '../domain/pitch';
 import { GLYPHS, glyphWidth, type GlyphName } from './glyphs';
-import { isOnLine, measureStaveHeader, staveMetrics, yForPitch } from './stave';
+import {
+  isOnLine,
+  layoutKeySignature,
+  measureStaveHeader,
+  staveMetrics,
+  yForPitch,
+} from './stave';
 
 /**
  * Vertical placement is the part of notation that is silently, embarrassingly
@@ -86,6 +92,43 @@ describe('header measurement', () => {
     expect(measureStaveHeader(treble, 0, 12, 8)).toBeGreaterThan(
       measureStaveHeader(treble, 0, 4, 4),
     );
+  });
+
+  it('measures a signature as exactly as wide as drawing one advances', () => {
+    /*
+     * The property the whole layout/measure split exists to hold.
+     *
+     * The measured width sets `headerWidth`, which sets `strikeX`, which every
+     * note on a scrolling line is positioned and timed against — so if the two
+     * ever disagree, the notation and the beat disagree with it. They were
+     * separate arithmetic until the layout was factored out, and stayed
+     * consistent only because every glyph in a signature happened to be the
+     * same width. That stops being true as soon as a signature mixes naturals
+     * with sharps or flats to cancel an outgoing key.
+     */
+    for (const m of [treble, bass]) {
+      for (let fifths = -7; fifths <= 7; fifths++) {
+        const { glyphs, width } = layoutKeySignature(m, fifths);
+        expect(glyphs).toHaveLength(Math.abs(fifths));
+
+        // Every glyph has to sit inside the room claimed for the group.
+        for (const { glyph, dx } of glyphs) {
+          expect(dx + glyphWidth(glyph) * m.staveSpace, `${fifths}`).toBeLessThanOrEqual(width);
+        }
+      }
+    }
+  });
+
+  it('puts the accidentals where the clef expects them', () => {
+    // Treble and bass place the same signature on different lines; a bug here
+    // would put every flat a third out and look plausible at a glance.
+    const trebleFlats = layoutKeySignature(treble, -3).glyphs.map((g) => g.y);
+    const bassFlats = layoutKeySignature(bass, -3).glyphs.map((g) => g.y);
+
+    expect(trebleFlats).toHaveLength(3);
+    expect(trebleFlats).not.toEqual(bassFlats);
+    // B flat, the first flat written, sits on the middle line in treble.
+    expect(trebleFlats[0]).toBe(y(treble, 'B4'));
   });
 });
 

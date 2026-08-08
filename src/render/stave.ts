@@ -117,28 +117,67 @@ const SIGNATURE_OCTAVES: Record<Clef, { sharps: number[]; flats: number[] }> = {
   bass: { sharps: [3, 3, 3, 3, 2, 3, 2], flats: [2, 3, 2, 3, 2, 3, 2] },
 };
 
-export function drawKeySignature(
-  ctx: CanvasRenderingContext2D,
+/** Gap after an accidental in a signature, before the next one, in stave spaces. */
+const SIGNATURE_GAP = 0.18;
+/** Gap after the whole signature, before whatever follows it. */
+const SIGNATURE_TRAIL = 0.6;
+
+/** One accidental of a key signature, placed. */
+export interface SignatureGlyph {
+  glyph: GlyphName;
+  /** Left edge, relative to where the signature starts. */
+  dx: number;
+  y: number;
+}
+
+/**
+ * Where a key signature's accidentals go, and how much room the whole thing
+ * takes.
+ *
+ * Laid out rather than drawn, so that measuring a signature and drawing one
+ * cannot disagree. They used to be separate arithmetic — `drawKeySignature`
+ * advanced a cursor while `measureStaveHeader` multiplied a count by a single
+ * advance — which was fine only while every glyph in a signature was the same
+ * width. It stops being true the moment a signature mixes naturals with sharps
+ * or flats, which is exactly what cancelling an outgoing key looks like, and
+ * the two would then disagree silently. That matters more than it sounds:
+ * the measured width sets `headerWidth`, which sets `strikeX`, which is what
+ * every note on a scrolling line is positioned and timed against.
+ */
+export function layoutKeySignature(
   m: StaveMetrics,
-  x: number,
   fifths: number,
-): number {
-  if (fifths === 0) return x;
+): { glyphs: SignatureGlyph[]; width: number } {
+  if (fifths === 0) return { glyphs: [], width: 0 };
 
   const sharp = fifths > 0;
   const letters = signatureLetters(fifths);
   const order = sharp ? SHARP_ORDER : FLAT_ORDER;
   const octaves = sharp ? SIGNATURE_OCTAVES[m.clef].sharps : SIGNATURE_OCTAVES[m.clef].flats;
   const glyph: GlyphName = sharp ? 'accidentalSharp' : 'accidentalFlat';
-  const advance = glyphWidth(glyph) * m.staveSpace + m.staveSpace * 0.18;
 
-  let cursor = x;
+  const glyphs: SignatureGlyph[] = [];
+  let dx = 0;
   for (const letter of letters) {
     const octave = octaves[order.indexOf(letter)];
-    drawGlyph(ctx, glyph, cursor, yForPitch(m, { letter, alter: 0, octave }), m.staveSpace);
-    cursor += advance;
+    glyphs.push({ glyph, dx, y: yForPitch(m, { letter, alter: 0, octave }) });
+    dx += glyphWidth(glyph) * m.staveSpace + m.staveSpace * SIGNATURE_GAP;
   }
-  return cursor + m.staveSpace * 0.6;
+
+  return { glyphs, width: dx + m.staveSpace * SIGNATURE_TRAIL };
+}
+
+export function drawKeySignature(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  x: number,
+  fifths: number,
+): number {
+  const { glyphs, width } = layoutKeySignature(m, fifths);
+  for (const { glyph, dx, y } of glyphs) {
+    drawGlyph(ctx, glyph, x + dx, y, m.staveSpace);
+  }
+  return x + width;
 }
 
 export function drawTimeSignature(
@@ -203,12 +242,9 @@ export function measureStaveHeader(
 ): number {
   const clefWidth = showClef ? glyphWidth(CLEF_GLYPH[m.clef]) * m.staveSpace + m.staveSpace * 0.7 : 0;
 
-  let keyWidth = 0;
-  if (fifths !== 0) {
-    const glyph: GlyphName = fifths > 0 ? 'accidentalSharp' : 'accidentalFlat';
-    const advance = glyphWidth(glyph) * m.staveSpace + m.staveSpace * 0.18;
-    keyWidth = Math.abs(fifths) * advance + m.staveSpace * 0.6;
-  }
+  // The same layout the drawing uses, rather than arithmetic that happens to
+  // agree with it — see `layoutKeySignature`.
+  const keyWidth = layoutKeySignature(m, fifths).width;
 
   const timeWidth =
     Math.max(digitsWidth(digitGlyphs(beatsPerBar)), digitsWidth(digitGlyphs(beatUnit))) *

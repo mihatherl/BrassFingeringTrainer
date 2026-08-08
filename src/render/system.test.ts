@@ -96,7 +96,7 @@ function exerciseOf(): Exercise {
     rests: [],
     instrumentId: 'eb-bass',
     clef: 'treble',
-    fifths: -3,
+    keys: [{ fromBeat: 0, fifths: -3 }],
     metre: metreFor(4, 4),
     totalBeats: 4,
     seed: 1,

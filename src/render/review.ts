@@ -15,6 +15,7 @@
  */
 
 import { formatMask } from '../domain/fingering';
+import { widestKey } from '../domain/keys';
 import type { Verdict } from '../engine/judge';
 import { isTieContinuation } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
@@ -92,7 +93,14 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   const staveSpace = Math.min(18, Math.max(9, width / 34));
   const metrics = staveMetrics(exercise.clef, 0, staveSpace);
   const headerWidth =
-    measureStaveHeader(metrics, exercise.fifths, exercise.metre.beatsPerBar, exercise.metre.beatUnit) +
+    // The widest key reached, so a later system with more accidentals cannot
+    // overflow a line whose bars were planned against a narrower one.
+    measureStaveHeader(
+      metrics,
+      widestKey(exercise.keys),
+      exercise.metre.beatsPerBar,
+      exercise.metre.beatUnit,
+    ) +
     staveSpace;
 
   const head = noteheadWidth(metrics, { value: 'quarter', dotted: false });

@@ -2,7 +2,7 @@ import { metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import { isPlayable } from '../domain/fingering';
 import { instrumentById, soundingFromWritten, writtenRange } from '../domain/instruments';
-import { needsAccidental, spellInKey, tonicPitchClass } from '../domain/keys';
+import { keyAt, needsAccidental, spellInKey, tonicPitchClass } from '../domain/keys';
 import { durationBeats } from '../domain/rhythm';
 import { DIFFICULTIES, difficultyById } from './difficulty';
 import { generateExercise, patternSpanFor, type GenerateOptions } from './generate';
@@ -95,7 +95,7 @@ describe('exercise generation', () => {
   it('writes no accidentals at all on the beginner setting', () => {
     const exercise = generateExercise(options({ difficulty: difficultyById('beginner') }));
     for (const note of exercise.notes) {
-      expect(needsAccidental(spellInKey(note.writtenMidi, exercise.fifths), exercise.fifths)).toBe(
+      expect(needsAccidental(spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat)), keyAt(exercise.keys, note.startBeat))).toBe(
         false,
       );
     }
@@ -446,7 +446,7 @@ describe('accidentals', () => {
         inForce = new Map();
       }
 
-      const spelled = spellInKey(note.writtenMidi, exercise.fifths);
+      const spelled = spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat));
       const key = `${spelled.letter}${spelled.octave}`;
 
       if (inForce.get(key) === spelled.alter) {
@@ -476,8 +476,8 @@ describe('accidentals', () => {
       const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
       if (barsSeen.has(bar)) continue;
 
-      const spelled = spellInKey(note.writtenMidi, exercise.fifths);
-      if (!needsAccidental(spelled, exercise.fifths)) continue;
+      const spelled = spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat));
+      if (!needsAccidental(spelled, keyAt(exercise.keys, note.startBeat))) continue;
 
       expect(note.showAccidental, `first accidental of bar ${bar + 1}`).toBe(true);
       barsSeen.add(bar);
@@ -496,10 +496,10 @@ describe('accidentals', () => {
     for (const [index, note] of exercise.notes.entries()) {
       // A tie continuation never takes one; see above.
       if (isTieContinuation(exercise.notes, index)) continue;
-      const spelled = spellInKey(note.writtenMidi, exercise.fifths);
+      const spelled = spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat));
       const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
       const key = `${bar}:${spelled.letter}${spelled.octave}`;
-      if (needsAccidental(spelled, exercise.fifths) && !marked.has(key)) {
+      if (needsAccidental(spelled, keyAt(exercise.keys, note.startBeat)) && !marked.has(key)) {
         expect(note.showAccidental).toBe(true);
         marked.add(key);
       }

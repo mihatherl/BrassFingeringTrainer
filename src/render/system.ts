@@ -11,6 +11,7 @@
  * bar, and its spacing is even rather than engraved.
  */
 
+import { keyAt } from '../domain/keys';
 import type { Exercise } from '../exercise/types';
 import {
   drawBeamGroup,
@@ -132,7 +133,9 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   // skipped, from a plain margin in its place. See `SystemOptions.clef`.
   let x = staveSpace * MUSIC_MARGIN;
   if (options.clef) x = drawClef(ctx, metrics, x);
-  x = drawKeySignature(ctx, metrics, x, exercise.fifths);
+  // The key this system opens in, which is not necessarily the one the
+  // exercise opened in.
+  x = drawKeySignature(ctx, metrics, x, keyAt(exercise.keys, firstBeat));
   // Where the music proper starts, which is where a tie arriving from the
   // system above has to begin.
   const musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);

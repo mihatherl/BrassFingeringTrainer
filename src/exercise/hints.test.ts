@@ -65,7 +65,7 @@ function exerciseOf(bars: Array<Array<[number, Duration['value']]>>): Exercise {
     rests: [],
     instrumentId: 'eb-bass',
     clef: 'treble',
-    fifths: -3,
+    keys: [{ fromBeat: 0, fifths: -3 }],
     metre: metreFor(4, 4),
     totalBeats: bars.length * 4,
     seed: 1,

@@ -1,4 +1,5 @@
 import type { Clef } from '../domain/instruments';
+import type { KeyChange } from '../domain/keys';
 import type { Metre } from '../domain/metre';
 import type { SpelledPitch } from '../domain/pitch';
 import type { Duration } from '../domain/rhythm';
@@ -59,8 +60,15 @@ export interface Exercise {
   rests: RestEvent[];
   instrumentId: string;
   clef: Clef;
-  /** Written key signature, on the circle of fifths. */
-  fifths: number;
+  /**
+   * The written key, and any changes of it, in beat order starting at 0.
+   *
+   * A list rather than one number because a part changes key, often several
+   * times — the same reason `metre` is a shape of its own rather than a loose
+   * numerator. Ask it with `keyAt`; a single-key exercise is a list of one and
+   * costs nothing.
+   */
+  keys: KeyChange[];
   /**
    * The time signature and everything that follows from it.
    *

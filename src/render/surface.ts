@@ -27,6 +27,7 @@
  * the notation cannot drift out of step with the sound.
  */
 
+import { keyAt, widestKey } from '../domain/keys';
 import { durationBeats } from '../domain/rhythm';
 import type { Transport } from '../engine/clock';
 import type { Verdict } from '../engine/judge';
@@ -43,7 +44,7 @@ import {
   type LayoutNote,
 } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
-import { BAR_LINE_SETBACK, drawSystem, justifiedX } from './system';
+import { BAR_LINE_SETBACK, drawSystem, justifiedX, MUSIC_MARGIN } from './system';
 import {
   drawBarLine,
   drawClef,
@@ -458,10 +459,21 @@ export class StaveRenderer {
     );
 
     const { exercise } = this.options;
+    /*
+     * Measured against the widest key the exercise ever reaches, not the one
+     * it opens in.
+     *
+     * `headerWidth` decides `strikeX`, and `strikeX` is what every note on a
+     * scrolling line is positioned and timed against. A header that grew when
+     * the music changed to a key with more accidentals would shift the whole
+     * line sideways mid-exercise — the notation would appear to lurch, and it
+     * would no longer agree with the beat. So the panel is sized once for the
+     * worst case and only the glyphs inside it change.
+     */
     this.headerWidth =
       measureStaveHeader(
         this.metrics,
-        exercise.fifths,
+        widestKey(exercise.keys),
         exercise.metre.beatsPerBar,
         exercise.metre.beatUnit,
       ) +
@@ -538,13 +550,19 @@ export class StaveRenderer {
    * Room a clef-less system needs for its key and time signature, which are
    * drawn there regardless — see `SystemOptions.clef`. The same figure
    * `headerWidth` itself is built from, just without the clef's share.
+   *
+   * Measured against the key this system actually opens in, unlike
+   * `headerWidth`, which has to take the widest. A page holds still, so
+   * nothing lurches if one line's header is narrower than another's — and how
+   * many bars fit was planned against the widest, so a narrower header can
+   * only ever leave a line with more room than it was promised.
    */
-  private clefLessMarginFor(metrics: StaveMetrics): number {
+  private clefLessMarginFor(metrics: StaveMetrics, firstBeat: number): number {
     const { exercise } = this.options;
     return (
       measureStaveHeader(
         metrics,
-        exercise.fifths,
+        keyAt(exercise.keys, firstBeat),
         exercise.metre.beatsPerBar,
         exercise.metre.beatUnit,
         false,
@@ -796,7 +814,7 @@ export class StaveRenderer {
     // No strike line in paged mode — a marker showing where the beat has got to
     // would give away the very thing the player is meant to be working out.
     if (this.options.readingMode === 'scrolling') this.drawStrikeLine();
-    this.drawHeader();
+    this.drawHeader(beat);
   }
 
   /**
@@ -862,7 +880,9 @@ export class StaveRenderer {
       // stay on every line: both are live information worth being able to
       // check mid-piece, more so once either can change partway through.
       const clef = index === 0;
-      const from = clef ? this.headerWidth : this.clefLessMarginFor(metrics);
+      const from = clef
+        ? this.headerWidth
+        : this.clefLessMarginFor(metrics, firstBar * barBeats);
       drawSystem(ctx, {
         exercise,
         metrics,
@@ -1001,7 +1021,17 @@ export class StaveRenderer {
     ctx.restore();
   }
 
-  private drawHeader(): void {
+  /**
+   * The fixed panel at the left of a scrolling line, which the music passes
+   * under.
+   *
+   * It states what is in force *now* rather than what the exercise began in,
+   * so it takes the beat. A change reaching the strike line is the moment the
+   * player is playing in the new key, and the panel is the one place on a
+   * scrolling display that says which key that is — the change itself slides
+   * away to the left and is gone.
+   */
+  private drawHeader(beat: number): void {
     const { ctx } = this;
     const { theme, exercise } = this.options;
 
@@ -1012,9 +1042,12 @@ export class StaveRenderer {
     ctx.fillStyle = theme.stave;
     drawStaveLines(ctx, this.metrics, 0, this.headerWidth);
 
-    let x = this.metrics.staveSpace * 0.4;
+    let x = this.metrics.staveSpace * MUSIC_MARGIN;
     x = drawClef(ctx, this.metrics, x);
-    x = drawKeySignature(ctx, this.metrics, x, exercise.fifths);
+    // The panel's width was settled against the widest key this exercise
+    // reaches, so a narrower one simply leaves a little air before the time
+    // signature rather than moving anything.
+    x = drawKeySignature(ctx, this.metrics, x, keyAt(exercise.keys, beat));
     drawTimeSignature(ctx, this.metrics, x, exercise.metre.beatsPerBar, exercise.metre.beatUnit);
   }
 

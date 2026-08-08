@@ -69,7 +69,7 @@ function demoExercise(): Exercise {
     rests: [],
     instrumentId: 'eb-bass',
     clef: 'treble',
-    fifths: 0,
+    keys: [{ fromBeat: 0, fifths: 0 }],
     metre: metreFor(4, 4),
     totalBeats: 12,
     seed: 0,

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { describeFifths, MAJOR_KEYS, needsAccidental, spellInKey } from './keys';
+import {
+  changesKey,
+  describeFifths,
+  keyAt,
+  MAJOR_KEYS,
+  needsAccidental,
+  spellInKey,
+} from './keys';
 import { midiFromName } from './pitch';
 
 /**
@@ -68,6 +75,43 @@ describe('spelling a note in a key', () => {
         expect(midiFromName(spell(midi, key.fifths)), `${midi} in ${key.name}`).toBe(midi);
       }
     }
+  });
+});
+
+describe('the key in force at a beat', () => {
+  const changes = [
+    { fromBeat: 0, fifths: -3 },
+    { fromBeat: 16, fifths: -1 },
+    { fromBeat: 32, fifths: 2 },
+  ];
+
+  it('holds each key until the next one starts', () => {
+    expect(keyAt(changes, 0)).toBe(-3);
+    expect(keyAt(changes, 15.99)).toBe(-3);
+    expect(keyAt(changes, 16)).toBe(-1);
+    expect(keyAt(changes, 31)).toBe(-1);
+    expect(keyAt(changes, 32)).toBe(2);
+    expect(keyAt(changes, 999)).toBe(2);
+  });
+
+  it('answers for the count-in, which sits before the first beat', () => {
+    // Negative beats are where the count-in lives; the opening key applies
+    // there, not nothing.
+    expect(keyAt(changes, -4)).toBe(-3);
+  });
+
+  it('is happy with a single key, which is the ordinary case', () => {
+    const one = [{ fromBeat: 0, fifths: 4 }];
+    expect(keyAt(one, 0)).toBe(4);
+    expect(keyAt(one, 100)).toBe(4);
+    expect(changesKey(one)).toBe(false);
+    expect(changesKey(changes)).toBe(true);
+  });
+
+  it('answers C major rather than throwing when handed nothing', () => {
+    // A renderer part-way through a frame is no place to discover a malformed
+    // exercise.
+    expect(keyAt([], 0)).toBe(0);
   });
 });
 
