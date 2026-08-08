@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { INSTRUMENTS, availableClefs, instrumentById, writtenRange } from '../domain/instruments';
-import { MAJOR_KEYS } from '../domain/keys';
+import { describeFifths, MAJOR_KEYS } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { spellInKey } from '../domain/keys';
 import { DIFFICULTIES } from '../exercise/difficulty';
@@ -189,7 +189,7 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           >
             {MAJOR_KEYS.map((key) => (
               <option key={key.fifths} value={key.fifths}>
-                {key.name} major / {key.relativeMinor} minor
+                {key.name} major ({describeFifths(key.fifths)}) / {key.relativeMinor} minor
               </option>
             ))}
           </select>

@@ -51,6 +51,14 @@ export function keyByFifths(fifths: number): KeySignature {
   return key;
 }
 
+/** How a key signature's accidentals are usually described, e.g. "2 sharps". */
+export function describeFifths(fifths: number): string {
+  if (fifths === 0) return 'no sharps or flats';
+  const count = Math.abs(fifths);
+  const word = fifths > 0 ? 'sharp' : 'flat';
+  return `${count} ${word}${count === 1 ? '' : 's'}`;
+}
+
 /** Which letters the key signature alters, and by how much. */
 export function keyAlterations(fifths: number): Record<Letter, number> {
   const alters: Record<Letter, number> = { C: 0, D: 0, E: 0, F: 0, G: 0, A: 0, B: 0 };

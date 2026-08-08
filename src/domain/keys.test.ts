@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAJOR_KEYS, needsAccidental, spellInKey } from './keys';
+import { describeFifths, MAJOR_KEYS, needsAccidental, spellInKey } from './keys';
 import { midiFromName } from './pitch';
 
 /**
@@ -68,5 +68,18 @@ describe('spelling a note in a key', () => {
         expect(midiFromName(spell(midi, key.fifths)), `${midi} in ${key.name}`).toBe(midi);
       }
     }
+  });
+});
+
+describe('describing a key signature', () => {
+  it('names the count and the sign', () => {
+    expect(describeFifths(1)).toBe('1 sharp');
+    expect(describeFifths(2)).toBe('2 sharps');
+    expect(describeFifths(-1)).toBe('1 flat');
+    expect(describeFifths(-3)).toBe('3 flats');
+  });
+
+  it('has a word for C major rather than "0 sharps"', () => {
+    expect(describeFifths(0)).toBe('no sharps or flats');
   });
 });

@@ -218,14 +218,31 @@ body {
   align-items: stretch;
   gap: 0.5rem;
   min-width: 0;
+  /*
+   * Was a flat 8rem, which is a phone figure — `font-size` is a fixed 16px
+   * throughout, so a `rem` is the same physical size on every device and does
+   * not know a tablet is bigger. The stave takes whatever height this row
+   * does not, so a fixed figure here meant a tablet's spare height all went
+   * to the notation while the conductor stayed exactly the size it is on a
+   * phone. Scaling with `vh` instead lets it grow there too.
+   *
+   * The floor is exactly the old figure, chosen so the `vh` term stays under
+   * it on every phone this was tuned against — the tallest is about 930px, and
+   * 13% of that is under 8rem — so nothing moves on a phone. It clears the
+   * floor from a small tablet upward and is capped well short of anything a
+   * big tablet's spare height would otherwise let it reach.
+   */
+  --aside-size: clamp(8rem, 13vh, 16rem);
 }
 
 .conductor {
   flex: 0 0 auto;
-  width: min(9rem, 42%);
-  /* Matches the list's fixed height, so the stave never moves when the
-     conductor is switched on or off. */
-  height: 8rem;
+  /* Same 9:8 ratio as the old fixed 9rem / 8rem, scaling with the row now
+     instead of sitting at a phone-sized figure regardless of the screen. */
+  width: min(calc(var(--aside-size) * 9 / 8), 42%);
+  /* Matches the list's height, so the stave never moves when the conductor is
+     switched on or off. */
+  height: var(--aside-size);
 }
 
 .conductor__canvas {
@@ -243,9 +260,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  /* Fixed height whether or not anything has been played, so the stave never
-     jumps as the first verdict lands. */
-  height: 8rem;
+  /* Fixed whether or not anything has been played, so the stave never jumps
+     as the first verdict lands — scaling with the conductor beside it now
+     rather than sitting at a fixed height of its own. */
+  height: var(--aside-size);
   overflow: hidden;
   font-variant-numeric: tabular-nums;
 }
