@@ -218,14 +218,23 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
           <h2>Ready</h2>
           <p className="muted">
             {settings.readingMode === 'paged'
-              ? 'Hold the valve buttons — or keys 1, 2 and 3 — for each note, counting with the metronome. Nothing on screen will tell you when to play.'
+              ? `Hold the valve buttons — or keys 1, 2 and 3 — for each note, counting with the ${
+                  settings.conductorEnabled && !settings.metronomeEnabled
+                    ? 'conductor'
+                    : 'metronome'
+                }. Nothing in the music will tell you when to play.`
               : 'Hold the valve buttons — or keys 1, 2 and 3 — so the right combination is down as each note crosses the line.'}
           </p>
-          {settings.readingMode === 'paged' && !settings.metronomeEnabled && (
-            <p className="muted">
-              The metronome is switched off, so you will have nothing at all to count against.
-            </p>
-          )}
+          {/* Only when there is genuinely nothing keeping time. The conductor
+              does that job as well as the metronome. */}
+          {settings.readingMode === 'paged' &&
+            !settings.metronomeEnabled &&
+            !settings.conductorEnabled && (
+              <p className="muted">
+                The metronome and the conductor are both off, so you will have nothing at all to
+                count against.
+              </p>
+            )}
           <button
             type="button"
             className="button button--primary button--large"

@@ -5,9 +5,10 @@
  * when to play, which makes it a good way to learn fingerings.
  *
  * **Paged** holds the music still and turns the page as the player approaches
- * the end of it. Nothing marks the beat but the metronome, so the player has to
- * count for themselves — which is what reading actually involves. The scrolling
- * line quietly does the hardest part of sight-reading for you.
+ * the end of it. Nothing on the stave marks the beat — only the metronome or
+ * the conductor, neither of which is part of the notation — so the player has
+ * to count for themselves, which is what reading actually involves. The
+ * scrolling line quietly does the hardest part of sight-reading for you.
  *
  * Both modes are the same drawing code with a different origin: scrolling
  * follows the playhead continuously, paged moves on a page at a time. Judging

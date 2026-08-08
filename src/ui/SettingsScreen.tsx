@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { INSTRUMENTS, availableClefs, instrumentById, writtenRange } from '../domain/instruments';
-import { describeFifths, MAJOR_KEYS } from '../domain/keys';
+import { describeFifths, MAJOR_KEYS, orderByCloseness } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { spellInKey } from '../domain/keys';
 import { DIFFICULTIES } from '../exercise/difficulty';
@@ -107,7 +107,14 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
   const panelValues = {
     instrument: summarise(instrument.name, settings.clef === 'treble' ? 'Treble' : 'Bass'),
     exercise: summarise(
-      keySignature && `${keySignature.name} major`,
+      // Every key in play, opening one first, since a summary that named only
+      // the first would hide the whole of a modulating exercise.
+      settings.keySet.length > 1
+        ? orderByCloseness(settings.fifths, settings.keySet)
+            .map((f) => MAJOR_KEYS.find((k) => k.fifths === f)?.name)
+            .filter(Boolean)
+            .join(' → ')
+        : keySignature && `${keySignature.name} major`,
       material?.name,
       patternKind ? difficulty.patterns.label : difficulty.name,
     ),
@@ -353,11 +360,17 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
               </button>
             ))}
           </div>
-          {settings.readingMode === 'paged' && !settings.metronomeEnabled && (
-            <p className="field__note muted">
-              Turn the metronome on below — in this mode it is the only thing keeping time.
-            </p>
-          )}
+          {/* Nothing on the page marks the beat in this mode, so something
+              else has to — either will do, and the conductor is the better
+              teacher of the two. */}
+          {settings.readingMode === 'paged' &&
+            !settings.metronomeEnabled &&
+            !settings.conductorEnabled && (
+              <p className="field__note muted">
+                Turn on the metronome or the conductor below — in this mode nothing on the page
+                keeps time for you.
+              </p>
+            )}
         </div>
       </Panel>
 

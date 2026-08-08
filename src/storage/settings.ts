@@ -107,7 +107,7 @@ export const READING_MODES: ReadonlyArray<{ id: ReadingMode; name: string; blurb
     id: 'paged',
     name: 'Read the page',
     blurb:
-      'Notes stay put and the page turns as you approach the end. Nothing marks the beat but the metronome — you count for yourself, as you would from a part. Each bar reveals how you did only once you finish it, so you know which bar you are in without being told the beat.',
+      'Notes stay put and the page turns as you approach the end. Nothing in the music marks the beat — you count for yourself, as you would from a part, against the metronome or the conductor. Each bar reveals how you did only once you finish it, so you know which bar you are in without being told the beat.',
   },
 ];
 
