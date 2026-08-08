@@ -37,6 +37,16 @@ jobs:
       # Deploying something that does not typecheck or pass its tests would be
       # worse than not deploying at all.
       - run: npm test
+
+      # The gated build is the paid one, and nothing else ever builds it — so
+      # without this it would rot unnoticed, the way tools/ already has once.
+      # Built only to prove it still compiles; the artifact is thrown away.
+      #
+      # Deliberately before the real build: both write to dist/, and the last
+      # one to run is the one that gets published. Putting this after would
+      # quietly deploy the gated app to a site that is meant to be free.
+      - run: VITE_GATED=true npm run build
+
       - run: npm run build
 
       - uses: actions/upload-pages-artifact@v5

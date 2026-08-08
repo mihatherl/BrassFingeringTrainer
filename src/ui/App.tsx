@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
 import { metreFor } from '../domain/metre';
@@ -12,7 +12,11 @@ import {
   saveSettings,
   type Settings,
 } from '../storage/settings';
-import { currentEntitlements } from '../licensing/licence';
+import {
+  currentEntitlements,
+  refreshEntitlements,
+  watchEntitlements,
+} from '../licensing/licence';
 import { loadStats, noteWeights, recordSession, type NoteStats } from '../storage/stats';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
@@ -32,10 +36,22 @@ export function App() {
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [finished, setFinished] = useState<Finished | null>(null);
 
-  // Applied when the exercise is built, not merely when the settings screen is
-  // drawn: settings outlive the screen, and the generator should not be the
-  // thing that has to notice a lapsed purchase.
-  const entitlements = useMemo(() => currentEntitlements(), []);
+  /*
+   * Applied when the exercise is built, not merely when the settings screen is
+   * drawn: settings outlive the screen, and the generator should not be the
+   * thing that has to notice a lapsed purchase.
+   *
+   * Subscribed rather than read once, because the answer can arrive late — a
+   * purchase recorded mid-session, or eventually a receipt checked over the
+   * network. `currentEntitlements` holds its result, so this is a stable
+   * reference until the verdict genuinely changes; see `licence.ts`.
+   */
+  const entitlements = useSyncExternalStore(watchEntitlements, currentEntitlements);
+
+  // Where a slow check would be kicked off. Costs nothing today.
+  useEffect(() => {
+    void refreshEntitlements();
+  }, []);
 
   const build = useCallback(
     (seed: number): Exercise => {

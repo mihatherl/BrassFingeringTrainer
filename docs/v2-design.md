@@ -601,6 +601,67 @@ for the fourth's fault.
 Any feature reasoning about physical slides must exclude notes where
 `Fingering.usesFourth` is true. On a cornet, none are affected.
 
+## Selling it, one day
+
+The app is free and ungated as it stands, and the intention is that it keeps
+being so on GitHub while a paid build stays possible. Most of what that needs
+is already true, and is recorded here so it does not get undone by accident.
+
+**The decisions already made, and worth not reversing.** `LICENSE` is
+all-rights-reserved source-available: the code can be read, and the hosted app
+used, but not forked and sold. That is the one choice that cannot be walked
+back — a permissive licence, once published, applies to that code forever.
+Both bundled assets are cleared for commercial use with attribution: Bravura
+under the SIL OFL, the FluidR3_GM samples under CC-BY 3.0, neither share-alike.
+And `VITE_GATED` means the free and paid builds are one codebase rather than a
+fork, with entitlements described as capabilities so that only
+`entitlements.ts` and `licence.ts` know money exists.
+
+**Why the licence verdict is held rather than derived.** Everything deciding it
+today is instant, but a store receipt is not — it is checked over the network
+and lands after the first render. `licence.ts` therefore caches its answer and
+exposes `refreshEntitlements` as the place a slow check will go, with
+`watchEntitlements` for anything that has to notice a late answer. Deferring
+that would have meant reworking the render path of whatever was asking.
+
+**Why CI builds the gated app.** Nothing else ever does, and an unbuilt path
+rots — `tools/` already has. `deploy.yml` builds it before the real build,
+because both write to `dist/` and the last one wins; reversing that order would
+publish the paid build to the free site.
+
+**The gated build currently lies to the player, and that is the blocker.**
+Found by actually running it, which nothing had done before: `App.tsx` hands
+*unconstrained* settings to the settings screen, and `SettingsScreen` knows
+nothing about entitlements at all — it never imports them. So on a gated build
+every key, every length and every difficulty is offered, accepted, and shown as
+selected; `constrainToEntitlements` then quietly substitutes something else
+when the exercise is built. Choosing D major and 24 bars of Expert gives four
+bars of Easy in C major, with nothing on screen admitting it. `isLimited`
+exists for exactly this and is called nowhere.
+
+None of this affects anyone today, because the shipped build is ungated and
+withholds nothing. But it has to be fixed before a paid build is released, and
+it is more than a nicety: silently ignoring a choice is worse than refusing it.
+The settings screen needs the entitlements it is already constrained by, so it
+can show what is withheld and why. Note that CI building the gated app proves
+only that it compiles — it cannot catch this.
+
+**Two things deliberately not done yet.**
+
+- *The conductor is ungated in every build.* `constrainToEntitlements` does not
+  touch `conductorEnabled`, so the most distinctive thing here is currently
+  free. That may well be right — it is a good reason to try the app at all —
+  but it should be a decision rather than an omission.
+- *Practice history cannot move.* Stats live only in `localStorage`, so
+  someone moving from the free web app to a paid one loses their history, and
+  with it weak-note drilling, which is the feature that improves the longer it
+  is used. An export would also insure against a cleared browser.
+
+The no-backend property is a commercial asset as much as a technical one: it
+means selling once rather than by subscription, no hosting to fund, nothing to
+keep running, and no privacy policy to write. Worth weighing before anything
+proposes a server.
+
 ## The tuning function
 
 Designed, not built. Parked with the microphone, since it needs one.
