@@ -29,6 +29,7 @@ import {
   drawKeySignature,
   drawStaveLines,
   drawTimeSignature,
+  layoutKeySignature,
   type StaveMetrics,
 } from './stave';
 import type { StaveTheme } from './surface';
@@ -46,6 +47,29 @@ export const BAR_LINE_SETBACK = 1.75;
  * directly, on a system that skips the clef.
  */
 export const MUSIC_MARGIN = 0.4;
+
+/** Gap between the two lines of the double bar at a key change. */
+const DOUBLE_BAR_GAP = 0.45;
+/** Gap between that double bar and the signature it introduces. */
+const KEY_CHANGE_LEAD = 0.5;
+
+/**
+ * Room a change of key needs, beyond what the bar line already takes.
+ *
+ * The double bar, the gap after it, and the signature itself — which for a
+ * change is wider than an ordinary one, since it carries the naturals
+ * cancelling the key being left as well as the accidentals of the key being
+ * joined.
+ *
+ * Lives here rather than in `spacing.ts` because it is glyph arithmetic, and
+ * the engraver deliberately takes every pixel figure from its caller. The
+ * spacing must reserve exactly this or the change will be drawn over the note
+ * before it.
+ */
+export function keyChangeRoom(metrics: StaveMetrics, from: number, to: number): number {
+  const { width } = layoutKeySignature(metrics, to, from);
+  return width + metrics.staveSpace * (KEY_CHANGE_LEAD + DOUBLE_BAR_GAP);
+}
 
 export interface SystemOptions {
   exercise: Exercise;
@@ -140,11 +164,45 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   // system above has to begin.
   const musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
 
-  // Every bar line except the one at the head of the system: the start of the
-  // stave already marks it, clef or no clef.
+  /*
+   * Changes of key falling inside this system, as opposed to at its head —
+   * the one at the head is already stated by the signature above.
+   *
+   * Each takes the full apparatus a part prints: a double bar to say something
+   * structural is happening, the naturals cancelling what is being left, then
+   * the new signature. All of it has to sit between the last note of the old
+   * key and the first note of the new one, which is why `keyChangeRoom` is
+   * reserved in the spacing before any of this is drawn.
+   */
+  const changes = new Map<number, number>();
+  for (const change of exercise.keys) {
+    if (change.fromBeat <= firstBeat || change.fromBeat >= lastBeat) continue;
+    // The key being left, which is whatever was in force just before.
+    changes.set(change.fromBeat, keyAt(exercise.keys, change.fromBeat - 1e-6));
+  }
+
+  // Every bar line except the one at the head of the system, which the start
+  // of the stave already marks, and those belonging to a change, which are
+  // drawn below at the position the signature leaves them.
   ctx.strokeStyle = theme.stave;
   for (let beat = firstBeat + barBeats; beat <= lastBeat; beat += barBeats) {
+    if (changes.has(beat)) continue;
     drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);
+  }
+
+  for (const [beat, from] of changes) {
+    const to = keyAt(exercise.keys, beat);
+    const { width } = layoutKeySignature(metrics, to, from);
+    // The signature finishes where the downbeat's own clearance begins, and
+    // everything else is stacked leftwards from there.
+    const signatureX = xForBeat(beat) - BAR_LINE_SETBACK * staveSpace - width;
+    const lineX = signatureX - staveSpace * KEY_CHANGE_LEAD;
+
+    ctx.strokeStyle = theme.stave;
+    drawBarLine(ctx, metrics, lineX);
+    drawBarLine(ctx, metrics, lineX - staveSpace * DOUBLE_BAR_GAP);
+    ctx.fillStyle = theme.stave;
+    drawKeySignature(ctx, metrics, signatureX, to, from);
   }
 
   for (const rest of exercise.rests) {

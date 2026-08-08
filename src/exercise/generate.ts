@@ -18,7 +18,15 @@ import {
   type Clef,
   type Instrument,
 } from '../domain/instruments';
-import { isDiatonic, needsAccidental, spellInKey, tonicPitchClass } from '../domain/keys';
+import {
+  keyAt,
+  needsAccidental,
+  orderByCloseness,
+  scalePitchClasses,
+  spellInKey,
+  tonicPitchClass,
+  type KeyChange,
+} from '../domain/keys';
 import {
   durationBeats,
   durationFromBeats,
@@ -36,8 +44,14 @@ import type { Exercise, ExerciseKind, NoteEvent, RestEvent } from './types';
 export interface GenerateOptions {
   instrument: Instrument;
   clef: Clef;
-  /** Written key signature on the circle of fifths. */
+  /** Written key signature the exercise opens in, on the circle of fifths. */
   fifths: number;
+  /**
+   * Every key the exercise may move through, `fifths` among them.
+   *
+   * One entry, or none given, means it stays where it started.
+   */
+  keySet?: readonly number[];
   difficulty: Difficulty;
   kind: ExerciseKind;
   /** Length of free material. Patterns are measured in `cycles` instead. */
@@ -63,9 +77,31 @@ export interface GenerateOptions {
 
 interface Candidate {
   midi: number;
-  diatonic: boolean;
   /** The fingering it is played with, so repeats can be avoided. */
   mask: number;
+}
+
+/**
+ * Whether a note belongs to a key, memoised per key.
+ *
+ * Asked rather than cached on the candidate, because an exercise can change
+ * key and a note's diatonicity changes with it — B natural is foreign to E
+ * flat and native to C. It was a field on `Candidate`, settled once for the
+ * whole exercise, which is the assumption key changes break most quietly:
+ * everything would still generate, and every accidental would be reckoned
+ * against the wrong key.
+ *
+ * The set behind it is small and the answer is asked for every candidate of
+ * every note, so it is worth not rebuilding.
+ */
+const scaleCache = new Map<number, Set<number>>();
+function diatonicIn(midi: number, fifths: number): boolean {
+  let scale = scaleCache.get(fifths);
+  if (!scale) {
+    scale = scalePitchClasses(fifths);
+    scaleCache.set(fifths, scale);
+  }
+  return scale.has(pitchClass(midi));
 }
 
 /**
@@ -141,6 +177,10 @@ export function generateExercise(options: GenerateOptions): Exercise {
     throw new Error('No playable notes in range for this instrument and difficulty');
   }
 
+  // Closest-first, so every change is a step around the circle rather than a
+  // jump. One key means the list of one this has always produced.
+  const ordered = orderByCloseness(options.fifths, options.keySet ?? [options.fifths]);
+
   /*
    * A pattern is generated the other way round from everything else.
    *
@@ -149,33 +189,76 @@ export function generateExercise(options: GenerateOptions): Exercise {
    * how long that shape is. So its contour is worked out first, and the rhythm
    * is built to hold a whole number of cycles of it. See `patternSlots`.
    *
+   * With more than one key there is a contour per key, because a scale in B
+   * flat is a different set of notes from one in E flat — changing key without
+   * changing the shape would be a change of signature and nothing else. Cycles
+   * are dealt out to the keys in contiguous blocks, so a key is finished with
+   * before the next is taken up.
+   *
    * A pattern that will not fit the instrument's compass is not a pattern, and
    * falls back to free material in the length free material is measured in.
    */
-  const contour = isPattern(options.kind)
-    ? patternContour(
+  const patterns = options.kind === 'scales' ? SCALE_PATTERNS : ARPEGGIO_PATTERNS;
+  const contourFor = new Map<number, number[]>();
+  if (isPattern(options.kind)) {
+    for (const fifths of ordered) {
+      const shape = patternContour(rng, { ...options, fifths }, candidates, patterns);
+      if (shape) contourFor.set(fifths, shape);
+    }
+  }
+
+  // Every key has to have produced a shape, or the blocks below would fall
+  // back mid-exercise and the notes would stop being the pattern.
+  const patterned = isPattern(options.kind) && contourFor.size === ordered.length;
+  const cycleKeys = patterned
+    ? Array.from(
+        { length: options.cycles },
+        (_, i) => ordered[Math.floor((i * ordered.length) / options.cycles)],
+      )
+    : [];
+
+  const built = patterned
+    ? patternSlots(
         rng,
         options,
-        candidates,
-        options.kind === 'scales' ? SCALE_PATTERNS : ARPEGGIO_PATTERNS,
+        metre,
+        cycleKeys.map((fifths) => contourFor.get(fifths)!.length),
       )
-    : null;
-
-  const { slots, totalBeats } = contour
-    ? patternSlots(rng, options, metre, contour.length)
     : {
         slots: generateRhythm(rng, options, metre, isPattern(options.kind)),
         totalBeats: options.bars * metre.barBeats,
+        cycleStarts: [] as number[],
       };
+  const { slots, totalBeats } = built;
+
+  /*
+   * Where the key changes.
+   *
+   * A pattern's changes are not planned separately but read back off the
+   * cycles, because the cycles were already built to the shape of a particular
+   * key — planning them twice would let the two disagree about which key a
+   * cycle is in, and the notes would then be laid out to the wrong shape.
+   * Free material has no such constraint and is spread across its bar lines.
+   */
+  const keys = patterned
+    ? keysFromCycles(cycleKeys, built.cycleStarts)
+    : planKeyChanges(ordered, totalBeats, barLineCandidates(totalBeats, metre));
 
   // A tie continuation is not a choice of pitch — it is the note before it,
   // held — so the pitch generators are asked for one fewer note per tie.
   const soundedSlots = slots.filter((s) => !s.isRest && !s.tiedFromPrevious);
-  const pitches = contour
-    ? // Exactly whole cycles, and `patternSlots` emitted exactly that many
-      // notes, so the two line up without the index ever drifting.
-      soundedSlots.map((_, i) => contour[i % contour.length])
-    : generatePitches(rng, options, candidates, soundedSlots.length, freshStarts(slots));
+  const keyForNote = (index: number) => keyAt(keys, soundedSlots[index]?.startBeat ?? 0);
+
+  const pitches = patterned
+    ? patternPitches(soundedSlots, keys, contourFor)
+    : generatePitches(
+        rng,
+        options,
+        candidates,
+        soundedSlots.length,
+        freshStarts(slots),
+        keyForNote,
+      );
 
   const notes: NoteEvent[] = [];
   const rests: RestEvent[] = [];
@@ -206,7 +289,10 @@ export function generateExercise(options: GenerateOptions): Exercise {
     notes.push({
       writtenMidi,
       soundingMidi,
-      pitch: spellInKey(writtenMidi, options.fifths),
+      // Spelled in the key in force where it falls: F sharp and G flat are one
+      // sound and two different things to read, and which one is right moves
+      // with the key.
+      pitch: spellInKey(writtenMidi, keyAt(keys, slot.startBeat)),
       startBeat: slot.startBeat,
       duration: slot.duration,
       acceptedMasks: [...fingeringMasks(soundingMidi, options.instrument)],
@@ -218,7 +304,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
   }
 
   assignBeamGroups(notes, rests, metre);
-  assignAccidentals(notes, metre, options.fifths);
+  assignAccidentals(notes, metre, keys);
 
   return {
     notes,
@@ -227,7 +313,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
     clef: options.clef,
     // One key for the whole exercise, for now. The shape is a list because a
     // part changes key; nothing generates a second entry yet.
-    keys: [{ fromBeat: 0, fifths: options.fifths }],
+    keys,
     metre,
     totalBeats,
     seed: options.seed,
@@ -255,7 +341,6 @@ function candidatePitches(options: GenerateOptions): Candidate[] {
     if (!isPlayable(sounding, options.instrument)) continue;
     candidates.push({
       midi,
-      diatonic: isDiatonic(midi, options.fifths),
       mask: primaryFingering(sounding, options.instrument)?.mask ?? 0,
     });
   }
@@ -399,6 +484,116 @@ function generateRhythm(
 }
 
 /**
+ * Fewest bars a key may hold before the next change.
+ *
+ * A key needs long enough to be established before it is left, or a change
+ * reads as an accident rather than as a modulation. Four bars is the shortest
+ * phrase most music admits, and it means a short exercise simply uses fewer of
+ * the keys on offer rather than hurrying through all of them.
+ */
+const MIN_BARS_PER_KEY = 4;
+
+/**
+ * Where the key changes, and to what.
+ *
+ * One segment per key, in the order they were given, spread as evenly across
+ * the exercise as the candidate positions allow. Candidates are the only beats
+ * a change may legally land on: bar lines for free material, and for a pattern
+ * the start of a cycle, which is why a cycle is padded out to its bar line in
+ * the first place.
+ *
+ * An exercise too short to give every key its minimum simply uses fewer of
+ * them. Dropping the tail rather than crowding the changes keeps what does
+ * happen musical, which matters more than using everything that was ticked.
+ */
+function planKeyChanges(
+  ordered: readonly number[],
+  totalBeats: number,
+  candidates: readonly number[],
+): KeyChange[] {
+  const opening: KeyChange = { fromBeat: 0, fifths: ordered[0] };
+  if (ordered.length < 2 || candidates.length === 0) return [opening];
+
+  const segments = Math.min(ordered.length, candidates.length + 1);
+  const changes: KeyChange[] = [opening];
+
+  for (let i = 1; i < segments; i++) {
+    const target = (totalBeats * i) / segments;
+    const free = candidates.filter((beat) => !changes.some((c) => c.fromBeat === beat));
+    if (free.length === 0) break;
+    const at = free.reduce((best, beat) =>
+      Math.abs(beat - target) < Math.abs(best - target) ? beat : best,
+    );
+    changes.push({ fromBeat: at, fifths: ordered[i] });
+  }
+
+  return changes.sort((a, b) => a.fromBeat - b.fromBeat);
+}
+
+/**
+ * Pitches for a pattern: each note from the contour of the key it falls in.
+ *
+ * The index restarts when the key does, so a block of cycles in one key runs
+ * round its own shape from the beginning. Where a key holds several cycles the
+ * index simply wraps, which is also what puts the tonic under the extra
+ * closing note `patternSlots` leaves at the very end — it lands exactly on a
+ * multiple of the contour's length.
+ */
+function patternPitches(
+  soundedSlots: readonly Slot[],
+  keys: readonly KeyChange[],
+  contourFor: ReadonlyMap<number, number[]>,
+): number[] {
+  const pitches: number[] = [];
+  let current: number | null = null;
+  let index = 0;
+
+  for (const slot of soundedSlots) {
+    const fifths = keyAt(keys, slot.startBeat);
+    if (fifths !== current) {
+      current = fifths;
+      index = 0;
+    }
+    const contour = contourFor.get(fifths)!;
+    pitches.push(contour[index % contour.length]);
+    index++;
+  }
+
+  return pitches;
+}
+
+/**
+ * The changes implied by a run of cycles, one entry wherever the key differs
+ * from the cycle before it.
+ *
+ * Read back rather than planned, so there is one account of which key a cycle
+ * is in — the same one its notes were laid out against.
+ */
+function keysFromCycles(
+  cycleKeys: readonly number[],
+  cycleStarts: readonly number[],
+): KeyChange[] {
+  const changes: KeyChange[] = [];
+  cycleKeys.forEach((fifths, i) => {
+    if (i === 0 || fifths !== cycleKeys[i - 1]) {
+      changes.push({ fromBeat: cycleStarts[i], fifths });
+    }
+  });
+  return changes;
+}
+
+/** Bar lines a change may land on, keeping every key its minimum stretch. */
+function barLineCandidates(totalBeats: number, metre: Metre): number[] {
+  const { barBeats } = metre;
+  const totalBars = Math.round(totalBeats / barBeats);
+  const beats: number[] = [];
+  for (let bar = MIN_BARS_PER_KEY; bar <= totalBars - MIN_BARS_PER_KEY; bar += 1) {
+    beats.push(bar * barBeats);
+  }
+  return beats;
+}
+
+/**
  * Slots for a pattern: whole cycles of it, each finishing on a bar line.
  *
  * Scales are measured in cycles rather than bars because a cycle is the thing
@@ -424,9 +619,12 @@ function patternSlots(
   rng: Rng,
   options: GenerateOptions,
   metre: Metre,
-  notesPerCycle: number,
-): { slots: Slot[]; totalBeats: number } {
+  /** Notes in each cycle. One entry per cycle, since a cycle in another key
+      may be a different length. */
+  notesPerCycle: readonly number[],
+): { slots: Slot[]; totalBeats: number; cycleStarts: number[] } {
   const slots: Slot[] = [];
+  const cycleStarts: number[] = [];
   const { barBeats } = metre;
   const pool = options.difficulty.patterns.rhythms ?? options.difficulty.rhythms;
   let beat = 0;
@@ -435,9 +633,10 @@ function patternSlots(
   const fitting = (room: number) =>
     pool.filter((r) => durationBeats(r.duration) <= room + 1e-9);
 
-  for (let cycle = 0; cycle < options.cycles; cycle++) {
-    const last = cycle === options.cycles - 1;
-    for (let i = 0; i < notesPerCycle + (last ? 1 : 0); i++) {
+  for (let cycle = 0; cycle < notesPerCycle.length; cycle++) {
+    cycleStarts.push(beat);
+    const last = cycle === notesPerCycle.length - 1;
+    for (let i = 0; i < notesPerCycle[cycle] + (last ? 1 : 0); i++) {
       let affordable = fitting(roomInBar());
       if (affordable.length === 0) {
         // Nothing in the pool fits what is left of this bar. Rest it out and
@@ -462,7 +661,7 @@ function patternSlots(
     }
   }
 
-  return { slots, totalBeats: beat };
+  return { slots, totalBeats: beat, cycleStarts };
 }
 
 /**
@@ -513,6 +712,7 @@ function generatePitches(
   candidates: Candidate[],
   count: number,
   freshStarts: ReadonlySet<number>,
+  keyFor: (noteIndex: number) => number,
 ): number[] {
   // Scales and arpeggios never arrive here: their notes come from a contour
   // settled before the rhythm was built, since the rhythm is shaped around it.
@@ -520,9 +720,9 @@ function generatePitches(
   // free-material path below, like anything else.
   switch (options.kind) {
     case 'phrases':
-      return phrasePitches(rng, options, candidates, count, freshStarts);
+      return phrasePitches(rng, options, candidates, count, freshStarts, keyFor);
     default:
-      return randomPitches(rng, options, candidates, count, freshStarts);
+      return randomPitches(rng, options, candidates, count, freshStarts, keyFor);
   }
 }
 
@@ -539,6 +739,7 @@ function randomPitches(
   candidates: Candidate[],
   count: number,
   freshStarts: ReadonlySet<number>,
+  keyFor: (noteIndex: number) => number,
 ): number[] {
   const pitches: number[] = [];
   let previous = nearestCandidate(candidates, middleOf(candidates)).midi;
@@ -546,10 +747,16 @@ function randomPitches(
 
   for (let i = 0; i < count; i++) {
     const wantChromatic = rng.chance(options.difficulty.accidentalChance);
-    const next = chooseNext(rng, options, candidates, previous, wantChromatic, i === 0, {
-      previousMask,
-      freshStart: freshStarts.has(i),
-    });
+    const next = chooseNext(
+      rng,
+      options,
+      candidates,
+      previous,
+      wantChromatic,
+      i === 0,
+      { previousMask, freshStart: freshStarts.has(i) },
+      keyFor(i),
+    );
     pitches.push(next.midi);
     previous = next.midi;
     previousMask = next.mask;
@@ -567,6 +774,7 @@ function phrasePitches(
   candidates: Candidate[],
   count: number,
   freshStarts: ReadonlySet<number>,
+  keyFor: (noteIndex: number) => number,
 ): number[] {
   const pitches: number[] = [];
   const centre = middleOf(candidates);
@@ -607,13 +815,15 @@ function phrasePitches(
           const delta = (c.midi - previous) * direction;
           return delta > 0 && delta <= maxStep;
         });
-    const preferred = reachable.filter((c) => c.diatonic === !wantChromatic);
+    const preferred = reachable.filter(
+      (c) => diatonicIn(c.midi, keyFor(i)) === !wantChromatic,
+    );
 
     const usable = preferred.length > 0 ? preferred : reachable;
     const next =
       usable.length > 0
         ? rng.weighted(applyFingeringRules(usable, rules), (c) => noteWeight(options, c.midi))
-        : chooseNext(rng, options, candidates, previous, wantChromatic, false, rules);
+        : chooseNext(rng, options, candidates, previous, wantChromatic, false, rules, keyFor(i));
 
     pitches.push(next.midi);
     previous = next.midi;
@@ -717,11 +927,13 @@ function chooseNext(
   wantChromatic: boolean,
   first: boolean,
   fingering: { previousMask: number; freshStart: boolean },
+  /** The key in force at this note, which decides what counts as chromatic. */
+  fifths: number,
 ): Candidate {
   const withinReach = candidates.filter(
     (c) => first || Math.abs(c.midi - previous) <= options.difficulty.maxInterval,
   );
-  const matching = withinReach.filter((c) => c.diatonic === !wantChromatic);
+  const matching = withinReach.filter((c) => diatonicIn(c.midi, fifths) === !wantChromatic);
   const base = matching.length > 0 ? matching : withinReach.length > 0 ? withinReach : candidates;
   return rng.weighted(applyFingeringRules(base, fingering), (c) => noteWeight(options, c.midi));
 }
@@ -825,7 +1037,7 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre):
  * means a later note of that pitch in that bar gets an accidental of its own —
  * the cautionary an engraver would write there anyway.
  */
-function assignAccidentals(notes: NoteEvent[], metre: Metre, fifths: number): void {
+function assignAccidentals(notes: NoteEvent[], metre: Metre, keys: readonly KeyChange[]): void {
   let currentBar = -1;
   let altered = new Map<string, number>();
 
@@ -851,7 +1063,10 @@ function assignAccidentals(notes: NoteEvent[], metre: Metre, fifths: number): vo
       continue;
     }
 
-    const differsFromKey = needsAccidental(spelled, fifths);
+    // Against the key in force here. A change always lands on a bar line, so
+    // the per-bar reset above already clears what the old key established —
+    // there is nothing left over for the new one to argue with.
+    const differsFromKey = needsAccidental(spelled, keyAt(keys, note.startBeat));
     // Needed either because it departs from the signature, or because it must
     // cancel an accidental earlier in the bar.
     note.showAccidental = differsFromKey || established !== undefined;

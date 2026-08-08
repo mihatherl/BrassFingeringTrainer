@@ -3,6 +3,7 @@ import {
   changesKey,
   describeFifths,
   keyAt,
+  orderByCloseness,
   MAJOR_KEYS,
   needsAccidental,
   spellInKey,
@@ -112,6 +113,41 @@ describe('the key in force at a beat', () => {
     // A renderer part-way through a frame is no place to discover a malformed
     // exercise.
     expect(keyAt([], 0)).toBe(0);
+  });
+});
+
+describe('ordering a set of keys', () => {
+  it('starts where it was told to, whatever the set', () => {
+    expect(orderByCloseness(-3, [-1, -3, -2])[0]).toBe(-3);
+    expect(orderByCloseness(2, [-3, 2, 5])[0]).toBe(2);
+  });
+
+  it('steps around the circle rather than jumping about', () => {
+    // Eb, Bb, F are consecutive on the circle, so from Eb the order is forced.
+    expect(orderByCloseness(-3, [-3, -1, -2])).toEqual([-3, -2, -1]);
+    // And from the middle of a set it works outwards.
+    expect(orderByCloseness(0, [0, 2, -2, 1])).toEqual([0, 1, 2, -2]);
+  });
+
+  it('measures closeness on the circle, not in pitch', () => {
+    /*
+     * The distinction the whole function exists for. C and B are a semitone
+     * apart and about as distant as two keys get — five sharps between them.
+     * C and G are a fifth apart in pitch and adjacent in key.
+     */
+    expect(orderByCloseness(0, [0, 5, 1])).toEqual([0, 1, 5]);
+  });
+
+  it('takes the flat side of a tie, which is where brass bands live', () => {
+    // One step either way from C: F has a flat, G has a sharp.
+    expect(orderByCloseness(0, [0, 1, -1])).toEqual([0, -1, 1]);
+  });
+
+  it('copes with a set of one, and with a start not in the set', () => {
+    expect(orderByCloseness(-3, [-3])).toEqual([-3]);
+    expect(orderByCloseness(-3, [])).toEqual([-3]);
+    // A start missing from the set still leads, and is not repeated.
+    expect(orderByCloseness(-3, [-2, -1])).toEqual([-3, -2, -1]);
   });
 });
 

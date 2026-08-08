@@ -15,14 +15,14 @@
  */
 
 import { formatMask } from '../domain/fingering';
-import { widestKey } from '../domain/keys';
+import { keyAt, widestKey } from '../domain/keys';
 import type { Verdict } from '../engine/judge';
 import { isTieContinuation } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
 import { accidentalRoom, dotRoom, noteheadWidth } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
 import { measureStaveHeader, staveMetrics } from './stave';
-import { BAR_LINE_SETBACK, drawSystem, justifiedX } from './system';
+import { BAR_LINE_SETBACK, drawSystem, justifiedX, keyChangeRoom } from './system';
 import { verdictColour, type StaveTheme } from './surface';
 
 /**
@@ -118,6 +118,13 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
       };
     },
     barLineRoom: BAR_LINE_SETBACK * staveSpace,
+    // Room for the double bar and new signature at a change; nothing anywhere
+    // else. See `keyChangeRoom`.
+    keyChangeRoomAt: (beat) => {
+      const change = exercise.keys.find((k) => k.fromBeat === beat);
+      if (!change || change.fromBeat === 0) return 0;
+      return keyChangeRoom(metrics, keyAt(exercise.keys, beat - 1e-6), change.fifths);
+    },
   });
 
   // Systems are filled greedily, as an engraver fills a line: take bars until

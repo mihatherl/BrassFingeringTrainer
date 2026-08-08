@@ -90,6 +90,16 @@ export interface SpacingOptions {
    * packed to the floor.
    */
   barLineRoom?: number;
+  /**
+   * Extra room immediately before a beat where the key changes, on top of the
+   * bar-line allowance — a change lands on a bar line and needs both.
+   *
+   * A function rather than a figure, unlike `barLineRoom`, because each change
+   * is a different width: it carries a natural for every accidental of the key
+   * being left as well as the accidentals of the one being joined. Returns 0
+   * for a beat where nothing changes.
+   */
+  keyChangeRoomAt?: (beat: number) => number;
 }
 
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
@@ -198,10 +208,14 @@ function floorWidth(
   const here = noteAt.get(columns[index]);
   const next = noteAt.get(columns[index + 1]);
   const barLine = barBoundaries.has(columns[index + 1]) ? (options.barLineRoom ?? 0) : 0;
+  // Summed with the bar line's own room rather than replacing it: a change
+  // sits on a bar line and the double bar has to clear the note before it.
+  const keyChange = options.keyChangeRoomAt?.(columns[index + 1]) ?? 0;
 
   return (
     options.minColumnWidth +
     barLine +
+    keyChange +
     (extra === undefined || here === undefined ? 0 : extra(here).after) +
     (extra === undefined || next === undefined ? 0 : extra(next).before)
   );

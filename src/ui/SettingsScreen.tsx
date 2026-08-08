@@ -11,6 +11,8 @@ import type { ExerciseKind } from '../exercise/types';
 import {
   BARS_OPTIONS,
   CYCLE_OPTIONS,
+  MAX_KEYS_IN_PLAY,
+  sanitise,
   SCROLL_SPEED_RANGE,
   PLAYBACK_MODES,
   READING_MODES,
@@ -186,7 +188,13 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           <span className="field__label">Key signature (as written)</span>
           <select
             value={settings.fifths}
-            onChange={(event) => update('fifths', Number(event.target.value))}
+            onChange={(event) => {
+              // The set always holds the key you start in; `sanitise` enforces
+              // it, so changing the start carries the old one into the set
+              // rather than dropping it.
+              const fifths = Number(event.target.value);
+              onChange(sanitise({ ...settings, fifths }));
+            }}
           >
             {MAJOR_KEYS.map((key) => (
               <option key={key.fifths} value={key.fifths}>
@@ -195,6 +203,44 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             ))}
           </select>
         </label>
+
+        <div className="field">
+          <span className="field__label">Change key during the exercise</span>
+          <div className="segmented segmented--wrap">
+            {MAJOR_KEYS.map((key) => {
+              const chosen = settings.keySet.includes(key.fifths);
+              const start = key.fifths === settings.fifths;
+              const full = settings.keySet.length >= MAX_KEYS_IN_PLAY;
+              return (
+                <button
+                  key={key.fifths}
+                  type="button"
+                  // The starting key is always in play and cannot be removed;
+                  // beyond the cap, only what is already chosen can be undone.
+                  disabled={start || (!chosen && full)}
+                  className={`segmented__option ${chosen ? 'is-selected' : ''}`}
+                  onClick={() =>
+                    onChange(
+                      sanitise({
+                        ...settings,
+                        keySet: chosen
+                          ? settings.keySet.filter((f) => f !== key.fifths)
+                          : [...settings.keySet, key.fifths],
+                      }),
+                    )
+                  }
+                >
+                  {key.name}
+                </button>
+              );
+            })}
+          </div>
+          <p className="field__note muted">
+            {settings.keySet.length < 2
+              ? `Staying in ${keySignature?.name ?? ''} throughout. Add a key or two and the exercise will modulate between them, ordered so each change is a step around the circle of fifths rather than a jump.`
+              : `Moving between ${settings.keySet.length} keys. Changes land on a bar line — and for scales and arpeggios, only once a cycle is finished. At most ${MAX_KEYS_IN_PLAY}.`}
+          </p>
+        </div>
 
         <div className="field">
           <span className="field__label">Material</span>

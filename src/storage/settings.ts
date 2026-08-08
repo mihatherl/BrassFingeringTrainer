@@ -18,8 +18,17 @@ import type { ExerciseKind } from '../exercise/types';
 export interface Settings {
   instrumentId: string;
   clef: Clef;
-  /** Written key signature on the circle of fifths. */
+  /** Written key signature the exercise opens in, on the circle of fifths. */
   fifths: number;
+  /**
+   * Every key the exercise may move through, `fifths` among them.
+   *
+   * One entry means no key changes, which is the default and what most
+   * practice wants. More than one and the generator modulates between them,
+   * ordering them by closeness on the circle of fifths so the joins sound like
+   * music rather than like a list.
+   */
+  keySet: number[];
   tempo: number;
   difficultyId: string;
   kind: ExerciseKind;
@@ -106,6 +115,8 @@ export const DEFAULT_SETTINGS: Settings = {
   instrumentId: 'eb-bass',
   clef: 'treble',
   fifths: -3, // Eb major — brass band home turf
+  // Just the one, so nothing changes key until it is asked to.
+  keySet: [-3],
   tempo: 80,
   difficultyId: 'easy',
   kind: 'random',
@@ -136,6 +147,16 @@ export const BARS_OPTIONS = [4, 8, 12, 16, 24] as const;
  * substantial exercise rather than a short one.
  */
 export const CYCLE_OPTIONS = [1, 2, 4, 8] as const;
+
+/**
+ * Most keys one exercise may move through.
+ *
+ * Four is a drill; more is a tour. It also bounds a real cost: the scrolling
+ * header is sized for the widest key in the set and holds that width
+ * throughout, so a set reaching seven sharps spends the room on every bar of
+ * the exercise whether it gets there or not.
+ */
+export const MAX_KEYS_IN_PLAY = 4;
 export const TIME_SIGNATURES = [
   { beatsPerBar: 4, beatUnit: 4, label: '4/4' },
   { beatsPerBar: 3, beatUnit: 4, label: '3/4' },
@@ -216,6 +237,24 @@ export function sanitise(settings: Settings): Settings {
     ? settings.fifths
     : DEFAULT_SETTINGS.fifths;
 
+  /*
+   * The set always holds the key the exercise starts in, whatever a stored
+   * file says.
+   *
+   * That single rule does three jobs: it repairs a set edited to nonsense, it
+   * keeps the set honest after the starting key is changed, and it migrates a
+   * settings file written before the set existed — where the merge over the
+   * defaults would otherwise leave someone playing in B flat with E flat's
+   * default set.
+   */
+  const chosen = Array.isArray(settings.keySet) ? settings.keySet : [];
+  const keySet = [
+    fifths,
+    ...chosen.filter((f) => f !== fifths && MAJOR_KEYS.some((k) => k.fifths === f)),
+  ]
+    .filter((f, index, all) => all.indexOf(f) === index)
+    .slice(0, MAX_KEYS_IN_PLAY);
+
   const timeSignature =
     TIME_SIGNATURES.find(
       (t) => t.beatsPerBar === settings.beatsPerBar && t.beatUnit === settings.beatUnit,
@@ -226,6 +265,7 @@ export function sanitise(settings: Settings): Settings {
     instrumentId: instrument.id,
     clef,
     fifths,
+    keySet,
     difficultyId: difficulty,
     beatsPerBar: timeSignature.beatsPerBar,
     beatUnit: timeSignature.beatUnit,
@@ -262,7 +302,12 @@ export function constrainToEntitlements(
 ): Settings {
   const limited = { ...settings };
 
-  if (!entitlements.allKeys) limited.fifths = FREE_TIER.fifths;
+  if (!entitlements.allKeys) {
+    // Key changes ride on the same entitlement as key choice, which needs no
+    // gate of its own: a copy allowed only one key has nothing to change to.
+    limited.fifths = FREE_TIER.fifths;
+    limited.keySet = [FREE_TIER.fifths];
+  }
   if (!entitlements.allLengths) limited.bars = Math.min(limited.bars, FREE_TIER.bars);
   if (!entitlements.allDifficulties && !FREE_TIER.difficultyIds.includes(limited.difficultyId)) {
     limited.difficultyId = FREE_TIER.difficultyIds[0];

@@ -7,7 +7,7 @@
  * is why accidentals never move a note: F4 and F#4 share a step.
  */
 
-import { LETTER_STEPS, diatonicStep, type SpelledPitch } from '../domain/pitch';
+import { LETTER_STEPS, diatonicStep, type Letter, type SpelledPitch } from '../domain/pitch';
 import type { Clef } from '../domain/instruments';
 import { FLAT_ORDER, SHARP_ORDER, signatureLetters } from '../domain/keys';
 import { GLYPHS, drawGlyph, glyphWidth, type GlyphName } from './glyphs';
@@ -119,6 +119,11 @@ const SIGNATURE_OCTAVES: Record<Clef, { sharps: number[]; flats: number[] }> = {
 
 /** Gap after an accidental in a signature, before the next one, in stave spaces. */
 const SIGNATURE_GAP = 0.18;
+/**
+ * Extra air between the naturals cancelling a key and the signature replacing
+ * it, so the two read as two statements rather than one jumbled row.
+ */
+const CANCEL_GAP = 0.4;
 /** Gap after the whole signature, before whatever follows it. */
 const SIGNATURE_TRAIL = 0.6;
 
@@ -147,23 +152,60 @@ export interface SignatureGlyph {
 export function layoutKeySignature(
   m: StaveMetrics,
   fifths: number,
+  /**
+   * The key being left, when this signature is a change rather than an
+   * opening. Its surplus accidentals are cancelled with naturals in front of
+   * the new signature, in the positions they themselves occupied — which is
+   * what makes them read as "these are no longer sharp" rather than as a row
+   * of unrelated naturals.
+   */
+  from?: number,
 ): { glyphs: SignatureGlyph[]; width: number } {
-  if (fifths === 0) return { glyphs: [], width: 0 };
-
-  const sharp = fifths > 0;
-  const letters = signatureLetters(fifths);
-  const order = sharp ? SHARP_ORDER : FLAT_ORDER;
-  const octaves = sharp ? SIGNATURE_OCTAVES[m.clef].sharps : SIGNATURE_OCTAVES[m.clef].flats;
-  const glyph: GlyphName = sharp ? 'accidentalSharp' : 'accidentalFlat';
-
   const glyphs: SignatureGlyph[] = [];
   let dx = 0;
-  for (const letter of letters) {
-    const octave = octaves[order.indexOf(letter)];
+
+  const place = (glyph: GlyphName, letter: Letter, octave: number) => {
     glyphs.push({ glyph, dx, y: yForPitch(m, { letter, alter: 0, octave }) });
     dx += glyphWidth(glyph) * m.staveSpace + m.staveSpace * SIGNATURE_GAP;
+  };
+
+  const octavesFor = (of: number) =>
+    of > 0 ? SIGNATURE_OCTAVES[m.clef].sharps : SIGNATURE_OCTAVES[m.clef].flats;
+  const orderFor = (of: number) => (of > 0 ? SHARP_ORDER : FLAT_ORDER);
+
+  /*
+   * Naturals first, for whatever the outgoing key had and the incoming one
+   * does not.
+   *
+   * Three cases, all of which fall out of a plain set difference: changing
+   * sign cancels everything, since no sharp survives into a flat key; fewer of
+   * the same sign cancels only the surplus; and into C major the naturals are
+   * the whole message, which is the one a reader is likeliest to miss.
+   */
+  if (from !== undefined && from !== fifths && from !== 0) {
+    const leaving = signatureLetters(from);
+    const arriving = new Set(fifths === 0 ? [] : signatureLetters(fifths));
+    const sameSign = from > 0 === fifths > 0 && fifths !== 0;
+    const octaves = octavesFor(from);
+    const order = orderFor(from);
+
+    for (const letter of leaving) {
+      if (sameSign && arriving.has(letter)) continue;
+      place('accidentalNatural', letter, octaves[order.indexOf(letter)]);
+    }
+    if (glyphs.length > 0 && fifths !== 0) dx += m.staveSpace * CANCEL_GAP;
   }
 
+  if (fifths !== 0) {
+    const octaves = octavesFor(fifths);
+    const order = orderFor(fifths);
+    const glyph: GlyphName = fifths > 0 ? 'accidentalSharp' : 'accidentalFlat';
+    for (const letter of signatureLetters(fifths)) {
+      place(glyph, letter, octaves[order.indexOf(letter)]);
+    }
+  }
+
+  if (glyphs.length === 0) return { glyphs, width: 0 };
   return { glyphs, width: dx + m.staveSpace * SIGNATURE_TRAIL };
 }
 
@@ -172,8 +214,10 @@ export function drawKeySignature(
   m: StaveMetrics,
   x: number,
   fifths: number,
+  /** The key being left, if this is a change; see `layoutKeySignature`. */
+  from?: number,
 ): number {
-  const { glyphs, width } = layoutKeySignature(m, fifths);
+  const { glyphs, width } = layoutKeySignature(m, fifths, from);
   for (const { glyph, dx, y } of glyphs) {
     drawGlyph(ctx, glyph, x + dx, y, m.staveSpace);
   }

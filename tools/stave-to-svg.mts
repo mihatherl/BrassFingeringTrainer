@@ -81,9 +81,14 @@ const exercise = arg('demo', '') === 'on' ? demoExercise() : generateExercise({
   instrument: instrumentById(arg('instrument', 'eb-bass')),
   clef: 'treble',
   fifths: Number(arg('fifths', '-3')),
+  // Comma-separated, e.g. --keys=-3,-1,2, for looking at key changes.
+  keySet: arg('keys', '')
+    ? arg('keys', '').split(',').map(Number)
+    : undefined,
   difficulty: difficultyById(arg('difficulty', 'hard')),
-  kind: 'random',
+  kind: arg('kind', 'random') as 'random' | 'scales' | 'arpeggios' | 'phrases',
   bars: Number(arg('bars', '8')),
+  cycles: Number(arg('cycles', '2')),
   metre: metreFor(Number(arg('beats', '4')), Number(arg('unit', '4'))),
   seed: Number(arg('seed', '1')),
     });

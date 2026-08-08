@@ -44,7 +44,7 @@ import {
   type LayoutNote,
 } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
-import { BAR_LINE_SETBACK, drawSystem, justifiedX, MUSIC_MARGIN } from './system';
+import { BAR_LINE_SETBACK, drawSystem, justifiedX, keyChangeRoom, MUSIC_MARGIN } from './system';
 import {
   drawBarLine,
   drawClef,
@@ -506,6 +506,7 @@ export class StaveRenderer {
         maxBarWidth: this.usableWidth(),
         extraWidthFor: (index) => this.extraWidthFor(index),
         barLineRoom: BAR_LINE_SETBACK * staveSpace,
+        keyChangeRoomAt: (beat) => this.keyChangeRoomAt(beat),
       });
       this.pixelsPerBeat = this.spacing.averagePixelsPerBeat;
       this.systemStarts = this.planSystems();
@@ -544,6 +545,20 @@ export class StaveRenderer {
       before: note.showAccidental ? accidentalRoom(this.metrics, note.pitch) : 0,
       after: dotRoom(this.metrics, note.duration),
     };
+  }
+
+  /**
+   * Room the engraver must leave before a beat where the key changes, so the
+   * double bar and the new signature have somewhere to go. Zero everywhere
+   * else, which is every beat of a single-key exercise.
+   */
+  private keyChangeRoomAt(beat: number): number {
+    const { keys } = this.options.exercise;
+    const change = keys.find((k) => k.fromBeat === beat);
+    // The opening key is not a change — there is nothing in front of it to
+    // cancel and no bar line to double.
+    if (!change || change.fromBeat === 0) return 0;
+    return keyChangeRoom(this.metrics, keyAt(keys, beat - 1e-6), change.fifths);
   }
 
   /**

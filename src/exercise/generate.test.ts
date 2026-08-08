@@ -723,3 +723,163 @@ describe('transposition', () => {
     }
   });
 });
+
+describe('key changes', () => {
+  /*
+   * The rule underneath all of these: a change belongs on a bar line and
+   * nowhere else. Everything downstream leans on it — `assignAccidentals`
+   * resets per bar and so needs no special case, and the engraver reserves
+   * room at a column it already has.
+   */
+  const barOf = (exercise: ReturnType<typeof generateExercise>, beat: number) =>
+    beat / exercise.metre.barBeats;
+
+  it('produces one key and no changes when only one was offered', () => {
+    // The ordinary case, and the one that must not have changed.
+    for (const kind of KINDS) {
+      const exercise = generateExercise(options({ kind, fifths: -3, keySet: [-3] }));
+      expect(exercise.keys, kind).toEqual([{ fromBeat: 0, fifths: -3 }]);
+    }
+  });
+
+  it('opens in the key it was asked to start in', () => {
+    for (const kind of KINDS) {
+      const exercise = generateExercise(
+        options({ kind, fifths: -3, keySet: [-3, -1, 2], bars: 24, cycles: 4 }),
+      );
+      expect(exercise.keys[0], kind).toEqual({ fromBeat: 0, fifths: -3 });
+    }
+  });
+
+  it('changes only on a bar line', () => {
+    for (const kind of KINDS) {
+      for (let seed = 1; seed <= 4; seed++) {
+        const exercise = generateExercise(
+          options({ kind, fifths: -3, keySet: [-3, -2, -1], bars: 24, cycles: 4, seed }),
+        );
+        for (const change of exercise.keys) {
+          expect(
+            barOf(exercise, change.fromBeat),
+            `${kind} seed ${seed}: change at beat ${change.fromBeat}`,
+          ).toBe(Math.round(barOf(exercise, change.fromBeat)));
+        }
+      }
+    }
+  });
+
+  it('moves by steps around the circle, never a jump', () => {
+    // Eb, Bb, F are neighbours; visiting them from Eb can only be in that
+    // order, so every change is one step.
+    const exercise = generateExercise(
+      options({ kind: 'random', fifths: -3, keySet: [-1, -3, -2], bars: 24 }),
+    );
+    expect(exercise.keys.map((k) => k.fifths)).toEqual([-3, -2, -1]);
+  });
+
+  it('leaves each key long enough to be established', () => {
+    for (let seed = 1; seed <= 5; seed++) {
+      const exercise = generateExercise(
+        options({ kind: 'random', fifths: -3, keySet: [-3, -2, -1, 0], bars: 16, seed }),
+      );
+      for (let i = 1; i < exercise.keys.length; i++) {
+        const bars = barOf(exercise, exercise.keys[i].fromBeat - exercise.keys[i - 1].fromBeat);
+        expect(bars, `seed ${seed}: a key lasted ${bars} bars`).toBeGreaterThanOrEqual(4);
+      }
+      // And the last one gets its share too.
+      const last = exercise.keys[exercise.keys.length - 1];
+      expect(barOf(exercise, exercise.totalBeats - last.fromBeat)).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('changes a scale only between cycles, never inside one', () => {
+    /*
+     * Why cycles had to be padded to bar lines before any of this: a scale
+     * interrupted half way up to change key would be neither scale.
+     */
+    const exercise = generateExercise(
+      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 4, seed: 6 }),
+    );
+    expect(exercise.keys.length).toBeGreaterThan(1);
+
+    // Every note of a cycle shares one key, so the pitch that opens a key's
+    // block is that key's tonic.
+    for (const change of exercise.keys) {
+      const opening = exercise.notes.find((n) => n.startBeat >= change.fromBeat);
+      expect(opening, `no note at beat ${change.fromBeat}`).toBeDefined();
+      expect(opening!.startBeat, 'a key starts where a note does').toBe(change.fromBeat);
+    }
+  });
+
+  it('rebuilds the pattern on the new tonic rather than just restating the key', () => {
+    // A scale in B flat is a different set of notes from one in E flat. Only
+    // redrawing the signature would be a change of clothes, not of key.
+    const exercise = generateExercise(
+      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 2, seed: 3 }),
+    );
+    const [first, second] = exercise.keys;
+    expect(second).toBeDefined();
+
+    const inFirst = exercise.notes.filter((n) => n.startBeat < second.fromBeat);
+    const inSecond = exercise.notes.filter((n) => n.startBeat >= second.fromBeat);
+
+    const classes = (notes: typeof exercise.notes) =>
+      new Set(notes.map((n) => ((n.writtenMidi % 12) + 12) % 12));
+    expect(classes(inFirst), 'the two keys used the same notes').not.toEqual(classes(inSecond));
+
+    // And each block really is its own key's scale.
+    for (const [change, notes] of [
+      [first, inFirst],
+      [second, inSecond],
+    ] as const) {
+      for (const note of notes) {
+        expect(
+          needsAccidental(spellInKey(note.writtenMidi, change.fifths), change.fifths),
+          `a note foreign to the key at beat ${note.startBeat}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('spells and marks every note against the key it falls in', () => {
+    /*
+     * The quiet failure this guards: everything still generates if spelling
+     * is done against the opening key, and every accidental after the first
+     * change is then reckoned wrongly.
+     */
+    for (const kind of ['random', 'phrases'] as const) {
+      const exercise = generateExercise(
+        options({ kind, fifths: -3, keySet: [-3, 3], bars: 16, seed: 12 }),
+      );
+      expect(exercise.keys.length).toBe(2);
+
+      for (const note of exercise.notes) {
+        const local = keyAt(exercise.keys, note.startBeat);
+        expect(
+          note.pitch,
+          `${kind}: note at beat ${note.startBeat} spelled against the wrong key`,
+        ).toEqual(spellInKey(note.writtenMidi, local));
+      }
+    }
+  });
+
+  it('takes no accidental on a tie carried across a change', () => {
+    // A tie is one sound continuing; it is not re-attacked and so is never
+    // re-spelled, whatever the signature does underneath it.
+    for (let seed = 1; seed <= 20; seed++) {
+      const exercise = generateExercise(
+        options({
+          kind: 'random',
+          difficulty: difficultyById('medium'),
+          fifths: -3,
+          keySet: [-3, 2],
+          bars: 16,
+          seed,
+        }),
+      );
+      exercise.notes.forEach((note, index) => {
+        if (!isTieContinuation(exercise.notes, index)) return;
+        expect(note.showAccidental, `seed ${seed}, beat ${note.startBeat}`).toBe(false);
+      });
+    }
+  });
+});

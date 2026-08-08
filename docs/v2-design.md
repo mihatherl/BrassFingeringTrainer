@@ -170,7 +170,7 @@ tempo map a second customer, and agreed rather than assumed.
 1. ~~`secondsBetween`~~ — done
 2. ~~The conductor~~ — done, and on screen
 3. ~~Spelling onto `NoteEvent`~~ — done
-4. **Key changes** — the groundwork for these is done, so they are now cheaper
+4. ~~**Key changes**~~ — built. The groundwork made them cheaper
    than the tempo map rather than dearer. See *Key changes, in detail*.
 5. **The tempo map**, behind the three clock functions
 6. **The microphone**, which is additive and touches almost nothing else
@@ -200,7 +200,39 @@ in three functions and nothing outside the clock has to change.
 
 ## Key changes, in detail
 
-Next up, and cheaper than they look now the groundwork is in.
+**Built.** What follows is the design as it was agreed; the notes below record
+where it landed differently, and what the building of it turned up.
+
+**A set of keys, ordered by the generator.** The key picker still chooses what
+the exercise opens in; a set of chips beside it says which keys are in play, up
+to four. `orderByCloseness` puts them in an order that steps around the circle
+rather than jumping, ties going to the flat side. Changes are spread evenly, at
+least four bars apart, and a set too large for the exercise simply uses fewer of
+its keys rather than hurrying.
+
+**Patterns change key only between cycles**, and each cycle is rebuilt on its
+own tonic — a scale in B flat is a different set of notes, not the same shape
+under a new signature. This is what pattern cycles were for: a cycle boundary
+is a bar line, so a change never lands mid-scale.
+
+**Two things worth knowing that are not obvious from the code.**
+
+- *`Candidate.diatonic` had to go.* It was computed once for the whole exercise,
+  and is the assumption key changes break most quietly: everything still
+  generates, and every accidental after the first change is reckoned against the
+  wrong key. It is now `diatonicIn(midi, fifths)`, memoised per key.
+- *A pattern's key changes are read back off its cycles rather than planned.*
+  Planning them separately let the two disagree about which key a cycle was in,
+  and the notes would then be laid out to the wrong shape. Only free material
+  plans its changes.
+
+**`assignAccidentals` needed no new trigger.** It already resets per bar, and a
+change always lands on a bar line, so the old key's accidentals are cleared
+before the new key ever sees them. Ties needed nothing either: a tie's tail
+clones its head and is skipped outright, which is exactly right across a change,
+since one sound continuing takes no accidental. Both have tests saying so.
+
+The original design follows, and still holds.
 
 ### What a real part does
 

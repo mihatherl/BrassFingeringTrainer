@@ -119,6 +119,63 @@ describe('header measurement', () => {
     }
   });
 
+  describe('cancelling an outgoing key', () => {
+    const kinds = (m: typeof treble, from: number, to: number) =>
+      layoutKeySignature(m, to, from).glyphs.map((g) => g.glyph);
+    const naturals = (m: typeof treble, from: number, to: number) =>
+      kinds(m, from, to).filter((g) => g === 'accidentalNatural').length;
+
+    it('cancels everything when the sign changes', () => {
+      // No sharp survives into a flat key, so the old signature goes in full
+      // before the new one is stated.
+      expect(naturals(treble, 3, -2)).toBe(3);
+      expect(naturals(treble, -4, 1)).toBe(4);
+    });
+
+    it('cancels only the surplus when the sign stays', () => {
+      // Eb has Bb Eb Ab; F has Bb. Only Eb and Ab are being given up.
+      expect(naturals(treble, -3, -1)).toBe(2);
+      // And nothing at all when the new key keeps everything the old one had.
+      expect(naturals(treble, -1, -3)).toBe(0);
+    });
+
+    it('makes the naturals the whole message going into C major', () => {
+      // The one change that is only a cancellation, and the easiest to miss.
+      const glyphs = kinds(treble, -3, 0);
+      expect(glyphs).toEqual([
+        'accidentalNatural',
+        'accidentalNatural',
+        'accidentalNatural',
+      ]);
+    });
+
+    it('puts each natural where the accidental it cancels used to sit', () => {
+      // What makes them read as "these are no longer flat" rather than as a
+      // row of unrelated naturals.
+      const leaving = layoutKeySignature(treble, -3).glyphs.map((g) => g.y);
+      const cancelling = layoutKeySignature(treble, 0, -3).glyphs.map((g) => g.y);
+      expect(cancelling).toEqual(leaving);
+    });
+
+    it('says nothing when the key does not actually change', () => {
+      expect(layoutKeySignature(treble, -3, -3).glyphs.every((g) => g.glyph !== 'accidentalNatural')).toBe(
+        true,
+      );
+    });
+
+    it('is wider than the signature alone, and the width still covers it', () => {
+      // The width feeds the room the engraver reserves; a change drawn wider
+      // than it was measured lands on the note before it.
+      const plain = layoutKeySignature(treble, -1);
+      const changing = layoutKeySignature(treble, -1, 3);
+      expect(changing.width).toBeGreaterThan(plain.width);
+
+      for (const { glyph, dx } of changing.glyphs) {
+        expect(dx + glyphWidth(glyph) * treble.staveSpace).toBeLessThanOrEqual(changing.width);
+      }
+    });
+  });
+
   it('puts the accidentals where the clef expects them', () => {
     // Treble and bass place the same signature on different lines; a bug here
     // would put every flat a third out and look plausible at a glance.

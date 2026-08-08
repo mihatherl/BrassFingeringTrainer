@@ -71,6 +71,9 @@ describe('constraining settings', () => {
     const chosen = {
       ...DEFAULT_SETTINGS,
       fifths: 0,
+      // The set always holds the key being started in; anything else is a
+      // state `sanitise` would never hand out.
+      keySet: [0],
       bars: 4,
       difficultyId: 'easy',
       kind: 'scales' as const,

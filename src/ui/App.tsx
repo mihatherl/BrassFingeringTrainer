@@ -67,6 +67,7 @@ export function App() {
         instrument,
         clef: settings.clef,
         fifths: settings.fifths,
+        keySet: settings.keySet,
         difficulty: difficultyById(settings.difficultyId),
         kind: settings.kind,
         bars: settings.bars,

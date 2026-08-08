@@ -71,6 +71,39 @@ export function widestKey(changes: readonly KeyChange[]): number {
   return widest;
 }
 
+/**
+ * Puts a set of keys in an order that modulates rather than jumps.
+ *
+ * Distance on the circle of fifths is the measure, because that is what
+ * closeness between keys actually means: a step of one is a move to the
+ * dominant or the subdominant, the two modulations most music makes, and the
+ * two keys share all but one note. Sorting by pitch instead would call C and
+ * B adjacent, which is about as far apart as two keys get.
+ *
+ * Greedy from the starting key rather than globally optimal. The set is at
+ * most a handful and every step being *locally* the smallest available is what
+ * a listener hears; nothing is improved by a cleverer route with a worse first
+ * move.
+ */
+export function orderByCloseness(start: number, keys: readonly number[]): number[] {
+  const remaining = keys.filter((f) => f !== start);
+  const ordered = [start];
+
+  while (remaining.length > 0) {
+    const from = ordered[ordered.length - 1];
+    let nearest = 0;
+    for (let i = 1; i < remaining.length; i++) {
+      const closer = Math.abs(remaining[i] - from) < Math.abs(remaining[nearest] - from);
+      // Ties go to the flat side, which is where brass band music lives.
+      const tied = Math.abs(remaining[i] - from) === Math.abs(remaining[nearest] - from);
+      if (closer || (tied && remaining[i] < remaining[nearest])) nearest = i;
+    }
+    ordered.push(remaining.splice(nearest, 1)[0]);
+  }
+
+  return ordered;
+}
+
 /** Order in which sharps and flats are added to a key signature. */
 export const SHARP_ORDER: readonly Letter[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 export const FLAT_ORDER: readonly Letter[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
