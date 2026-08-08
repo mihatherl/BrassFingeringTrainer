@@ -28,3 +28,6 @@ dist-ssr
 
 # Claude Code machine-local settings, including its transient writes
 .claude/settings.local.json*
+
+# Reference material dropped in for reading — not part of the app.
+input/

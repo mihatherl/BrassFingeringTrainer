@@ -18,7 +18,7 @@ In order. Each step is useful on its own, so this need not be delivered as one
 release.
 
 1. **Ties and tuplets**, wired into the generator so Hard and Expert gain
-   triplets immediately.
+   triplets immediately. *Ties are built; tuplets are not.*
 2. **Key changes.**
 3. **A tempo map** — step changes first.
 4. **MusicXML import from a local file.**
@@ -55,6 +55,103 @@ numbers and `timeForBeat` is a single multiplication, so a triplet crotchet at
 ⅔ of a beat already schedules, judges and spaces correctly. What is missing is
 purely notational.
 
+### Ties, as built
+
+The estimate held: a flag on the note, one judging rule, a bezier. What was
+decided while building it:
+
+**Ties come from crossing the bar line, and nothing else.** A note that fits
+inside its bar can be written as one note and should be. The rhythm generator
+therefore runs across the whole exercise rather than a bar at a time, and its
+one liberty is letting a note overrun, with the remainder written again on the
+downbeat. Both halves have to be real note values, so a tie is never a way of
+writing an arbitrary length.
+
+**They arrive at Medium**, alongside dotted rhythms, and never in a scale or
+arpeggio — that drill is the shape and the fingering, and a tie there is a
+reading problem laid on top of a different exercise. `tieChance` is conditional:
+how often a bar end that *could* be tied over is, rather than a rate diluted by
+every position that could never have produced one. Measured at roughly one tie
+every three bars.
+
+**The far end of a tie is not judged, and that is the whole rule.** It is not
+sounded either — the synth plays the chain's full length as one note — and it
+takes no accidental, no hint and no place in the totals. Judging it would mark
+the player correct for holding a fingering they were already holding, which
+would inflate both the score and the per-note accuracy that weak-note drilling
+and hints read from. It does take its head's *colour*, since one sound should
+not be half green.
+
+**A tie broken across a system is the ordinary case, not an edge case** — the
+thing exists to cross a bar line, and a system break is a bar line. Each end is
+placed independently, against its notehead or against the margin.
+
+`tools/stave-to-svg.mts` renders an exercise to SVG so engraving can be looked
+at without a browser. It found the one thing the tests could not: the first
+ties drawn were specks, because clearing half a notehead at each end ate most of
+a crotchet's column. A tie's tip sits a stave space off the head's centre, where
+the ellipse has already narrowed, so it need not clear the full width.
+
+### Groundwork, laid before the dynamic work
+
+Two refactors done together after ties. Both are behaviour-preserving — the 354
+tests were green either side — and both were worth doing on their own merits.
+They change the costings above.
+
+**Everything asks the clock for seconds now, not for a tempo.** Every use of
+`secondsPerBeat` outside the clock turned out to be the same question in
+disguise: *how many seconds between these two beats*. A note's own length, the
+gap before the next note, the slack a note gets — all of it. So `Transport`
+grew `secondsBetween(fromBeat, toBeat)` and the field became
+`nominalSecondsPerBeat`, which is now used by exactly one thing.
+
+`toleranceFor` is the clearest case. Its old body was
+`0.3 × secondsPerBeat × durationInBeats`, which is `0.3 ×` the note's length in
+seconds and never anything else; it now takes that directly. The note in this
+document that it "needs the local tempo at the note being judged" was wrong —
+it needs no tempo at all, and neither does anything else.
+
+So a tempo map changes the body of `timeForBeat`, `beatForTime` and
+`secondsBetween` and nothing else. **The one exception is deliberate**: the
+scrolling display multiplies `scrollSpeed` by the *nominal* rate, because how
+far a beat travels is a property of the page. Spacing that tracked a varying
+tempo would bunch the notes during a rit. and lie about the notation.
+
+**Notes carry their own spelling.** `SpelledPitch` moved onto `NoteEvent`,
+settled at generation time for the same reason the fingerings and the
+accidental already were: it depends on the key, and the key is something the
+generator knows and the renderers should not have to. F sharp and G flat are
+the same sound and a different thing to read.
+
+That removes `fifths` from the renderers entirely bar the key signature glyphs
+themselves, which is most of what made key changes look expensive. It also
+stopped `drawSystem` re-spelling every visible note on every frame.
+
+### The order agreed
+
+Revised from the list at the top of this document once the conductor gave the
+tempo map a second customer, and agreed rather than assumed.
+
+1. ~~`secondsBetween`~~ — done
+2. **The conductor** — no prerequisites at all; it needs `visualBeat()` and a
+   height budget, and it is what makes a fermata mean anything
+3. ~~Spelling onto `NoteEvent`~~ — done
+4. The tempo map, behind the three clock functions
+5. Fermata — needs the conductor and the tempo map, *and* a change to the
+   transport's contract; see below
+6. Key changes
+
+**Fermata is not a tempo problem, and grouping the two will mislead.** A tempo
+map is known in advance: closed form, schedulable, testable. A fermata's
+release is not — it comes when the conductor releases or the microphone hears
+you stop. But `Transport.tick` marches `scheduledUntilBeat` forward over a
+150ms horizon and the session pushes notes onto the audio thread before they
+sound, so **nothing can be scheduled past a hold of unknown length**. The
+transport has to stop advancing its horizon at the fermata and resume on
+release. That is a change to its contract, not to its arithmetic, and it is the
+one item here that touches the invariant this document calls the fault a rhythm
+trainer cannot have.
+
 **Key changes ripple.** Most of those references only pass `fifths` around, but
 every `spellInKey` call becomes "which key is in force at this beat", and a
 mid-system change needs cancelling naturals and a double bar.
@@ -62,7 +159,8 @@ mid-system change needs cancelling naturals and a double bar.
 **Tempo changes are the risk.** `timeForBeat` is the foundation of scheduling,
 judging and the render loop, and a bug there desynchronises sound from notation
 — the one fault a rhythm trainer cannot have. The volume of code is small; the
-tests should be brutal.
+tests should be brutal. Since the groundwork below, the whole of that risk sits
+in three functions and nothing outside the clock has to change.
 
 ## The tempo map
 
@@ -125,17 +223,18 @@ Portrait and tablets have the room.
 **Keep the metronome.** Not either/or — watch the stick while hearing the click,
 then turn the click off. That is how you would teach it to a person.
 
-**What the spike measured.** The brief was "the ictus is carried by
-acceleration", so the first thing built was a check on whether it actually was.
-It was not: easing the sideways travel — the obvious thing to do, so that the
-hand pauses at each ictus — makes horizontal speed peak *between* beats and
-cancels most of the vertical whip, giving only 1.9x the speed at the beat.
-Sideways travel must be linear, which takes it to 3.2x. Peaking the arc early so
-the hand "falls into" the next beat sounds right and measures worse, because a
-longer descent from a fixed height is a slower one. The symmetric parabola wins.
+**What the spike measured, and then had to unlearn.** The first model drew
+straight lines between the beat points and subtracted a parabola, and the
+measurement was the ratio of speed at the ictus to speed between beats — 3.2x
+with linear sideways travel, 1.9x if the sideways travel was eased. Both the
+model and the measurement were later replaced; see *How the patterns are built*
+below. Two things from that round survived and are worth keeping:
 
-The spike shows that ratio on screen beside a slider for the rebound depth, so
-the figure can be tuned by eye and reported rather than guessed at.
+- Easing the sideways travel makes horizontal speed peak *between* beats and
+  cancels the vertical whip. Whatever the model, the sideways motion must not be
+  eased independently of the vertical.
+- A figure reported on screen beats an impression. Every change since has been
+  argued with a number beside it.
 
 **The rebound depth is the legato-to-marcato axis, and it should stay
 configurable.** A conductor beating a lyrical phrase uses a smooth continuous
@@ -158,6 +257,120 @@ app should not let the slider go below whatever proves unreadable.
 one — the conductor needs it as much as imported music does, and it is what
 makes a fermata practisable. There is a case for moving it ahead of key
 changes.
+
+## How the patterns are built
+
+Arrived at over several rounds of comparing the drawn shape against conducting
+diagrams and against Lesley Mann's *Music in Motion* (Belmont University,
+CC-BY), a copy of which is in `input/conducting`. Written down because almost
+every step of it was got wrong first, and the wrong versions all looked
+plausible.
+
+### Reading a diagram into a pattern
+
+**Mirror it.** Every conducting diagram ever published is drawn from the
+conductor's own point of view — four beats are down, to *their* left, to *their*
+right, up. The player stands in front of them, so all of it arrives reversed.
+Getting this backwards is invisible while you are only checking whether the beat
+can be found, and wrong every time afterwards. It was wrong in the three pattern
+for several rounds without anyone noticing.
+
+**Key the pattern by pulses, never by the numerator.** 6/8 is beaten in two,
+9/8 in three, 12/8 in four, and Mann's own sheet says so outright: 6/8 is "the
+same pattern as 2/4 but with a triplet feel". `metre.ts` already computes
+`pulsesPerBar`, and that is the index. This is also why compound time needs no
+new patterns at all.
+
+**Structural roles come first.** Mann: the cycle "begins with a characteristic
+downward movement of the arm, the downbeat, and ends with an upward movement, or
+the upbeat. If there are more than two beats in the meter, then additional
+horizontal movements are added." So a two pattern is down and up with no
+horizontal beat at all; a three adds one sideways; a four adds two. Place the
+beats to that rule before fiddling with any curve.
+
+**The floor is not universal.** The four pattern really does put all four
+ictuses on one level. The two and the three lift their final beat above it — the
+upbeat sits higher. Generalising the four's flat floor to the others flattened
+the two into a plain dome and had to be undone.
+
+**The last apex sits above the downbeat, not between the beats.** Mann's "the
+final rebound must return to the starting point of the downbeat" is geometry,
+not size: the starting point of a downbeat is the top of its own descent, which
+is directly above where it lands. The hand sweeps up and across from the last
+beat and then drops *straight*. Placing that apex at the midpoint made the
+descent a diagonal and cost every pattern its most recognisable stroke.
+
+**Some strokes need explicit via points.** The default — one apex per stroke —
+cannot draw the two pattern, whose hand sweeps *past* beat two, reverses, and
+comes back so the second hook curls the opposite way. One turning point out
+beyond beat two drags beat one's tangent diagonal and destroys its hook instead.
+So a stroke may carry its own list of points, threaded onto the same curve.
+
+### The three parts of a beat
+
+Mann again, and all three are worth naming separately because they are
+separately adjustable:
+
+- **The ictus** is "the change in direction that is interpreted by an ensemble
+  as the actual beat", seen at the tip of the baton. Not a speed maximum, not a
+  position. Scoring patterns by speed instead quietly rewarded long lazy loops
+  and steered the design wrong for several rounds.
+- **The rebound** is the movement immediately after, "typically one-third to
+  one-half the size of the ictus" — except the final beat of the bar, which is
+  large because it has to get back up to the downbeat's starting point.
+- **The prep** is "essentially the rebound of the prior beat". One movement
+  named twice, so it is stored once: each beat carries a single `rebound` and
+  the arrival is the tail of the previous beat's.
+
+That last point is what makes the final-beat rule automatic rather than
+hand-maintained, and the two had drifted 12–22% apart while both were tuned by
+eye.
+
+The one-third-to-one-half ratio is checked by an audit script rather than
+trusted. Two beats currently sit outside it — the beat before the long
+horizontal stroke, in both the three and the four — and that is a deliberate
+disagreement with the text on the strength of the diagrams and of playing to it.
+
+### Shape and timing are separate mechanisms
+
+The whole bar is **one closed spline** through the beats and the apexes between
+them, and the ictus is a point *on* that curve. Building each stroke as its own
+curve, starting and ending at a beat, makes every ictus a seam where two
+tangents disagree — so the tip turns a hard corner, which a hand with mass
+cannot do. Measured, that was a 180° tangent flip; on one curve it is 0.4°.
+
+Timing is then a separate phase warp: hurry through the beat, linger at the
+apex, like a thrown ball. Keeping them apart is what lets the path stay smooth
+while the motion stays sharp. In the old model they were the same mechanism,
+which is exactly why every attempt to make a beat readable cost the shape and
+vice versa. The legato-to-marcato setting drives the warp, not the geometry.
+
+### The two figures worth reporting
+
+- **Flick** — the vertical reversal, sampled a short way either side of the beat
+  rather than at it, since on a smooth curve the vertical velocity is exactly
+  zero at the ictus however sharp the turn. This is the ictus as Mann defines it.
+- **Speed contrast** — how much faster the tip moves at the beat than between
+  beats. Useful, but secondary; it is not what a beat *is*.
+
+The page also prints a fingerprint of the drawn geometry, sampled off the curve
+rather than hashed from the numbers behind it — the shape changed twice without
+a single coordinate moving, and a fingerprint of the inputs would have said "no
+change" both times.
+
+### Metres we have no pattern for
+
+There will always be some, and imported music guarantees it. **The conductor
+switches off and the metronome carries on**, rather than guessing. A conducting
+pattern is a specific taught shape, not something to interpolate: a five is not
+a four with a beat wedged in, and an invented one would teach a player to follow
+a gesture no conductor will ever make. Silence from the conductor is honest; a
+plausible-looking wrong pattern is not.
+
+Patterns exist for two, three and four pulses, which covers every simple metre
+the app offers today and 6/8, 9/8 and 12/8 when compound time arrives. Five and
+seven are drawn on the reference sheet in `input/conducting` and can be added
+from it when wanted.
 
 ## Fermata
 
