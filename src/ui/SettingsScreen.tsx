@@ -359,6 +359,20 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
         <label className="field field--inline">
           <input
             type="checkbox"
+            checked={settings.conductorEnabled}
+            onChange={(event) => update('conductorEnabled', event.target.checked)}
+          />
+          <span>Conductor</span>
+        </label>
+        <p className="field__note muted">
+          A baton beating the bar, beside the notes you have played. Not either/or with the
+          metronome — watch the stick while hearing the click, then turn the click off. Upright
+          screens only, and not for metres it has no pattern for.
+        </p>
+
+        <label className="field field--inline">
+          <input
+            type="checkbox"
             checked={settings.weakNoteDrilling}
             onChange={(event) => update('weakNoteDrilling', event.target.checked)}
           />

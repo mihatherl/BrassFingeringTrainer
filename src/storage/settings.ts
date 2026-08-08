@@ -28,6 +28,14 @@ export interface Settings {
   beatUnit: number;
   countInBars: number;
   metronomeEnabled: boolean;
+  /**
+   * Whether the conductor beats the metre beside the recent notes.
+   *
+   * Off by default. It is the newest thing on the screen and an installed app
+   * should not sprout a moving object next to the notation because it updated;
+   * anyone who wants it can ask for it, as with the metronome.
+   */
+  conductorEnabled: boolean;
   playbackMode: PlaybackMode;
   /**
    * Multiplies the window either side of the beat within which a fingering
@@ -96,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   beatUnit: 4,
   countInBars: 1,
   metronomeEnabled: true,
+  conductorEnabled: false,
   playbackMode: 'reference',
   timingTolerance: 1.5,
   weakNoteDrilling: true,

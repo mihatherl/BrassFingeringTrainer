@@ -14,6 +14,7 @@ import { Sampler, type Voice } from '../audio/sampler';
 import { formatMask } from '../domain/fingering';
 import { instrumentById } from '../domain/instruments';
 import { formatPitch } from '../domain/pitch';
+import type { Transport } from '../engine/clock';
 import { Session } from '../engine/session';
 import { fingeringHints } from '../exercise/hints';
 import { soundingHeads } from '../exercise/ties';
@@ -22,6 +23,7 @@ import type { NoteJudgement, SessionSummary, Verdict } from '../engine/judge';
 import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
+import { ConductorPanel } from './ConductorPanel';
 import { RecentNotes, type RecentNote } from './RecentNotes';
 import { ValvePad } from './ValvePad';
 
@@ -67,6 +69,13 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   const [mask, setMask] = useState(0);
   const [progress, setProgress] = useState({ done: 0, correct: 0 });
   const [recent, setRecent] = useState<RecentNote[]>([]);
+  /*
+   * State rather than a ref, unlike the session and renderer beside it.
+   * Those are only ever reached from callbacks; the conductor is a child that
+   * has to be *rendered* with it, and a ref assigned inside the effect would
+   * never trigger the render that mounts it.
+   */
+  const [transport, setTransport] = useState<Transport | null>(null);
   // Held across the gate so the session can be handed the loaded voice.
   const voiceRef = useRef<Voice | undefined>(undefined);
 
@@ -111,6 +120,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       onFinish: (summary) => finishRef.current(summary),
     });
     sessionRef.current = session;
+    setTransport(session.transport);
 
     // Which notes get their fingering printed. Settled once per run: the
     // history behind it does not change mid-exercise, and a hint that came and
@@ -187,6 +197,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       wakeLock?.release().catch(() => undefined);
       sessionRef.current = null;
       rendererRef.current = null;
+      setTransport(null);
     };
   }, [started, exercise, settings]);
 
@@ -298,7 +309,12 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         </div>
       </div>
 
-      <RecentNotes notes={recent} />
+      <div className="play-aside">
+        <RecentNotes notes={recent} />
+        {settings.conductorEnabled && transport && (
+          <ConductorPanel transport={transport} metre={exercise.metre} />
+        )}
+      </div>
 
       {/* The canvas is positioned inside a frame rather than being the grid
           item itself; see `.stave-frame`. */}
