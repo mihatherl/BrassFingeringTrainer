@@ -629,23 +629,6 @@ rots — `tools/` already has. `deploy.yml` builds it before the real build,
 because both write to `dist/` and the last one wins; reversing that order would
 publish the paid build to the free site.
 
-**The gated build currently lies to the player, and that is the blocker.**
-Found by actually running it, which nothing had done before: `App.tsx` hands
-*unconstrained* settings to the settings screen, and `SettingsScreen` knows
-nothing about entitlements at all — it never imports them. So on a gated build
-every key, every length and every difficulty is offered, accepted, and shown as
-selected; `constrainToEntitlements` then quietly substitutes something else
-when the exercise is built. Choosing D major and 24 bars of Expert gives four
-bars of Easy in C major, with nothing on screen admitting it. `isLimited`
-exists for exactly this and is called nowhere.
-
-None of this affects anyone today, because the shipped build is ungated and
-withholds nothing. But it has to be fixed before a paid build is released, and
-it is more than a nicety: silently ignoring a choice is worse than refusing it.
-The settings screen needs the entitlements it is already constrained by, so it
-can show what is withheld and why. Note that CI building the gated app proves
-only that it compiles — it cannot catch this.
-
 **Two things deliberately not done yet.**
 
 - *The conductor is ungated in every build.* `constrainToEntitlements` does not
@@ -661,6 +644,85 @@ The no-backend property is a commercial asset as much as a technical one: it
 means selling once rather than by subscription, no hosting to fund, nothing to
 keep running, and no privacy policy to write. Worth weighing before anything
 proposes a server.
+
+### The gated settings screen — the blocker, and how to fix it
+
+**The fault.** On a gated build the settings screen offers everything, accepts
+the choice, shows it as selected — and then something else happens. `App.tsx`
+hands *unconstrained* settings to `SettingsScreen` (`App.tsx:131` passes
+`chosen`, while only `build` and `PlayScreen` get the constrained copy), and
+`SettingsScreen` never imports entitlements at all. `constrainToEntitlements`
+substitutes at exercise-build time instead, silently. Verified in a browser
+against `VITE_GATED=true`: asking for 24 bars of Expert in D major produced
+four bars of Easy in C major with nothing on screen admitting it. `isLimited`
+in `entitlements.ts` exists for precisely this and is called nowhere.
+
+Nobody is affected today — the shipped build is ungated and withholds nothing —
+and CI compiling the gated app cannot catch this, because it compiles fine. But
+it must be fixed before anything is sold. Silently ignoring a choice is worse
+than refusing it: a player who picks D major and is given C will conclude the
+app is broken, not that it is limited, and that is the worst possible first
+impression for something asking to be paid for.
+
+**What is gated, and which control each maps to.** Six capabilities in
+`Entitlements`, each already enforced in `constrainToEntitlements`
+(`settings.ts:239-257`) and each with exactly one control:
+
+| Entitlement | Free tier gets | Control | Where |
+|---|---|---|---|
+| `allKeys` | C major only | `<select>` | `SettingsScreen.tsx:186` |
+| `allMaterial` | random, scales | `.cards` buttons | `:200` |
+| `allDifficulties` | beginner, easy | `.segmented` buttons | `:217` |
+| `allLengths` | 4 bars | `<select>` | `:263` |
+| `pagedReading` | scrolling only | `.cards` buttons | `:277` |
+| `weakNoteDrilling` | off | checkbox | `:373` |
+
+Note the free tier's limits are *values*, not just booleans, and they live in
+`FREE_TIER` — so the screen can say what is available rather than merely that
+something is not.
+
+**The shape of the fix.**
+
+1. `App.tsx` passes `entitlements` to `SettingsScreen` alongside settings. It
+   already has them (`App.tsx:49`); do **not** pass constrained settings
+   instead — the player's real choice should survive unlocking, so that a
+   purchase restores what they had picked rather than silently keeping the
+   substitute. Constraining at build time is right and should stay.
+2. `SettingsScreen` disables — not hides — the options a build cannot use.
+   Hiding would make the app look smaller than it is and give no reason to buy;
+   disabling shows the shape of what is on offer. The three control types each
+   need their own treatment: `<option disabled>` for the two selects, a
+   disabled attribute plus a muted style for the `.cards` and `.segmented`
+   buttons, and a disabled checkbox.
+3. Say why, once, near the top rather than six times. `isLimited(entitlements)`
+   is the condition; the wording should name what is withheld rather than
+   nag. This is the one genuinely new piece of UI and wants a deliberate
+   decision about tone.
+4. **`constrainToEntitlements` stays exactly as it is.** It is the backstop for
+   settings that outlive the screen — saved before a purchase lapsed, or edited
+   in storage — and the generator should not be the thing that has to notice.
+   The screen is a second line, not a replacement.
+
+**Traps.**
+
+- `?tier=free` forces the free tier in any build (`forcedFree` in
+  `licence.ts`), which is how to look at this without a gated build. Use it.
+- `FREE_TIER.playbackMode` is declared but never read — there is no playback
+  entitlement. Either wire it up or delete the field; leaving it invites the
+  belief that playback is gated when it is not.
+- The conductor is ungated (see above). If that changes, it becomes a seventh
+  row in the table and `conductorEnabled` needs adding to
+  `constrainToEntitlements`.
+- Entitlements can now change *after* mount — `App` subscribes via
+  `watchEntitlements`, so a purchase mid-session re-renders the screen. Any
+  disabled state must be derived during render, not captured once.
+
+**How to verify.** `VITE_GATED=true npm run build` then serve `dist`, or just
+append `?tier=free` to the dev server. Every withheld control should be
+visibly unavailable, and what the exercise is actually built with must match
+what the screen shows. `entitlements.test.ts` already asserts
+`constrainToEntitlements` is idempotent and yields real values; the screen
+wants its own test that a locked build renders the withheld controls disabled.
 
 ## The tuning function
 
