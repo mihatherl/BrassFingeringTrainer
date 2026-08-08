@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.2.0 is deployed** to GitHub Pages, 374 tests. Since v1:
+**v1.5.1 is deployed** to GitHub Pages, 430 tests. Since v1:
 
 | | |
 |---|---|
@@ -19,29 +19,79 @@ requests at all — that last part is worth defending rather than an accident.
 | `secondsBetween` | Built. The one seam a tempo map has to change. |
 | Spelling on the note | Built. Took `fifths` out of the renderers. |
 | `metre.ts` | Built. Bar length, pulse and numerator are now separate things. |
-| The conductor | Built and on screen, off by default, portrait only. |
+| The conductor | Built and on screen, off by default. |
+| Key changes | Built. A set of keys, modulating between them. See *Key changes, in detail*. |
+| Pattern cycles | Built. Scales are measured in times through, not bars. |
+| Play-screen layout | Rebuilt around one shared unit; a real wide layout for tablets and desktops. |
+| Commercial groundwork | The licence seam, and CI building the gated app. See *Selling it, one day*. |
 
-Push to `main` deploys: Actions runs `npm test` and `npm run build`, then
-publishes. The version in `package.json` is stamped into the build and shown on
-the settings screen, so bump it with anything user-visible — there must never be
-doubt about what a device is running.
+Push to `main` deploys: Actions runs `npm test`, then builds the app twice —
+once with `VITE_GATED=true` to prove the paid path still compiles, then the
+real build that gets published. The version in `package.json` is stamped into
+the build and shown on the settings screen, so bump it with anything
+user-visible — there must never be doubt about what a device is running.
 
 **Nothing is tagged past `v1.0.0`.**
+
+### The state of things, for someone picking this up cold
+
+The last stretch of work went in four shippable stages, each verified in a
+browser before the next began. That order was not incidental and is worth
+repeating for anything of this size: the model first with no behaviour change
+at all, then a visible fix that the feature happened to need, then the feature.
+
+- **`Exercise.keys` replaced `Exercise.fifths`.** Ask it with `keyAt(beat)`. It
+  is the same shape as `metre.ts` on purpose — "what is in force at beat b" is
+  a question a part asks of its key as well as its metre.
+- **Scales and arpeggios are measured in cycles**, and each cycle is padded out
+  to its bar line. That padding is what makes a cycle boundary a bar line,
+  which is what lets the key change between two of them.
+- **A key change lands on a bar line and nowhere else.** Nearly everything
+  downstream leans on that one rule; see *Key changes, in detail*.
+- **Nothing is known to be broken.** The one outstanding fault is the gated
+  settings screen, which no shipped build exercises — see *Selling it, one
+  day*, which is written to be implemented from.
 
 ### Where to look
 
 | | |
 |---|---|
-| `src/domain/metre.ts` | Bar length, pulse, `barAt`. The model for "what is in force at beat b". |
+| `src/domain/keys.ts` | `keyAt`, `orderByCloseness`, `widestKey`, spelling. The key model. |
+| `src/domain/metre.ts` | Bar length, pulse, `barAt`. The model `keys.ts` was built to match. |
 | `src/engine/clock.ts` | `timeForBeat`, `beatForTime`, `secondsBetween` — the three functions a tempo map replaces. |
+| `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
+| `src/render/stave.ts` | `layoutKeySignature` — one arithmetic shared by drawing and measuring, including the naturals that cancel an outgoing key. |
+| `src/render/surface.ts` | Both reading modes. `staveSpaceCeiling` is the unit the whole play screen is sized from. |
 | `src/render/conductor.ts` | Pattern geometry, ported from the spike. |
+| `src/licensing/` | The only two files that know money exists. |
 | `public/spike/` | Throwaway. The conductor and microphone spikes, and where shapes are argued about. |
-| `tools/stave-to-svg.mts` | Renders an exercise to SVG so engraving can be *looked at* without a browser. |
+| `tools/stave-to-svg.mts` | Renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
 | `input/` | Reference material, gitignored. Currently a conducting textbook chapter. |
 
 `tools/` is not in the tsconfig project, so `npm run build` will not catch a
-break there. It has rotted once already.
+break there. It has rotted once already, and was found broken again during the
+key work — it builds an `Exercise` literal, so any change to that type breaks
+it silently.
+
+### How this has been checked, and why the tests are not enough
+
+Three faults in this stretch were found by looking at the thing rather than by
+running the suite, and none of them would have been caught by a test written in
+good faith beforehand:
+
+- A stacked page drew stems and ledger lines in mid air below the last line,
+  because it culled systems by their whole extent rather than by their stave.
+- The first header-suppression attempt clipped the first notehead of every
+  clef-less line — the spacing tests all measure notes *relative to each other*
+  and so had nothing to say about the left edge.
+- The cancelling naturals were drawn hard against the new signature.
+
+So: `npm run dev` plus a throwaway `playwright-core` script driving
+`localhost:5173` at chosen viewport sizes, and `tools/stave-to-svg.mts` for
+engraving. That SVG route is also the cheapest regression check there is — the
+same exercise and seed before and after a refactor should render byte-for-byte,
+and it proved the key-list change inert to fourteen decimal places.
 
 ## The direction
 
@@ -52,13 +102,25 @@ release.
    already works in floating-point beats, so a triplet crotchet at ⅔ of a beat
    schedules, judges and spaces correctly today. What is missing is purely
    notational — bracket, numeral, beaming.
-2. **Key changes.**
-3. **A tempo map** — step changes first.
+2. ~~**Key changes**~~ — built. See *Key changes, in detail*.
+3. **A tempo map** — step changes first. Now the only thing between here and a
+   fermata, and the conductor's best argument: a metronome cannot teach anyone
+   to follow a rit. by definition.
 4. **The microphone as input**, instead of the buttons. Proven in a spike and
    parked; see *The microphone, parked*.
 5. **MusicXML import from a local file.**
 6. **A server**, only if step 5 shows people want a library rather than their
    own files.
+
+**Before any of those, if the app is ever to be sold**: the gated settings
+screen, which currently accepts choices it then silently overrides. It is a
+blocker rather than a feature, and it is written up ready to build in
+*Selling it, one day*.
+
+Two smaller things worth doing whenever they are convenient, both noted where
+they were found: the fourth exercise kind could use a second arpeggio pattern
+(the list in `ARPEGGIO_PATTERNS` is deliberately one entry and says so), and
+`FREE_TIER.playbackMode` is declared but never read.
 
 ### Why local import before a server
 
