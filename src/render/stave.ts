@@ -187,14 +187,21 @@ function drawDigits(
   }
 }
 
-/** Total width of the clef/key/time block, needed to position the strike line. */
+/**
+ * Total width of the clef/key/time block, needed to position the strike line.
+ *
+ * `showClef` is false for a system that repeats the key and time signature but
+ * not the clef — see `SystemOptions.clef` in `system.ts` for why a system
+ * would want that.
+ */
 export function measureStaveHeader(
   m: StaveMetrics,
   fifths: number,
   beatsPerBar: number,
   beatUnit: number,
+  showClef = true,
 ): number {
-  const clefWidth = glyphWidth(CLEF_GLYPH[m.clef]) * m.staveSpace + m.staveSpace * 0.7;
+  const clefWidth = showClef ? glyphWidth(CLEF_GLYPH[m.clef]) * m.staveSpace + m.staveSpace * 0.7 : 0;
 
   let keyWidth = 0;
   if (fifths !== 0) {

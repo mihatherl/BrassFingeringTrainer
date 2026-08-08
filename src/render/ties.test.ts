@@ -116,7 +116,7 @@ function tiesDrawn(exercise: Exercise, firstBar: number, lastBar: number, final:
     theme: LIGHT_THEME,
     colourFor: () => LIGHT_THEME.note,
     final,
-    header: true,
+    clef: true,
   });
 
   const curves = calls.filter((c) => c.method === 'quadraticCurveTo');

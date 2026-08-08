@@ -43,7 +43,7 @@ import {
   type LayoutNote,
 } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
-import { BAR_LINE_SETBACK, drawSystem, justifiedX, MUSIC_MARGIN } from './system';
+import { BAR_LINE_SETBACK, drawSystem, justifiedX } from './system';
 import {
   drawBarLine,
   drawClef,
@@ -495,28 +495,21 @@ export class StaveRenderer {
   }
 
   /**
-   * Left margin a header-less system needs, so its first note — and that
-   * note's accidental, if it has one — is not centred so close to the edge
-   * that half the glyph is drawn off the canvas.
-   *
-   * A header-bearing system never has this problem: `headerWidth` is comfortably
-   * wider than any notehead. A header-less one starts from a plain margin
-   * instead (see `MUSIC_MARGIN`), which is only enough for a note with no
-   * accidental to clear — a system that happens to begin with a wide notehead,
-   * or one carrying a sharp or flat, needs more than that plain margin gives it.
+   * Room a clef-less system needs for its key and time signature, which are
+   * drawn there regardless — see `SystemOptions.clef`. The same figure
+   * `headerWidth` itself is built from, just without the clef's share.
    */
-  private leftMarginFor(firstBar: number, lastBar: number, metrics: StaveMetrics): number {
+  private clefLessMarginFor(metrics: StaveMetrics): number {
     const { exercise } = this.options;
-    const { barBeats } = exercise.metre;
-    const from = firstBar * barBeats;
-    const to = Math.min(exercise.totalBeats, lastBar * barBeats);
-    const first = exercise.notes.find((note) => note.startBeat >= from && note.startBeat < to);
-    const plain = metrics.staveSpace * MUSIC_MARGIN;
-    if (!first) return plain;
-
-    const clearance = noteheadWidth(metrics, first.duration) / 2;
-    const accidental = first.showAccidental ? accidentalRoom(metrics, first.pitch) : 0;
-    return plain + clearance + accidental;
+    return (
+      measureStaveHeader(
+        metrics,
+        exercise.fifths,
+        exercise.metre.beatsPerBar,
+        exercise.metre.beatUnit,
+        false,
+      ) + metrics.staveSpace
+    );
   }
 
   /**
@@ -814,13 +807,14 @@ export class StaveRenderer {
       );
 
       const final = lastBar >= totalBars;
-      // Only the very first line of the piece carries the courtesy clef, key
-      // and time signature — none of the three ever change within an
-      // exercise, so a player who has seen them once does not need them
-      // again just because the page has turned. Every later line, wherever it
-      // lands in the stack, gets that width back for music instead.
-      const header = index === 0;
-      const from = header ? this.headerWidth : this.leftMarginFor(firstBar, lastBar, metrics);
+      // Only the very first line of the piece carries the courtesy clef — it
+      // is the one of the three that can never change mid-exercise even once
+      // key changes exist, so a player who has seen it once does not need it
+      // again just because the page has turned. The key and time signature
+      // stay on every line: both are live information worth being able to
+      // check mid-piece, more so once either can change partway through.
+      const clef = index === 0;
+      const from = clef ? this.headerWidth : this.clefLessMarginFor(metrics);
       drawSystem(ctx, {
         exercise,
         metrics,
@@ -839,7 +833,7 @@ export class StaveRenderer {
         colourFor: (note) => verdictColour(this.verdictFor(note), theme),
         hintFor: this.options.hintFor,
         final,
-        header,
+        clef,
       });
     });
   }

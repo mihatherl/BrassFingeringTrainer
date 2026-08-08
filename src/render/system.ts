@@ -41,8 +41,8 @@ import type { StaveTheme } from './surface';
 export const BAR_LINE_SETBACK = 1.75;
 
 /**
- * Left margin before the music, in stave spaces, when a system carries no
- * clef, key or time signature to provide one of its own.
+ * Left margin before the clef, in stave spaces — and before the key signature
+ * directly, on a system that skips the clef.
  */
 export const MUSIC_MARGIN = 0.4;
 
@@ -64,15 +64,21 @@ export interface SystemOptions {
   /** Whether this system ends the music, and so gets a closing double bar. */
   final: boolean;
   /**
-   * Whether to draw the clef, key and time signature at the head of this system.
+   * Whether to draw the clef at the head of this system. The key and time
+   * signature are drawn regardless.
    *
-   * None of the three ever change within an exercise, so a caller showing
-   * several systems at once — several stacked on one screen — can ask for the
-   * courtesy repeat to be skipped on all but the first and get that space back
-   * for music instead. Static callers such as the results review show it on
-   * every system, as engraved music conventionally does.
+   * The clef is the one element of the three a player never needs restated —
+   * unlike the other two it cannot change mid-exercise even once key changes
+   * exist, since a change of clef mid-part is not a thing brass notation does.
+   * So a caller showing several systems at once — several stacked on one
+   * screen — can ask for the courtesy repeat of just the clef to be skipped on
+   * all but the first and get a little of that space back for music, while the
+   * key and time signature stay in view on every line: both are live
+   * information a reader may need to check mid-piece, more so once either can
+   * change partway through. Static callers such as the results review draw
+   * the clef on every system too, as engraved music conventionally does.
    */
-  header: boolean;
+  clef: boolean;
 }
 
 /**
@@ -122,17 +128,14 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   ctx.fillStyle = theme.stave;
   drawStaveLines(ctx, metrics, 0, rightEdge);
 
+  // The key and time signature are drawn regardless; only the clef is ever
+  // skipped, from a plain margin in its place. See `SystemOptions.clef`.
+  let x = staveSpace * MUSIC_MARGIN;
+  if (options.clef) x = drawClef(ctx, metrics, x);
+  x = drawKeySignature(ctx, metrics, x, exercise.fifths);
   // Where the music proper starts, which is where a tie arriving from the
-  // system above has to begin. Left at the plain margin when the courtesy
-  // clef, key and time signature are skipped, so the music moves up to fill
-  // the room they would have taken.
-  let musicLeft = staveSpace * MUSIC_MARGIN;
-  if (options.header) {
-    let x = musicLeft;
-    x = drawClef(ctx, metrics, x);
-    x = drawKeySignature(ctx, metrics, x, exercise.fifths);
-    musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
-  }
+  // system above has to begin.
+  const musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
 
   // Every bar line except the one at the head of the system: the start of the
   // stave already marks it, clef or no clef.

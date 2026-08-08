@@ -180,8 +180,8 @@ function drawReviewSystem(
     },
     final,
     // Read top to bottom rather than glanced at a screenful of stacked lines
-    // at once, so the review keeps the courtesy clef, key and time signature
-    // on every system, as engraved music conventionally does.
-    header: true,
+    // at once, so the review keeps the courtesy clef on every system too, as
+    // engraved music conventionally does.
+    clef: true,
   });
 }

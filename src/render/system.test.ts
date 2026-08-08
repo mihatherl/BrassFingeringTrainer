@@ -8,12 +8,14 @@ import { LIGHT_THEME } from './surface';
 import { drawSystem } from './system';
 
 /**
- * The header option: the clef, key and time signature at the head of a system.
+ * The `clef` option: whether the courtesy clef is drawn at the head of a
+ * system. The key and time signature are drawn regardless — see
+ * `SystemOptions.clef` in `system.ts` for why the clef alone is optional.
  *
  * Everything else about a system is exercised through `review.test.ts` and
  * `surface.test.ts`, which draw real, generated material. This is narrower on
  * purpose — it isolates the one thing neither of those can pin down precisely,
- * which is whether the courtesy header was drawn at all.
+ * which is whether the courtesy clef was drawn at all.
  */
 
 interface RecordedCall {
@@ -102,7 +104,7 @@ function exerciseOf(): Exercise {
   };
 }
 
-function draw(header: boolean): RecordedCall[] {
+function draw(clef: boolean): RecordedCall[] {
   const calls: RecordedCall[] = [];
   const exercise = exerciseOf();
   drawSystem(mockContext(calls), {
@@ -114,30 +116,30 @@ function draw(header: boolean): RecordedCall[] {
     theme: LIGHT_THEME,
     colourFor: () => LIGHT_THEME.note,
     final: true,
-    header,
+    clef,
   });
   return calls;
 }
 
-describe('drawSystem header', () => {
+describe('drawSystem clef', () => {
   it('draws the clef only when asked', () => {
-    const clef = glyphPath('gClef');
+    const clefGlyph = glyphPath('gClef');
     const drawsClef = (calls: RecordedCall[]) =>
-      calls.some((c) => c.method === 'fill' && c.args[0] === clef);
+      calls.some((c) => c.method === 'fill' && c.args[0] === clefGlyph);
 
     expect(drawsClef(draw(true))).toBe(true);
     expect(drawsClef(draw(false))).toBe(false);
   });
 
-  it('skips the key and time signature along with the clef', () => {
+  it('draws the key and time signature whether or not the clef does', () => {
     // Every glyph fill is a `fill(Path2D)` call; a bare shape fill (a beam, a
-    // tie) calls `fill()` with nothing. Noteheads and stems draw regardless of
-    // the header, so the difference between the two runs is exactly what the
-    // header contributed: the clef, the key signature and the two rows of a
-    // time signature digit.
+    // tie) calls `fill()` with nothing. Noteheads and stems draw regardless,
+    // and so — now — do the key signature's three flats and the time
+    // signature's two digit rows, on this exercise. So the only difference
+    // between the two runs should be the clef glyph itself: exactly one fill.
     const glyphFills = (calls: RecordedCall[]) =>
       calls.filter((c) => c.method === 'fill' && c.args.length > 0).length;
 
-    expect(glyphFills(draw(false))).toBeLessThan(glyphFills(draw(true)));
+    expect(glyphFills(draw(true)) - glyphFills(draw(false))).toBe(1);
   });
 });
