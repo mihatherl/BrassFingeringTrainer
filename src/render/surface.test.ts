@@ -122,6 +122,7 @@ function build(kind: ExerciseKind, clef: 'treble' | 'bass', fifths: number, seed
     difficulty: difficultyById('hard'),
     kind,
     bars: 8,
+    cycles: 2,
     metre: metreFor(4, 4),
     seed,
   });
@@ -191,6 +192,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById('beginner'),
         kind: 'random',
         bars: 8,
+        cycles: 2,
         metre: metreFor(4, 4),
         seed: 12,
       }),
@@ -271,6 +273,7 @@ describe('scrolling renderer', () => {
       difficulty: difficultyById('expert'),
       kind: 'random',
       bars: 8,
+      cycles: 2,
       metre: metreFor(4, 4),
       seed: 5,
     });
@@ -657,6 +660,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById('beginner'),
         kind: 'random',
         bars: 2,
+        cycles: 2,
         metre: metreFor(4, 4),
         seed: 4,
       });
@@ -698,6 +702,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById('hard'),
         kind: 'random',
         bars: 32,
+        cycles: 2,
         metre: metreFor(4, 4),
         seed: 21,
       });
@@ -759,6 +764,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById(difficultyId),
         kind: 'random',
         bars: 16,
+        cycles: 2,
         metre: metreFor(4, 4),
         seed: 9,
       });
@@ -852,6 +858,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById('easy'),
         kind: 'random',
         bars: 16,
+        cycles: 2,
         metre: metreFor(4, 4),
         seed: 9,
       });
@@ -1105,6 +1112,7 @@ describe('revealByBar', () => {
       difficulty: difficultyById('beginner'),
       kind: 'random',
       bars: 2,
+      cycles: 2,
       metre: metreFor(4, 4),
       seed: 4,
     });

@@ -19,7 +19,13 @@ import {
   type Instrument,
 } from '../domain/instruments';
 import { isDiatonic, needsAccidental, spellInKey, tonicPitchClass } from '../domain/keys';
-import { durationBeats, durationFromBeats, isBeamable, type Duration } from '../domain/rhythm';
+import {
+  durationBeats,
+  durationFromBeats,
+  isBeamable,
+  NOTE_VALUES,
+  type Duration,
+} from '../domain/rhythm';
 import { pitchClass, type Letter } from '../domain/pitch';
 import type { Difficulty } from './difficulty';
 import { barAt, type Metre } from '../domain/metre';
@@ -34,7 +40,16 @@ export interface GenerateOptions {
   fifths: number;
   difficulty: Difficulty;
   kind: ExerciseKind;
+  /** Length of free material. Patterns are measured in `cycles` instead. */
   bars: number;
+  /**
+   * Times a scale or arpeggio is played through, up and back down.
+   *
+   * A pattern's length is its own rather than a number of bars: how many bars a
+   * scale occupies is a consequence of how many notes it has, and asking for
+   * bars is what used to stop one half way up. Ignored by free material.
+   */
+  cycles: number;
   /** The time signature and what follows from it; see `metre.ts`. */
   metre: Metre;
   seed: number;
@@ -74,6 +89,50 @@ interface Slot {
   tiedFromPrevious: boolean;
 }
 
+/** Every writable duration, longest first, for filling a gap. */
+const LONGEST_FIRST: Duration[] = NOTE_VALUES.flatMap((value) => [
+  { value, dotted: true },
+  { value, dotted: false },
+]).sort((a, b) => durationBeats(b) - durationBeats(a));
+
+/**
+ * Fills a span with rests, in as few as will write cleanly.
+ *
+ * Longest first, but never across the middle of the bar: a rest straddling the
+ * strongest division inside a bar hides where the beat is, which is the one
+ * thing a rest must not do to someone counting. Odd bars have no such division
+ * to respect, so they are simply filled.
+ *
+ * Every duration in use is a multiple of a semiquaver and every value here is a
+ * dyadic fraction of a crotchet, so this terminates exactly rather than
+ * approximately.
+ */
+function restsFilling(from: number, beats: number, metre: Metre): Slot[] {
+  const { barBeats } = metre;
+  const half = barBeats / 2;
+  const splitsInHalf = Number.isInteger(half);
+
+  const slots: Slot[] = [];
+  let at = from;
+  let left = beats;
+
+  while (left > 1e-9) {
+    // How much may be spent before the next division worth respecting.
+    const toBoundary = splitsInHalf ? half - (at % half) : Infinity;
+    const room = Math.min(left, toBoundary > 1e-9 ? toBoundary : half);
+    const duration = LONGEST_FIRST.find((d) => durationBeats(d) <= room + 1e-9);
+    // Nothing writable fits, which cannot happen for any metre on offer; giving
+    // up beats looping forever.
+    if (!duration) break;
+
+    slots.push({ startBeat: at, duration, isRest: true, tiedFromPrevious: false });
+    at += durationBeats(duration);
+    left -= durationBeats(duration);
+  }
+
+  return slots;
+}
+
 export function generateExercise(options: GenerateOptions): Exercise {
   const rng = createRng(options.seed);
   const { metre } = options;
@@ -82,17 +141,41 @@ export function generateExercise(options: GenerateOptions): Exercise {
     throw new Error('No playable notes in range for this instrument and difficulty');
   }
 
-  const slots = generateRhythm(rng, options, metre, isPattern(options.kind));
+  /*
+   * A pattern is generated the other way round from everything else.
+   *
+   * Free material takes a fixed number of bars and fills them with whatever
+   * notes; a scale is a fixed shape, and how many bars it occupies falls out of
+   * how long that shape is. So its contour is worked out first, and the rhythm
+   * is built to hold a whole number of cycles of it. See `patternSlots`.
+   *
+   * A pattern that will not fit the instrument's compass is not a pattern, and
+   * falls back to free material in the length free material is measured in.
+   */
+  const contour = isPattern(options.kind)
+    ? patternContour(
+        rng,
+        options,
+        candidates,
+        options.kind === 'scales' ? SCALE_PATTERNS : ARPEGGIO_PATTERNS,
+      )
+    : null;
+
+  const { slots, totalBeats } = contour
+    ? patternSlots(rng, options, metre, contour.length)
+    : {
+        slots: generateRhythm(rng, options, metre, isPattern(options.kind)),
+        totalBeats: options.bars * metre.barBeats,
+      };
+
   // A tie continuation is not a choice of pitch — it is the note before it,
   // held — so the pitch generators are asked for one fewer note per tie.
   const soundedSlots = slots.filter((s) => !s.isRest && !s.tiedFromPrevious);
-  const pitches = generatePitches(
-    rng,
-    options,
-    candidates,
-    soundedSlots.length,
-    freshStarts(slots),
-  );
+  const pitches = contour
+    ? // Exactly whole cycles, and `patternSlots` emitted exactly that many
+      // notes, so the two line up without the index ever drifting.
+      soundedSlots.map((_, i) => contour[i % contour.length])
+    : generatePitches(rng, options, candidates, soundedSlots.length, freshStarts(slots));
 
   const notes: NoteEvent[] = [];
   const rests: RestEvent[] = [];
@@ -146,7 +229,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
     // part changes key; nothing generates a second entry yet.
     keys: [{ fromBeat: 0, fifths: options.fifths }],
     metre,
-    totalBeats: options.bars * metre.barBeats,
+    totalBeats,
     seed: options.seed,
     kind: options.kind,
   };
@@ -316,6 +399,73 @@ function generateRhythm(
 }
 
 /**
+ * Slots for a pattern: whole cycles of it, each finishing on a bar line.
+ *
+ * Scales are measured in cycles rather than bars because a cycle is the thing
+ * being practised, and the two do not divide into one another — a one-octave
+ * scale up and back is fifteen notes, which is three and three quarter bars of
+ * crotchets. Generating a fixed number of bars therefore stopped wherever the
+ * bar count ran out, routinely part-way up the scale, which is the one place a
+ * scale should never stop.
+ *
+ * So the cycle is generated whole and the remainder of its last bar is rested
+ * out. Every cycle then begins on a downbeat, the exercise ends where the
+ * pattern does, and a cycle boundary is a bar line — which is what lets the key
+ * change between one cycle and the next without landing mid-bar.
+ *
+ * One note more than the cycles ask for, at the very end. A cycle deliberately
+ * omits the tonic it would otherwise repeat at each join — playing it twice
+ * over is not what going round again sounds like — but that leaves the last
+ * one finishing on the second degree, hanging. So the closing tonic is added
+ * back once, which is what the second-time bar of a scale in any method book
+ * does.
+ */
+function patternSlots(
+  rng: Rng,
+  options: GenerateOptions,
+  metre: Metre,
+  notesPerCycle: number,
+): { slots: Slot[]; totalBeats: number } {
+  const slots: Slot[] = [];
+  const { barBeats } = metre;
+  const pool = options.difficulty.patterns.rhythms ?? options.difficulty.rhythms;
+  let beat = 0;
+
+  const roomInBar = () => barBeats - (beat % barBeats);
+  const fitting = (room: number) =>
+    pool.filter((r) => durationBeats(r.duration) <= room + 1e-9);
+
+  for (let cycle = 0; cycle < options.cycles; cycle++) {
+    const last = cycle === options.cycles - 1;
+    for (let i = 0; i < notesPerCycle + (last ? 1 : 0); i++) {
+      let affordable = fitting(roomInBar());
+      if (affordable.length === 0) {
+        // Nothing in the pool fits what is left of this bar. Rest it out and
+        // start the note on the next downbeat rather than overrunning: a
+        // pattern is never tied, so there is no honest way to spill.
+        const room = roomInBar();
+        slots.push(...restsFilling(beat, room, metre));
+        beat += room;
+        affordable = fitting(roomInBar());
+      }
+
+      const duration = rng.weighted(affordable, (r) => r.weight).duration;
+      slots.push({ startBeat: beat, duration, isRest: false, tiedFromPrevious: false });
+      beat += durationBeats(duration);
+    }
+
+    // Out to the bar line, so the next cycle starts where a cycle should.
+    const leftover = roomInBar() % barBeats;
+    if (leftover > 1e-9) {
+      slots.push(...restsFilling(beat, leftover, metre));
+      beat += leftover;
+    }
+  }
+
+  return { slots, totalBeats: beat };
+}
+
+/**
  * Whether a note of `beats` starting `remaining` from the bar line splits into
  * two notes that can each be written.
  *
@@ -364,14 +514,11 @@ function generatePitches(
   count: number,
   freshStarts: ReadonlySet<number>,
 ): number[] {
+  // Scales and arpeggios never arrive here: their notes come from a contour
+  // settled before the rhythm was built, since the rhythm is shaped around it.
+  // One that would not fit the instrument is not a pattern at all and takes the
+  // free-material path below, like anything else.
   switch (options.kind) {
-    // Scales and arpeggios are exempt from the fingering rules: their notes are
-    // fixed by the pattern, and bending them to avoid a repeated fingering would
-    // stop them being scales.
-    case 'scales':
-      return patternPitches(rng, options, candidates, count, SCALE_PATTERNS);
-    case 'arpeggios':
-      return patternPitches(rng, options, candidates, count, ARPEGGIO_PATTERNS);
     case 'phrases':
       return phrasePitches(rng, options, candidates, count, freshStarts);
     default:
@@ -519,13 +666,12 @@ const ARPEGGIO_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: [0, 4, 7] }];
  * exercise — it begins wherever the instrument's compass happens to start, so it
  * never sounds or feels like the scale you meant to practise.
  */
-function patternPitches(
+function patternContour(
   rng: Rng,
   options: GenerateOptions,
   candidates: Candidate[],
-  count: number,
   patterns: Pattern[],
-): number[] {
+): number[] | null {
   const pattern = rng.pick(patterns);
   const tonic = tonicPitchClass(options.fifths);
   const rootClass = pitchClass(tonic + pattern.rootDegree);
@@ -538,7 +684,7 @@ function patternPitches(
     rootClass,
     options.difficulty.patterns.spanSemitones,
   );
-  if (!fitted) return randomPitches(rng, options, candidates, count, new Set());
+  if (!fitted) return null;
 
   // Of the roots that fit, the one closest to the middle of the difficulty's own
   // range, so an easy exercise is not pushed to the bottom of the instrument
@@ -557,14 +703,10 @@ function patternPitches(
     if (degrees.has(offset % 12)) ascending.push(root + offset);
   }
 
-  if (ascending.length < 2) return randomPitches(rng, options, candidates, count, new Set());
+  if (ascending.length < 2) return null;
 
   // Up then back down, without sounding the turning notes twice.
-  const contour = [...ascending, ...ascending.slice(1, -1).reverse()];
-
-  const pitches: number[] = [];
-  for (let i = 0; i < count; i++) pitches.push(contour[i % contour.length]);
-  return pitches;
+  return [...ascending, ...ascending.slice(1, -1).reverse()];
 }
 
 function chooseNext(

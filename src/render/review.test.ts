@@ -81,6 +81,7 @@ function build(difficultyId: string, bars = 8) {
     difficulty: difficultyById(difficultyId),
     kind: 'random',
     bars,
+    cycles: 2,
     metre: metreFor(4, 4),
     seed: 7,
   });
@@ -239,6 +240,7 @@ describe('drawing the review', () => {
           difficulty: difficultyById(difficultyId),
           kind: 'phrases',
           bars: 8,
+          cycles: 2,
           metre: metreFor(4, 4),
           seed: 31,
         });

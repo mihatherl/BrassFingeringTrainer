@@ -70,6 +70,7 @@ export function App() {
         difficulty: difficultyById(settings.difficultyId),
         kind: settings.kind,
         bars: settings.bars,
+        cycles: settings.cycles,
         metre: metreFor(settings.beatsPerBar, settings.beatUnit),
         seed,
         noteWeights: weights,

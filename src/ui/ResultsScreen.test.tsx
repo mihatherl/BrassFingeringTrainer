@@ -20,6 +20,7 @@ const exercise = generateExercise({
   difficulty: difficultyById('easy'),
   kind: 'random',
   bars: 4,
+  cycles: 2,
   metre: metreFor(4, 4),
   seed: 3,
 });

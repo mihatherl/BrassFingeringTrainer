@@ -18,6 +18,7 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
     difficulty: difficultyById('hard'),
     kind: 'random',
     bars: 12,
+    cycles: 2,
     metre: metreFor(4, 4),
     seed: 1,
     ...overrides,

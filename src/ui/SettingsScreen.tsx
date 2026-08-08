@@ -10,6 +10,7 @@ import { toleranceFor } from '../engine/judge';
 import type { ExerciseKind } from '../exercise/types';
 import {
   BARS_OPTIONS,
+  CYCLE_OPTIONS,
   SCROLL_SPEED_RANGE,
   PLAYBACK_MODES,
   READING_MODES,
@@ -258,15 +259,34 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             </select>
           </label>
 
+          {/* A scale is measured in times through rather than in bars: the
+              cycle is the thing being practised, and how many bars it fills
+              follows from how many notes it has. */}
           <label className="field">
             <span className="field__label">Length</span>
-            <select value={settings.bars} onChange={(event) => update('bars', Number(event.target.value))}>
-              {BARS_OPTIONS.map((bars) => (
-                <option key={bars} value={bars}>
-                  {bars} bars
-                </option>
-              ))}
-            </select>
+            {patternKind ? (
+              <select
+                value={settings.cycles}
+                onChange={(event) => update('cycles', Number(event.target.value))}
+              >
+                {CYCLE_OPTIONS.map((cycles) => (
+                  <option key={cycles} value={cycles}>
+                    {cycles === 1 ? 'Once through' : `${cycles} times through`}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={settings.bars}
+                onChange={(event) => update('bars', Number(event.target.value))}
+              >
+                {BARS_OPTIONS.map((bars) => (
+                  <option key={bars} value={bars}>
+                    {bars} bars
+                  </option>
+                ))}
+              </select>
+            )}
           </label>
         </div>
       </Panel>

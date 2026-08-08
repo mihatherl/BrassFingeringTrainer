@@ -19,6 +19,7 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
     difficulty: difficultyById('medium'),
     kind: 'random',
     bars: 8,
+    cycles: 2,
     metre: metreFor(4, 4),
     seed: 12345,
     ...overrides,
@@ -44,7 +45,13 @@ describe('exercise generation', () => {
     const exercise = generateExercise(options({ kind }));
     const events = [...exercise.notes, ...exercise.rests];
 
-    for (let bar = 0; bar < 8; bar++) {
+    // Counted from the exercise rather than from the bars asked for: a scale
+    // is measured in cycles, so how many bars it runs to is its own business.
+    const bars = exercise.totalBeats / exercise.metre.barBeats;
+    expect(bars, 'a whole number of bars').toBe(Math.round(bars));
+    expect(bars).toBeGreaterThan(0);
+
+    for (let bar = 0; bar < bars; bar++) {
       const inBar = events.filter(
         (e) => e.startBeat >= bar * 4 && e.startBeat < (bar + 1) * 4,
       );
@@ -104,6 +111,121 @@ describe('exercise generation', () => {
 
 describe('scales and arpeggios', () => {
   const KEYS = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6];
+
+  describe('measured in cycles rather than bars', () => {
+    /*
+     * The fault this fixes: a scale is fifteen notes for one octave up and
+     * back, which is three and three quarter bars of crotchets. Asked for a
+     * number of bars, generation stopped when the bars ran out — routinely
+     * part way up the scale, which is the one place a scale should not stop.
+     */
+    const PATTERNS = ['scales', 'arpeggios'] as const;
+
+    it.each(PATTERNS)('plays each cycle through whole (%s)', (kind) => {
+      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
+        for (const cycles of [1, 2, 4]) {
+          const exercise = generateExercise(
+            options({ kind, cycles, difficulty: difficultyById(difficultyId), seed: cycles + 3 }),
+          );
+          const where = `${kind} ${difficultyId} x${cycles}`;
+
+          // Whole cycles, and then the one closing tonic — see `patternSlots`.
+          const sounded = exercise.notes.length - 1;
+          expect(sounded % cycles, where).toBe(0);
+
+          // The shape really is repeated: the pitches of the first cycle are
+          // the pitches of every other one.
+          const perCycle = sounded / cycles;
+          const first = exercise.notes.slice(0, perCycle).map((n) => n.writtenMidi);
+          for (let c = 1; c < cycles; c++) {
+            expect(
+              exercise.notes.slice(c * perCycle, (c + 1) * perCycle).map((n) => n.writtenMidi),
+              `${where}: cycle ${c + 1}`,
+            ).toEqual(first);
+          }
+        }
+      }
+    });
+
+    it.each(PATTERNS)('finishes on the note it started on (%s)', (kind) => {
+      /*
+       * A cycle leaves out the tonic it would repeat at each join, which is
+       * right for going round again and wrong for stopping: it left the
+       * exercise hanging on the second degree. The closing tonic is added back
+       * once, as the second-time bar of a scale in a method book does.
+       */
+      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
+        for (const cycles of [1, 2, 3]) {
+          const exercise = generateExercise(
+            options({ kind, cycles, difficulty: difficultyById(difficultyId), seed: cycles + 17 }),
+          );
+          const notes = exercise.notes;
+          expect(
+            notes[notes.length - 1].writtenMidi,
+            `${kind} ${difficultyId} x${cycles} did not close on its tonic`,
+          ).toBe(notes[0].writtenMidi);
+        }
+      }
+    });
+
+    it.each(PATTERNS)('starts every cycle on a downbeat (%s)', (kind) => {
+      // What the padding is for, and what makes a cycle boundary a bar line —
+      // which is in turn what lets the key change between two of them.
+      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
+        const cycles = 3;
+        const exercise = generateExercise(
+          options({ kind, cycles, difficulty: difficultyById(difficultyId), seed: 11 }),
+        );
+        const { barBeats } = exercise.metre;
+        const perCycle = (exercise.notes.length - 1) / cycles;
+
+        for (let c = 0; c < cycles; c++) {
+          const opening = exercise.notes[c * perCycle];
+          expect(
+            opening.startBeat % barBeats,
+            `${kind} ${difficultyId}: cycle ${c + 1} starts off the beat`,
+          ).toBeCloseTo(0, 9);
+        }
+      }
+    });
+
+    it.each(PATTERNS)('runs to a whole number of bars (%s)', (kind) => {
+      for (const cycles of [1, 2, 4, 8]) {
+        const exercise = generateExercise(options({ kind, cycles, seed: cycles }));
+        const bars = exercise.totalBeats / exercise.metre.barBeats;
+        expect(bars, `${kind} x${cycles}`).toBe(Math.round(bars));
+        // And longer when asked for more, which is the whole of the control.
+        expect(exercise.totalBeats).toBeGreaterThan(0);
+      }
+    });
+
+    it('gets longer with more cycles', () => {
+      const once = generateExercise(options({ kind: 'scales', cycles: 1, seed: 2 }));
+      const twice = generateExercise(options({ kind: 'scales', cycles: 2, seed: 2 }));
+
+      // Notes scale exactly, discounting the closing tonic each ends on.
+      expect(twice.notes.length - 1).toBe((once.notes.length - 1) * 2);
+
+      /*
+       * Beats only grow, rather than doubling. Two things stop it being exact
+       * and both are wanted: each length pads out to its own bar line, and
+       * where the rhythm pool holds more than one value the two exercises draw
+       * different durations. Asserting proportion here would be asserting a
+       * coincidence.
+       */
+      expect(twice.totalBeats).toBeGreaterThan(once.totalBeats);
+    });
+
+    it('leaves free material measured in bars, untouched', () => {
+      // `cycles` is a pattern's unit and must not leak into anything else.
+      for (const kind of ['random', 'phrases'] as const) {
+        for (const bars of [4, 8, 16]) {
+          const exercise = generateExercise(options({ kind, bars, cycles: 7, seed: bars }));
+          expect(exercise.totalBeats, `${kind} ${bars}`).toBe(bars * exercise.metre.barBeats);
+        }
+      }
+    });
+  });
 
   it.each(['scales', 'arpeggios'] as const)(
     'stays entirely in key, in every key (%s)',
@@ -209,10 +331,28 @@ describe('scales and arpeggios', () => {
             options({ kind, difficulty: difficultyById(difficultyId), seed, bars: 8 }),
           );
 
-          expect(exercise.rests, `${difficultyId} had rests`).toHaveLength(0);
           for (const note of exercise.notes) {
             expect(note.duration.value, difficultyId).toBe('quarter');
             expect(note.duration.dotted, difficultyId).toBe(false);
+          }
+
+          /*
+           * Rests here are structural, never rhythmic: `restChance` is zero at
+           * these levels, so the only ones that can appear are the padding that
+           * carries a cycle out to its bar line. They therefore all sit at the
+           * end of a cycle, which is to say in the last bar of one.
+           */
+          for (const rest of exercise.rests) {
+            const endsOnBarLine =
+              (rest.startBeat + durationBeats(rest.duration)) % exercise.metre.barBeats === 0;
+            const runsToAnotherRest = exercise.rests.some(
+              (other) =>
+                Math.abs(other.startBeat - (rest.startBeat + durationBeats(rest.duration))) < 1e-9,
+            );
+            expect(
+              endsOnBarLine || runsToAnotherRest,
+              `${difficultyId}: rest at ${rest.startBeat} is not padding to a bar line`,
+            ).toBe(true);
           }
         }
       }

@@ -23,7 +23,17 @@ export interface Settings {
   tempo: number;
   difficultyId: string;
   kind: ExerciseKind;
+  /** How long free material runs. Scales and arpeggios use `cycles` instead. */
   bars: number;
+  /**
+   * How many times a scale or arpeggio is played through, up and back down.
+   *
+   * Patterns are measured in their own unit rather than in bars: a cycle is
+   * the thing being practised, and how many bars it fills is a consequence of
+   * how many notes it has. Asking for bars is what used to leave a scale
+   * stopping half way up.
+   */
+  cycles: number;
   beatsPerBar: number;
   beatUnit: number;
   countInBars: number;
@@ -100,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   difficultyId: 'easy',
   kind: 'random',
   bars: 8,
+  cycles: 4,
   beatsPerBar: 4,
   beatUnit: 4,
   countInBars: 1,
@@ -117,6 +128,14 @@ const STORAGE_KEY = 'brass-trainer:settings';
 
 export const TEMPO_RANGE = { min: 40, max: 220 } as const;
 export const BARS_OPTIONS = [4, 8, 12, 16, 24] as const;
+/**
+ * Times through a scale or arpeggio.
+ *
+ * Smaller numbers than the bar counts beside them, and deliberately: one cycle
+ * of a two-octave scale is already eight bars, so four times through is a
+ * substantial exercise rather than a short one.
+ */
+export const CYCLE_OPTIONS = [1, 2, 4, 8] as const;
 export const TIME_SIGNATURES = [
   { beatsPerBar: 4, beatUnit: 4, label: '4/4' },
   { beatsPerBar: 3, beatUnit: 4, label: '3/4' },
@@ -212,6 +231,7 @@ export function sanitise(settings: Settings): Settings {
     beatUnit: timeSignature.beatUnit,
     tempo: clamp(settings.tempo, TEMPO_RANGE.min, TEMPO_RANGE.max),
     bars: clamp(settings.bars, 1, 64),
+    cycles: clamp(settings.cycles, 1, 16),
     countInBars: clamp(settings.countInBars, 0, 2),
     scrollSpeed: clamp(settings.scrollSpeed, SCROLL_SPEED_RANGE.min, SCROLL_SPEED_RANGE.max),
     readingMode: READING_MODES.some((m) => m.id === settings.readingMode)
