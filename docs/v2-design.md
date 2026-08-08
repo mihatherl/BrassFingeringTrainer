@@ -170,13 +170,23 @@ release.
    schedules, judges and spaces correctly today. What is missing is purely
    notational — bracket, numeral, beaming.
 2. ~~**Key changes**~~ — built. See *Key changes, in detail*.
-3. **A tempo map** — step changes first. Now the only thing between here and a
+3. **Themes for sight-reading** — real melodic material instead of a random
+   walk, stored as scale degrees so it is agnostic of key and tempo. Needs no
+   engine change at all. See *Themes, and playing for as long as you like*.
+4. **Windowed scoring** — the score covers the last so many bars rather than
+   the whole session. Small, independent, and useful on its own.
+5. **Endless play, with a grey horizon** — music continues past the chosen
+   length in grey; play on and it goes white. The invasive one, and cheaper
+   after 3, since a theme boundary is already a bar line.
+6. **A tempo map** — step changes first. The only thing between here and a
    fermata, and the conductor's best argument: a metronome cannot teach anyone
-   to follow a rit. by definition.
-4. **The microphone as input**, instead of the buttons. Proven in a spike and
-   parked; see *The microphone, parked*.
-5. **MusicXML import from a local file.**
-6. **A server**, only if step 5 shows people want a library rather than their
+   to follow a rit. by definition. It slots either side of 3–5; it decides only
+   whether a theme's rit. breathes.
+7. **The microphone as input**, instead of the buttons. Proven in a spike and
+   parked; see *The microphone, parked*. It also answers the one hard question
+   in 5 — it can hear that you have stopped.
+8. **MusicXML import from a local file.**
+9. **A server**, only if step 8 shows people want a library rather than their
    own files.
 
 **Before any of those, if the app is ever to be sold**: the gated settings
@@ -301,9 +311,13 @@ tempo map a second customer, and agreed rather than assumed.
 3. ~~Spelling onto `NoteEvent`~~ — done
 4. ~~**Key changes**~~ — built. The groundwork made them cheaper
    than the tempo map rather than dearer. See *Key changes, in detail*.
-5. **The tempo map**, behind the three clock functions
-6. **The microphone**, which is additive and touches almost nothing else
-7. Fermata — needs the tempo map *and* a change to the transport's contract
+5. **Themes, windowed scoring, then endless play** — agreed in that order after
+   the tooling work, and ahead of the tempo map because none of the three needs
+   it. See *Themes, and playing for as long as you like*.
+6. **The tempo map**, behind the three clock functions
+7. **The microphone**, which is additive and touches almost nothing else — and
+   which settles the one question endless play cannot answer with buttons
+8. Fermata — needs the tempo map *and* a change to the transport's contract
 
 **Fermata is not a tempo problem, and grouping the two will mislead.** A tempo
 map is known in advance: closed form, schedulable, testable. A fermata's
@@ -430,6 +444,152 @@ on it, or the same surgery gets done twice.
   carries its own sounding pitch; a note repeating a pitch after a change wants
   a cautionary. The existing rule in `assignAccidentals` resets per bar, which is
   the right shape to extend.
+
+## Themes, and playing for as long as you like
+
+Designed, not built. Agreed in discussion, and written down before any of it is
+started because the first decision below is the kind that is expensive to
+reverse once code leans on it.
+
+**The complaint.** Sight-reading material is a random walk — `phrasePitches`,
+mostly stepwise with a sense of direction that turns over every few notes. It
+is better than the free material it shares a path with, and it is still not
+*music*: what makes a line readable as music is repetition, an answering
+phrase, and a cadence, and a walk cannot produce any of the three. A player
+sight-reading real music is reading shapes they half recognise. That is the
+skill, and nothing here trains it.
+
+**The shape of the answer.** A corpus of short themes, 8–24 bars, stored as
+scale degrees rather than pitches, stitched end to end for as long as someone
+wants to play. Three separable features, and they are worth keeping separate —
+one is free, one is small, and one touches the invariant this document is most
+careful about.
+
+### What a theme is
+
+**Degrees, not pitches.** A theme is a contour in scale degrees with an
+optional chromatic alteration and an octave offset, plus a rhythm in beats. It
+is therefore agnostic of key in the absolute sense while still able to carry a
+*relative* change — "up a fourth at bar 9" — and the generator spells it into
+whatever key is in force, exactly as it already spells everything else.
+
+This is not a new idea in this codebase, and that is the point: patterns are
+already generated the opposite way round from free material, contour first with
+the rhythm built to hold it. **A theme takes the pattern path, not the
+free-material path.** `patternContour` and `patternSlots` are the shape to
+follow, and `isPattern` is the switch that decides which way round generation
+runs. A theme is a pattern whose contour was authored rather than computed.
+
+What the format has to carry:
+
+| | |
+|---|---|
+| Contour | Degree 1–7, alteration, octave offset. Rests too — a phrase that never breathes is not a phrase. |
+| Rhythm | Beats, and ties across bar lines where they belong. |
+| Metre | Which metres the theme is legal in. A tune in three is not a tune in four. |
+| Relative key change | Bar number and a delta in fifths. Lands on a bar line by construction, which is the rule everything downstream leans on. |
+| Relative tempo change | Carried, and **inert** until the tempo map exists. Data may be richer than the engine; it must not lie about it. |
+| Difficulty | Which of the five levels the theme belongs to. |
+
+**Every theme starts and ends on a stable degree** — 1, 3 or 5 — so any two can
+abut without the join sounding like a mistake. That is a constraint on
+authoring rather than something to fix up at stitch time.
+
+**Range is checked, not assumed.** A theme is a fixed shape and an Eb bass in
+treble clef has a different compass from a cornet. The machinery exists: a
+pattern that will not fit the instrument is not a pattern and falls back to free
+material. A theme that will not fit is skipped for that instrument, and the
+corpus needs enough themes that skipping some still leaves a choice.
+
+### Where the themes come from
+
+**Authored offline, committed as data.** A model writes them, a tool validates
+them, and what ships is a file. Generating at runtime would mean a network
+request, and this app makes none — that is a commercial asset as much as a
+technical one, and it is not being spent on this.
+
+Three things the pipeline needs, none of them optional:
+
+- **A validator.** A model will produce plausible JSON with bars that do not add
+  up and degrees outside any compass. `metre.ts` can check bar lengths
+  mechanically. Anything that fails is discarded rather than debugged — the
+  corpus is cheap to regenerate and a theme is not worth arguing with.
+- **An eye.** Every theme rendered through `npm run svg` and looked at, and the
+  corpus pinned by the engraving snapshots. A corpus is exactly the kind of
+  thing that is wrong in ways a test cannot see.
+- **A copyright pass.** A model asked for a melody can return a real one, and
+  the intention is to sell this. Ask for abstract degree sequences rather than
+  music in the style of anyone, and check the result against well-known
+  incipits. Cheap now; not cheap after distribution.
+
+**The format is the durable artefact, not the model.** If what comes back is
+disappointing, twenty hand-authored themes in the same format still ship the
+feature. Nothing downstream knows or cares which wrote them.
+
+Coverage sizes the work honestly: five difficulties against three metres, with
+enough themes at each that a session does not repeat itself. That is the real
+cost of this feature, and it is authoring rather than engineering.
+
+### Playing for as long as you like
+
+The idea: past the length the player chose, the music carries on in grey. Stop
+at the end of the white and the session ends. Play on into the grey and it turns
+white, with fresh grey beyond it, for as long as they like.
+
+**Do not let `Exercise` grow.** This is the decision worth not reversing.
+`totalBeats` is load-bearing in more places than is obvious — the session's end
+condition, the metronome loop, the system layout, and `noticed`, which is sized
+from the note count at construction. Worse, a growing note list puts a second
+moving part inside the transport's rolling horizon, and that is the invariant
+the fermata note already says cannot take one: nothing can be scheduled past a
+hold of unknown length.
+
+**So pre-generate long and reveal progressively.** Generate to a generous cap —
+200 bars is around eight minutes of continuous playing — and make white against
+grey a matter of drawing and scoring alone. The exercise stays a closed value,
+everything downstream keeps the assumption it already makes, and the same seed
+still renders the same bytes, which is what the engraving snapshots are built
+on. An upheaval becomes a colour rule and an end condition.
+
+**Grey is not a new rendering path.** `colourFor` is already asked per note, and
+`revealByBar` already proves a colour can be withheld on a rule. Grey is one
+more state in a function that exists.
+
+### The hard part: stopped, or resting?
+
+With buttons, silence is ambiguous. Resting, missing a passage badly, and
+putting the instrument down all look identical, and a theme that opens with a
+rest would end the session under a naive rule.
+
+Something like *no input during a whole bar that contains notes* is the shape of
+it, and it has to survive a player who fluffs four bars and carries on. This
+wants deciding against a real instrument rather than reasoned about, which is
+the sort of question this project has settled by playing before.
+
+**The microphone answers this properly**, which is worth knowing before anyone
+builds an elaborate heuristic: it can hear that you have stopped. The rule
+written now should be the simplest one that works, on the understanding that it
+is replaced rather than refined.
+
+### What the score covers
+
+The score reports the last so many bars rather than everything played, which is
+what makes an endless session meaningful.
+
+**One distinction to keep.** Score the *window*, but record weak-note stats for
+the *whole* session. Weak-note drilling is the feature that improves the longer
+it is used; throwing away everything outside the window would work against the
+one thing that gets better with time. `summarise` already takes the judgements
+it is given, so the window is a filter at the call site rather than surgery.
+
+**An open decision, and the only one that changes what gets built.** Blocks or a
+rolling window. Blocks are what was proposed: the grey promotes itself a block
+at a time, and finishing one is a moment. A rolling window is simpler — the
+session has no end, only a scored window of the last so many bars, and grey
+merely marks where that window begins. Both land in the same place for the
+player. The recommendation is the rolling window, on simplicity; the argument
+against is that "you have completed one" is motivating and the results screen is
+built around it.
 
 ## The tempo map
 
