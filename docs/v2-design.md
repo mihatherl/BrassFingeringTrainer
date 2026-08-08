@@ -5,24 +5,59 @@ discussion; none of it is derivable from the code, and several of the rulings
 came from playing experience rather than from reasoning about the software. It
 is written down so it does not have to be argued out again.
 
-## Where v1 ended
+## Where things stand
 
-An installable PWA that drills valve fingerings against notation, judged by
-three on-screen buttons. Tagged `v1.0.0`, deployed to GitHub Pages, 333 tests.
-Fully offline, no backend, no runtime network requests at all — that last part
-is a property worth defending rather than an accident.
+**v1.0.0** was an installable PWA drilling valve fingerings against notation,
+judged by three on-screen buttons. Fully offline, no backend, no runtime network
+requests at all — that last part is worth defending rather than an accident.
+
+**v1.2.0 is deployed** to GitHub Pages, 374 tests. Since v1:
+
+| | |
+|---|---|
+| Ties | Built. Over the bar line, Medium upwards. See *Ties, as built*. |
+| `secondsBetween` | Built. The one seam a tempo map has to change. |
+| Spelling on the note | Built. Took `fifths` out of the renderers. |
+| `metre.ts` | Built. Bar length, pulse and numerator are now separate things. |
+| The conductor | Built and on screen, off by default, portrait only. |
+
+Push to `main` deploys: Actions runs `npm test` and `npm run build`, then
+publishes. The version in `package.json` is stamped into the build and shown on
+the settings screen, so bump it with anything user-visible — there must never be
+doubt about what a device is running.
+
+**Nothing is tagged past `v1.0.0`.**
+
+### Where to look
+
+| | |
+|---|---|
+| `src/domain/metre.ts` | Bar length, pulse, `barAt`. The model for "what is in force at beat b". |
+| `src/engine/clock.ts` | `timeForBeat`, `beatForTime`, `secondsBetween` — the three functions a tempo map replaces. |
+| `src/exercise/ties.ts` | How the rest of the app reads a tie. |
+| `src/render/conductor.ts` | Pattern geometry, ported from the spike. |
+| `public/spike/` | Throwaway. The conductor and microphone spikes, and where shapes are argued about. |
+| `tools/stave-to-svg.mts` | Renders an exercise to SVG so engraving can be *looked at* without a browser. |
+| `input/` | Reference material, gitignored. Currently a conducting textbook chapter. |
+
+`tools/` is not in the tsconfig project, so `npm run build` will not catch a
+break there. It has rotted once already.
 
 ## The direction
 
 In order. Each step is useful on its own, so this need not be delivered as one
 release.
 
-1. **Ties and tuplets**, wired into the generator so Hard and Expert gain
-   triplets immediately. *Ties are built; tuplets are not.*
+1. ~~**Ties**~~ — built. Tuplets are not, and are still worth having: timing
+   already works in floating-point beats, so a triplet crotchet at ⅔ of a beat
+   schedules, judges and spaces correctly today. What is missing is purely
+   notational — bracket, numeral, beaming.
 2. **Key changes.**
 3. **A tempo map** — step changes first.
-4. **MusicXML import from a local file.**
-5. **A server**, only if step 4 shows people want a library rather than their
+4. **The microphone as input**, instead of the buttons. Proven in a spike and
+   parked; see *The microphone, parked*.
+5. **MusicXML import from a local file.**
+6. **A server**, only if step 5 shows people want a library rather than their
    own files.
 
 ### Why local import before a server
@@ -133,13 +168,13 @@ Revised from the list at the top of this document once the conductor gave the
 tempo map a second customer, and agreed rather than assumed.
 
 1. ~~`secondsBetween`~~ — done
-2. **The conductor** — no prerequisites at all; it needs `visualBeat()` and a
-   height budget, and it is what makes a fermata mean anything
+2. ~~The conductor~~ — done, and on screen
 3. ~~Spelling onto `NoteEvent`~~ — done
-4. The tempo map, behind the three clock functions
-5. Fermata — needs the conductor and the tempo map, *and* a change to the
-   transport's contract; see below
-6. Key changes
+4. **Key changes** — the groundwork for these is done, so they are now cheaper
+   than the tempo map rather than dearer. See *Key changes, in detail*.
+5. **The tempo map**, behind the three clock functions
+6. **The microphone**, which is additive and touches almost nothing else
+7. Fermata — needs the tempo map *and* a change to the transport's contract
 
 **Fermata is not a tempo problem, and grouping the two will mislead.** A tempo
 map is known in advance: closed form, schedulable, testable. A fermata's
@@ -152,15 +187,88 @@ release. That is a change to its contract, not to its arithmetic, and it is the
 one item here that touches the invariant this document calls the fault a rhythm
 trainer cannot have.
 
-**Key changes ripple.** Most of those references only pass `fifths` around, but
-every `spellInKey` call becomes "which key is in force at this beat", and a
-mid-system change needs cancelling naturals and a double bar.
+**Key changes rippled, and now do not.** That estimate was made before spelling
+moved onto the note. The renderers no longer see `fifths` at all bar the key
+signature glyphs, so most of those references have gone. See *Key changes, in
+detail*.
 
 **Tempo changes are the risk.** `timeForBeat` is the foundation of scheduling,
 judging and the render loop, and a bug there desynchronises sound from notation
 — the one fault a rhythm trainer cannot have. The volume of code is small; the
 tests should be brutal. Since the groundwork below, the whole of that risk sits
 in three functions and nothing outside the clock has to change.
+
+## Key changes, in detail
+
+Next up, and cheaper than they look now the groundwork is in.
+
+### What a real part does
+
+`Pendennis!` (Goff Richards, Eb bass part) has **seven key changes in 165
+bars**, several of them **mid-system**. So the expensive case is required, not
+optional. It is 2/4 throughout — not one change of metre — which is why metre
+changes are not urgent even though the machinery is shared.
+
+### The symbology, agreed against that part
+
+**Double bar line, then the naturals cancelling the outgoing key, then the new
+signature.** Four cases, and the cancellation differs in each:
+
+- **Sharps to flats, or flats to sharps** — cancel everything, then state the new
+  key in full.
+- **Fewer of the same sign** — cancel only the surplus accidentals. (Some modern
+  engravers drop this and print the new signature alone; the 1997 Obrasso plate
+  uses the cancellation, so that is what was chosen.)
+- **Into C major** — nothing to state, so the naturals are the whole message.
+  The one case where a key change is *only* a cancellation, and the easiest to
+  miss at speed.
+
+Cancelling naturals go **in the positions the old accidentals occupied**, which
+is what makes them read as "these are no longer sharp" rather than as a row of
+unrelated naturals. `SIGNATURE_OCTAVES` in `stave.ts` already holds those
+positions.
+
+**Paged reading keeps the cautionary**: the incoming signature printed at the
+right-hand end of the system *before* the change, as the part does.
+
+**Scrolling reading does not, and must not.** The cautionary exists because on
+paper a change arrives without warning. Scrolling music has no such problem —
+the change slides toward you from the right, in view for seconds. So: draw the
+change inline where it falls, and let the fixed clef-and-key panel take the new
+signature as the change crosses the strike line.
+
+A mockup drawn with the app's own glyphs is reproducible from
+`tools/svg-context.mts`; the drawing needs `drawKeySignature`, `drawBarLine` and
+`accidentalNatural`, all of which exist.
+
+### The model
+
+`Exercise.fifths: number` becomes a list of `{ fromBeat, fifths }` with a
+`keyAt(beat)` helper — the same shape as `metre.ts`, and deliberately so. Build
+the "what is in force at beat b" mechanism once and let both metre and key ride
+on it, or the same surgery gets done twice.
+
+### What is already paid for
+
+- **Spelling is on the note**, settled at generation time. The generator spells
+  with the key in force at that beat and nothing downstream needs to know.
+- **`showAccidental` is on the note** too, decided against the key and against
+  what has already happened in the bar.
+- **`barAt`** exists, so bar arithmetic is not scattered.
+
+### What still costs
+
+- **`measureStaveHeader` feeds `headerWidth`, which feeds `strikeX`, which feeds
+  the whole scrolling layout**, and it is computed once in `layout()`. Paged
+  reading needs it per system. Scrolling is the harder one: the header there is
+  a fixed opaque panel the music slides *under*.
+- **A mid-system change needs room reserved.** `spacing.ts` `columnBeats` needs a
+  column at the change beat, and `extraWidthFor` an allowance — it currently
+  knows only about accidentals and dots.
+- **Accidentals across a change.** A tie continuation crossing a key change
+  carries its own sounding pitch; a note repeating a pitch after a change wants
+  a cautionary. The existing rule in `assignAccidentals` resets per bar, which is
+  the right shape to extend.
 
 ## The tempo map
 
@@ -178,6 +286,28 @@ b(t) = ((m·b₀ + c)·e^(m(t−t₀)/60) − c) / m
 
 `m = 0` degenerates to the constant-tempo case and needs guarding.
 
+### The seam is already cut
+
+**Change `timeForBeat`, `beatForTime` and `secondsBetween` in `clock.ts`, and
+nothing else.** Every caller already asks in a form that survives: not "what is
+the tempo" but "how many seconds between these two beats". `toleranceFor` takes
+a note's length in seconds, `hints.ts` takes a `secondsBetween` function, the
+session gets a note's sounding length from the transport.
+
+Three things to get right:
+
+- **The map must be total over negative beats.** The count-in sits there.
+- **It must be anchored so a change only ever affects the future.** `setTempo`
+  throws while the transport is running for exactly this reason: the beat/time
+  map is linear from a single origin, and changing its slope retroactively moves
+  every note already scheduled. The closed forms above have `t₀`/`b₀` for this.
+- **`nominalSecondsPerBeat` stays a scalar and stays used by one caller** — the
+  scrolling display. How far a beat travels is a property of the page; spacing
+  that tracked a varying tempo would bunch the notes during a rit.
+
+**The conductor needs nothing.** It reads `visualBeat()`, so it slows down with
+the music including the acceleration into each ictus.
+
 ### What a tempo map changes elsewhere
 
 - **Paged reading is unaffected.** Its spacing was deliberately decoupled from
@@ -190,15 +320,27 @@ b(t) = ((m·b₀ + c)·e^(m(t−t₀)/60) − c) / m
 - `toleranceFor` needs the local tempo at the note being judged, not a global
   one.
 
-## The on-screen conductor — spiked, and it works
+## The on-screen conductor — built
 
-`public/spike/conductor.html`. Tested on 2026-08-08 against an Eb bass: the beat
-reads from a bare moving dot and can be played to "as I would a real
-conductor", and **a rit. can be followed** by dragging the tempo. That second
-one was the doubtful question and the reason for building the spike at all.
+Shipped in v1.2.0. A setting beside the metronome, **off by default**, top right
+in portrait beside the notes already played, hidden in landscape. Geometry in
+`src/render/conductor.ts`; `public/spike/conductor.html` stays as the place to
+argue about shapes, with sliders the app does not expose.
 
-An animated stick above the music, where a conductor actually sits in a
-player's vision.
+Originally spiked on 2026-08-08 against an Eb bass: the beat reads from a bare
+moving dot, and **a rit. can be followed** by dragging the tempo. That second
+one was the doubtful question and the reason for building a spike at all.
+
+### Still open on it
+
+- **The style is fixed at "lively"** with no control in the app. It wants to be a
+  setting, and specifically a *difficulty* one: a smooth conductor is markedly
+  harder to follow, and finding the beat in a vague gesture is a real skill no
+  metronome can teach. Imported music could carry it, alongside the tempo marks.
+- **Five and seven patterns** are drawn on the reference sheet in `input/` and can
+  be added from it. Until then those metres get no conductor.
+- Only 2, 3 and 4 pulse patterns exist, which covers every metre the settings
+  screen offers plus 6/8, 9/8 and 12/8.
 
 **The reason it is worth building**: a click tells you where the beat *is*; a
 conductor tells you where it is going to be. Players who only practise to a
@@ -408,6 +550,30 @@ Nothing here is speculative; it was measured.
   microphone is declined or the room is too loud. The microphone half must be
   additive: declining the prompt should leave exactly the app that exists today.
 
+### How it would plug in
+
+`ValveInput` is a timestamped history of button states, and `judgeNote` asks one
+question of it: *was an accepted state held at any instant in a window around
+this onset*. The microphone produces a timestamped history of **pitches**
+instead, and the same question becomes *was an accepted pitch sounding*. So the
+judge wants a source interface rather than a `ValveInput`, with two
+implementations.
+
+The awkward part is that the microphone cannot answer it in one measurement.
+Timing comes from the amplitude envelope, which is reliable at the attack;
+pitch comes from the settled portion, ~200ms later. Two measurements of two
+different things, where the buttons give one. Anything reading `heldMask` —
+the results screen, the recent-notes list, weak-note stats — needs a pitch-
+shaped answer as well as a fingering-shaped one.
+
+`onCorrect` and the strike-line flash are the visible casualty: the earliest
+honest confirmation is about 200ms after the attack, so the instant green cannot
+survive in microphone mode. It can stay exactly as it is in button mode.
+
+Both spikes are in `public/spike/` with the detector, a flight recorder, and
+`tools/analyse-recording.mjs`. Recordings are in `spikefiles/`. If this resumes,
+the detector gets rewritten in TypeScript with those recordings as fixtures.
+
 ### Two rulings from playing experience
 
 **Accept any octave.** If an E was called for and any E was played, treat it as
@@ -481,6 +647,24 @@ it has to insist on warming up. And valve combinations are systematically sharp
 by construction — finding exactly that pattern is a sign the measurement is
 real rather than noise.
 
+## What imported music will actually contain
+
+Learned from `Pendennis!`, and worth knowing before the importer is designed.
+
+**A part is not read top to bottom.** That one has a segno, *To Coda*, *D.S. al
+Coda*, a coda sign, first and second time bars, and repeats. Either the importer
+unfolds all of it into playing order, or the app navigates it live. This is the
+thing most likely to be underestimated: it is a bigger question than key changes.
+
+**Multi-bar rests.** Eight bars of counted rest in one place. A trainer needs a
+position on whether it counts them for you.
+
+**Triplets** appear twice. Already the other half of step one.
+
+**Rehearsal marks, dynamics, hairpins, articulations, tempo text.** None of it is
+needed to play the right notes at the right time, and all of it is on the page a
+player is reading. Decide deliberately what is dropped rather than by accident.
+
 ## The spike itself
 
 `public/spike/` is a deliberately plain page with no build step, excluded from
@@ -494,6 +678,15 @@ happens.
 the band, and `node tools/analyse-recording.mjs <file.wav>` runs it over a
 recording and prints the notes it heard.
 
-It is throwaway. If the microphone work resumes, the detector gets rewritten in
-TypeScript with the recordings as fixtures; if it does not, the directory gets
-deleted.
+`public/spike/conductor.html` is the other one, and is still worth keeping: it
+exposes sliders the app does not — grip travel, how wide and how tall the pattern
+is beaten, the legato-to-marcato style — and prints the two figures a shape is
+argued with. It also prints a **fingerprint** of the drawn geometry, sampled off
+the curve rather than hashed from the numbers behind it, because the shape has
+twice changed without a coordinate moving and "am I seeing the new version?" is
+otherwise unanswerable down a tunnel.
+
+Both are throwaway. The conductor geometry has already been ported to
+`src/render/conductor.ts`; the spike survives only as somewhere to argue. If the
+microphone work resumes, the detector gets rewritten in TypeScript with the
+recordings as fixtures; if it does not, the directory gets deleted.
