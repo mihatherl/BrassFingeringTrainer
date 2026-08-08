@@ -1,3 +1,13 @@
+import {
+  PATTERNS,
+  shapeFingerprint,
+  readability,
+  scaledPattern,
+  shapeParts,
+  tipAt,
+  weakestIctus,
+} from './conductor-shape.js';
+
 /**
  * The conductor spike: one dot, and the question of whether you can find the
  * beat in its motion.
@@ -11,53 +21,16 @@
  * dragging it is a rit., and a metronome cannot teach anyone to follow one.
  */
 
-/*
- * The beat patterns, as the points where the hand lands.
- *
- * Standard shapes: four beats are down, left, right, up; three are down, right,
- * up; two are down and up. x runs left to right, y downward, both normalised.
- */
-const PATTERNS = {
-  2: [
-    { x: 0, y: 1 },
-    { x: 0.5, y: 0.45 },
-  ],
-  3: [
-    { x: 0, y: 1 },
-    { x: 0.7, y: 0.72 },
-    { x: 0.35, y: 0.35 },
-  ],
-  4: [
-    { x: 0, y: 1 },
-    { x: -0.75, y: 0.72 },
-    { x: 0.75, y: 0.72 },
-    { x: 0.3, y: 0.35 },
-  ],
-};
-
-/*
- * The rebound above the line between two ictus points, and the whole design.
- *
- * A parabola, because that is what a thrown ball does: slowest at the top of
- * the arc, fastest at the bottom. So the hand is quick through the ictus and
- * nearly still between beats, which is what a conductor's hand does and what
- * makes a beat readable at all. Move the dot round the same path at a constant
- * rate and the beat disappears entirely.
- *
- * Two things were measured rather than assumed. Easing the sideways travel — the
- * obvious thing to do — makes the horizontal speed peak between beats and
- * cancels most of the vertical whip: it took the ratio of ictus speed to apex
- * speed down from 3.2 to 1.9. Sideways travel is therefore linear. And peaking
- * the arc early, so the hand "falls into" the next beat, makes it worse rather
- * than better, because a longer descent from a fixed height is a slower one.
- * The symmetric parabola wins; what asymmetry remains comes from the pattern's
- * own geometry and is honest.
- *
- * The depth is the one number worth arguing about, so it is on a slider in the
- * page rather than fixed here.
- */
-
 const TRAIL_SECONDS = 0.55;
+
+/**
+ * The area every shape is drawn inside, in normalised units.
+ *
+ * Wide enough for the figure standing to the right of the pattern and tall
+ * enough for the deepest rebound above it, so nothing is clipped and no shape
+ * changes the scale of the beat.
+ */
+const VIEW = { minX: -0.85, maxX: 1.35, minY: -0.9, maxY: 1.05 };
 
 const el = (id) => document.getElementById(id);
 const ui = {
@@ -68,12 +41,21 @@ const ui = {
   click: el('click'),
   reveal: el('reveal'),
   plain: el('plain'),
+  shape: el('shape'),
+  travel: el('travel'),
+  travelValue: el('travel-value'),
+  spread: el('spread'),
+  height: el('height'),
+  extent: el('extent'),
   rebound: el('rebound'),
   ratio: el('ratio'),
   canvas: el('canvas'),
   status: el('status'),
   beatNumber: el('beat-number'),
+  build: el('build'),
 };
+
+ui.build.textContent = `shape ${shapeFingerprint()}`;
 
 /**
  * Piecewise-constant tempo, exact within each segment.
@@ -107,43 +89,6 @@ class Clock {
   }
 }
 
-/** Where the hand is, given a position in the bar. */
-function handAt(pattern, beatInBar, rebound) {
-  const index = Math.floor(beatInBar) % pattern.length;
-  const u = beatInBar - Math.floor(beatInBar);
-  const from = pattern[index];
-  const to = pattern[(index + 1) % pattern.length];
-
-  return {
-    x: from.x + (to.x - from.x) * u,
-    y: from.y + (to.y - from.y) * u - rebound * 4 * u * (1 - u),
-  };
-}
-
-/**
- * How much faster the hand moves at the ictus than at its slowest.
- *
- * Shown on screen because it is the number that decides whether any of this
- * works, and because a figure that can be reported back is worth more than an
- * impression. Measured across the busiest stroke of the pattern.
- */
-function readability(pattern, rebound) {
-  let worst = Infinity;
-  for (let beat = 0; beat < pattern.length; beat++) {
-    const speeds = [];
-    for (let i = 0; i <= 100; i++) {
-      const u = i / 100;
-      const d = 1e-4;
-      const a = handAt(pattern, beat + Math.max(0, u - d), rebound);
-      const b = handAt(pattern, beat + Math.min(1, u + d), rebound);
-      speeds.push(Math.hypot(b.x - a.x, b.y - a.y));
-    }
-    const slowest = Math.min(...speeds);
-    worst = Math.min(worst, Math.max(speeds[0], speeds[100]) / (slowest || 1e-9));
-  }
-  return worst;
-}
-
 ui.start.addEventListener('click', () => void start(), { once: true });
 ui.tempo.addEventListener('input', () => {
   ui.tempoValue.textContent = `${ui.tempo.value} bpm`;
@@ -166,15 +111,44 @@ const STYLES = [
   { upTo: 100, name: 'marcato' },
 ];
 
+/**
+ * The pattern as currently set: the metre's shape, cut down to the extent the
+ * dynamic asks for. A conductor beating a quiet passage uses the same shape and
+ * simply makes it smaller, in both directions and by different amounts.
+ */
+const currentPattern = () =>
+  scaledPattern(
+    PATTERNS[Number(ui.beats.value)],
+    Number(ui.spread.value) / 100,
+    Number(ui.height.value) / 100,
+  );
+
 const showRatio = () => {
-  const pattern = PATTERNS[Number(ui.beats.value)];
   const value = Number(ui.rebound.value);
   const style = STYLES.find((s) => value <= s.upTo).name;
-  ui.ratio.textContent = `${style} — ictus ${readability(pattern, value / 100).toFixed(1)}x`;
+  const pattern = currentPattern();
+  const rebound = value / 100;
+  // The ictus is the change of direction, so that is the headline; the speed
+  // contrast is worth reporting too but it is not what a beat *is*.
+  ui.ratio.textContent =
+    `${style} — weakest ictus ${weakestIctus(pattern, rebound).toFixed(1)}, ` +
+    `speed ${readability(pattern, rebound).toFixed(1)}x`;
 };
+const showExtent = () => {
+  ui.extent.textContent = `${ui.spread.value}% wide, ${ui.height.value}% tall`;
+  showRatio();
+};
+const showTravel = () => {
+  ui.travelValue.textContent = `grip travels ${ui.travel.value}%`;
+};
+ui.travel.addEventListener('input', showTravel);
+showTravel();
+
 ui.rebound.addEventListener('input', showRatio);
 ui.beats.addEventListener('change', showRatio);
-showRatio();
+ui.spread.addEventListener('input', showExtent);
+ui.height.addEventListener('input', showExtent);
+showExtent();
 
 async function start() {
   const context = new AudioContext();
@@ -182,7 +156,7 @@ async function start() {
   const clock = new Clock(context, Number(ui.tempo.value));
 
   ui.start.disabled = true;
-  ui.status.textContent = 'Watch the dot. Try to play, or clap, on the beat.';
+  ui.status.textContent = 'Watch it. Try to play, or clap, on the beat.';
 
   ui.tempo.addEventListener('input', () => clock.setTempo(Number(ui.tempo.value)));
 
@@ -210,13 +184,13 @@ async function start() {
   const loop = () => {
     requestAnimationFrame(loop);
 
-    const pattern = PATTERNS[Number(ui.beats.value)];
+    const pattern = currentPattern();
     const beat = clock.beatNow();
     const beatInBar = ((beat % pattern.length) + pattern.length) % pattern.length;
 
     scheduleClicks();
     const rebound = Number(ui.rebound.value) / 100;
-    trail.push({ at: context.currentTime, ...handAt(pattern, beatInBar, rebound) });
+    trail.push({ at: context.currentTime, ...tipAt(pattern, beatInBar, rebound) });
     while (trail.length && trail[0].at < context.currentTime - TRAIL_SECONDS) trail.shift();
 
     draw(pattern, trail);
@@ -243,9 +217,21 @@ function draw(pattern, trail) {
   const ink = styles.getPropertyValue('--text').trim();
   const faint = styles.getPropertyValue('--border').trim();
 
-  // Normalised space to pixels, with room round the edges for the rebound.
-  const scale = Math.min(width / 2.6, height / 1.7);
-  const px = (p) => ({ x: width / 2 + p.x * scale, y: height * 0.18 + p.y * scale });
+  /*
+   * Normalised space to pixels.
+   *
+   * One framing for every shape, sized to hold the largest of them. The beat
+   * pattern therefore appears at exactly the same size whichever is selected,
+   * which it has to: a comparison where one option is drawn bigger than another
+   * is a comparison of sizes.
+   */
+  const scale = Math.min(width / (VIEW.maxX - VIEW.minX), height / (VIEW.maxY - VIEW.minY));
+  const midX = (VIEW.minX + VIEW.maxX) / 2;
+  const midY = (VIEW.minY + VIEW.maxY) / 2;
+  const px = (p) => ({
+    x: width / 2 + (p.x - midX) * scale,
+    y: height / 2 + (p.y - midY) * scale,
+  });
 
   if (!ui.plain.checked) {
     ctx.fillStyle = faint;
@@ -273,12 +259,51 @@ function draw(pattern, trail) {
   }
 
   ctx.globalAlpha = 1;
-  if (trail.length) {
-    const head = px(trail[trail.length - 1]);
-    ctx.fillStyle = ink;
+  if (!trail.length) return;
+
+  /*
+   * Whatever the shape is, it hangs off the point the trail just reached.
+   *
+   * The shapes themselves are described in `conductor-shape.js` as plain lines
+   * and circles, so the same description can be drawn here and rendered to a
+   * still image for inspection. Nothing about any of them is a stored frame:
+   * every point is derived from the beat, which is what lets a rit. be followed
+   * at all.
+   */
+  const tip = trail[trail.length - 1];
+  const { strokes, circles } = shapeParts(
+    ui.shape.value,
+    tip,
+    pattern,
+    Number(ui.travel.value) / 100,
+  );
+
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = ink;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  for (const stroke of strokes) {
+    ctx.lineWidth = Math.max(2, stroke.width * scale);
     ctx.beginPath();
-    ctx.arc(head.x, head.y, Math.max(8, scale * 0.035), 0, Math.PI * 2);
-    ctx.fill();
+    stroke.points.forEach((point, index) => {
+      const at = px(point);
+      if (index === 0) ctx.moveTo(at.x, at.y);
+      else ctx.lineTo(at.x, at.y);
+    });
+    ctx.stroke();
+  }
+
+  for (const circle of circles) {
+    const at = px(circle.at);
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, Math.max(3, circle.radius * scale), 0, Math.PI * 2);
+    if (circle.fill) {
+      ctx.fill();
+    } else {
+      ctx.lineWidth = Math.max(2, (circle.width ?? 0.03) * scale);
+      ctx.stroke();
+    }
   }
 }
 

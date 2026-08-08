@@ -51,7 +51,7 @@
     </style>
   </head>
   <body>
-    <h1>Conductor spike — can you find the beat in the motion?</h1>
+    <h1>Conductor spike — can you find the beat in the motion? <span id="build" style="float: right; font-weight: 400; opacity: 0.7"></span></h1>
 
     <div class="panel">
       <div class="controls">
@@ -60,6 +60,11 @@
           <option value="4" selected>4/4</option>
           <option value="3">3/4</option>
           <option value="2">2/4</option>
+        </select>
+        <select id="shape" aria-label="What is drawn">
+          <option value="dot">Dot</option>
+          <option value="baton" selected>Baton</option>
+          <option value="arm">Stick arm</option>
         </select>
         <label><input id="click" type="checkbox" /> Metronome</label>
         <label><input id="reveal" type="checkbox" /> Show beat number</label>
@@ -70,8 +75,17 @@
         <span id="tempo-value"><strong>80 bpm</strong></span>
       </div>
       <div class="controls" style="margin-top: 0.4rem">
+        <input id="spread" type="range" min="20" max="100" step="5" value="100" aria-label="Horizontal extent" />
+        <input id="height" type="range" min="20" max="100" step="5" value="100" aria-label="Vertical extent" />
+        <span id="extent">100% wide, 100% tall</span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <input id="travel" type="range" min="5" max="70" step="5" value="30" aria-label="Grip travel" />
+        <span id="travel-value">grip travels 30%</span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
         <input id="rebound" type="range" min="20" max="90" step="5" value="55" aria-label="Rebound" />
-        <span>style: <strong id="ratio">—</strong> faster than the float between beats</span>
+        <span><strong id="ratio">—</strong></span>
       </div>
       <p class="hint" id="status">Needs a tap to start, for the audio clock.</p>
     </div>
@@ -96,11 +110,42 @@
         a nice touch for steady playing and no more.
       </p>
       <p class="hint">
-        The rebound between beats is a parabola, so the dot is fastest at the ictus and slowest
-        between beats — the same profile as a thrown ball, and as a conductor's hand. Its depth is
-        the legato-to-marcato axis: little rebound is how a lyrical phrase is beaten, a deep one is
-        how a march is driven. Both are correct conducting and a player has to read either, so it is
-        a difficulty setting as much as a style. Try the smooth end — it should be harder to follow.
+        <strong>These are drawn as the band sees them.</strong> Every conducting diagram is from the
+        conductor's own side, so beat two of a four pattern goes to <em>their</em> left — which
+        arrives on your right. The patterns here are mirrored accordingly.
+      </p>
+      <p class="hint">
+        <strong>The three shapes share one moving point: the tip.</strong> Nothing about any of them
+        is a recording — every position is worked out from the beat, which is the only reason a rit.
+        can be followed at all.
+      </p>
+      <p class="hint">
+        <strong>The baton is one shape drawn twice.</strong> The grip travels the same pattern as
+        the tip, smaller and concentric inside it, and the slider is how much smaller.
+      </p>
+      <p class="hint">
+        <strong>The drawn line changes length, and it should.</strong> A baton is rigid in three
+        dimensions and this is its shadow: pointed towards you it foreshortens to almost nothing,
+        swept across the body it shows its full length. An earlier version held the line to one
+        length on the grounds that a stretching stick looks wrong, which forced a three-dimensional
+        gesture into a constraint it never had.
+      </p>
+      <p class="hint">
+        <strong>Every beat lands on the same floor, and the four strokes are not alike.</strong>
+        One to two is a low round lobe out to the side; two to three is the long stroke right across
+        the pattern, arcing over the top; three to four is the matching lobe coming back; four to one
+        goes straight up and straight back down. The figure of eight is where that long stroke passes
+        through the vertical, and the lobes are what hang either side of it — give every stroke the
+        same arc and there is no eight, only a row of humps. The last stroke is also how a piece
+        begins: baton held up, swiped down onto beat one. The rebound slider is how high those arcs go, and it
+        remains the legato-to-marcato axis: shallow is a lyrical phrase, deep is a march. Try the
+        smooth end — it should be harder to follow.
+      </p>
+      <p class="hint">
+        <strong>The two extent sliders are the dynamic.</strong> A conductor asking for something
+        very quiet beats the same shape much smaller, and the two directions shrink by different
+        amounts — a broad quiet phrase stays wide and goes shallow. The figure beside them is the
+        weakest beat in the bar, since a pattern is only as readable as the beat you cannot find.
       </p>
     </div>
 
