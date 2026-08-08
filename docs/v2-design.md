@@ -69,10 +69,23 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `tools/stave-to-svg.mts` | Renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
 | `input/` | Reference material, gitignored. Currently a conducting textbook chapter. |
 
-`tools/` is not in the tsconfig project, so `npm run build` will not catch a
-break there. It has rotted once already, and was found broken again during the
-key work — it builds an `Exercise` literal, so any change to that type breaks
-it silently.
+`tools/` **is** typechecked now, by `tsconfig.tools.json`, which the root
+project references — so `npm run build`, and therefore CI, catches a break
+there. It is the same trick `tsconfig.test.json` uses, and for the same reason:
+app code plus Node types, kept out of the app project where reaching for Node
+would be a mistake worth catching.
+
+It was added because the rot had happened twice. The second time,
+`stave-to-svg.mts` had been passing no `clef` to `drawSystem` since that option
+became required, so it drew **no clef on any system** while still exiting
+cleanly — the tool used to check engraving by eye, silently wrong about the one
+thing 1.2.2 was released to fix. Turning the compiler on found it in a minute.
+Only the `.mts` tools are covered; the `.mjs` ones never reach into `src` and
+cannot rot this way.
+
+`tsx` is a declared dev dependency and `npm run svg` is the documented way in.
+Both were `npx tsx` before, which fetched an undeclared package off the network
+on every cold run — in an app whose whole point is needing no network.
 
 ### How this has been checked, and why the tests are not enough
 

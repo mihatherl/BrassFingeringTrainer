@@ -11,7 +11,14 @@
  */
 
 export class SvgPath2D {
-  constructor(readonly d = '') {}
+  readonly d: string;
+
+  // Written out rather than as a constructor parameter property, which
+  // `erasableSyntaxOnly` forbids — that flag is what keeps these files
+  // runnable by anything that only strips types.
+  constructor(d = '') {
+    this.d = d;
+  }
 }
 
 /** The slice of a 2D context the stave renderer uses, emitting SVG as it goes. */

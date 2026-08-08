@@ -1,0 +1,25 @@
+{
+  /*
+   * The development tools get their own project for the same reason the tests
+   * do: they are app code plus Node APIs, and those types must not leak into
+   * the app project where reaching for them would be a mistake.
+   *
+   * Without this the tools are typechecked by nothing at all. They import from
+   * `src`, so any change to a type they touch breaks them silently — which has
+   * happened twice, the second time leaving `stave-to-svg` drawing no clef on
+   * any system while still exiting cleanly. The root project references this
+   * one, so `npm run build` and therefore CI now catch it.
+   *
+   * Only the `.mts` tools are covered. The `.mjs` ones are plain JavaScript
+   * that never reaches into `src`, so they cannot rot this way.
+   */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tools.tsbuildinfo",
+    "types": ["vite/client", "node"],
+    "noEmit": true
+  },
+  /* Cleared, or the exclude inherited from the app project would cancel these. */
+  "exclude": [],
+  "include": ["tools/**/*.mts"]
+}

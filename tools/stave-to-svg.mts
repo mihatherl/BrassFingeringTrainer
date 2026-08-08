@@ -11,10 +11,11 @@
  * For checking engraving by eye during development. Not part of the app, not
  * part of the build.
  *
- *   npx tsx tools/stave-to-svg.mts --difficulty hard --seed 3 > out.svg
+ *   npm run svg -- --difficulty hard --seed 3 > out.svg
  */
 
 import { instrumentById } from '../src/domain/instruments.ts';
+import { spellInKey } from '../src/domain/keys.ts';
 import { durationFromBeats } from '../src/domain/rhythm.ts';
 import { metreFor } from '../src/domain/metre.ts';
 import { difficultyById } from '../src/exercise/difficulty.ts';
@@ -44,6 +45,8 @@ function demoExercise(): Exercise {
   const at = (startBeat: number, beats: number, midi: number, tiedToNext = false): NoteEvent => ({
     writtenMidi: midi,
     soundingMidi: midi - 21,
+    // The demo figure is in C, so it spells against no signature.
+    pitch: spellInKey(midi, 0),
     startBeat,
     duration: durationFromBeats(beats)!,
     acceptedMasks: [0],
@@ -123,6 +126,10 @@ layout.systemStarts.forEach((firstBar, system) => {
     theme: LIGHT_THEME,
     colourFor: () => LIGHT_THEME.note,
     final,
+    // Every system, matching the review this borrows its layout from — and
+    // `planReview` reserves the room for one on each line regardless, so
+    // anything less leaves a gap where the clef should be.
+    clef: true,
   });
 });
 
