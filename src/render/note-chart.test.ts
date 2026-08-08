@@ -29,6 +29,7 @@ function mockCanvas(calls: RecordedCall[], width = 400) {
     beginPath: record('beginPath'),
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
+    quadraticCurveTo: record('quadraticCurveTo'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),

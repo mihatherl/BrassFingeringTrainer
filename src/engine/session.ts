@@ -8,7 +8,7 @@
  */
 
 import type { Exercise } from '../exercise/types';
-import { durationBeats } from '../domain/rhythm';
+import { isTieContinuation, tiedBeats } from '../exercise/ties';
 import { BrassSynth } from '../audio/synth';
 import type { Voice } from '../audio/sampler';
 import { Metronome } from '../audio/metronome';
@@ -92,11 +92,9 @@ export class Session {
     this.input = new ValveInput(() => context.currentTime);
     this.synth = options.brassVoice ?? new BrassSynth(context);
     this.metronome = new Metronome(context);
-    this.countInBeats = countInBars * exercise.beatsPerBar;
-  }
-
-  get secondsPerBeat(): number {
-    return this.transport.secondsPerBeat;
+    // A count-in of whole bars, so it must be measured in the crotchets a bar
+    // actually holds rather than in the numerator on the stave.
+    this.countInBeats = countInBars * exercise.metre.barBeats;
   }
 
   /** Transport beat at which the exercise ends. */
@@ -106,6 +104,18 @@ export class Session {
 
   timeForNote(index: number): number {
     return this.transport.timeForBeat(this.options.exercise.notes[index].startBeat);
+  }
+
+  /**
+   * How long a note sounds for, in seconds — the whole tie if it heads one.
+   *
+   * Asked of the transport rather than worked out from a tempo, so that a note
+   * spanning a change of speed is measured rather than estimated.
+   */
+  private noteSeconds(index: number): number {
+    const { notes } = this.options.exercise;
+    const start = notes[index].startBeat;
+    return this.transport.secondsBetween(start, start + tiedBeats(notes, index));
   }
 
   start(): void {
@@ -132,10 +142,20 @@ export class Session {
     const { exercise, metronomeEnabled, playbackMode } = this.options;
 
     if (metronomeEnabled) {
-      const firstClick = Math.ceil(fromBeat);
-      for (let beat = firstClick; beat < toBeat; beat++) {
+      /*
+       * Clicks land on the pulse, not on the crotchet.
+       *
+       * The same thing in every metre the app currently offers, and the whole
+       * difference in compound time: 6/8 is two clicks to a bar on the dotted
+       * crotchets, not three on the crotchets — which is not where any of the
+       * music is and not what anyone counts.
+       */
+      const { pulseBeats, pulsesPerBar } = exercise.metre;
+      const firstPulse = Math.ceil(fromBeat / pulseBeats);
+      for (let pulse = firstPulse; pulse * pulseBeats < toBeat; pulse++) {
+        const beat = pulse * pulseBeats;
         if (beat > exercise.totalBeats) break;
-        const positionInBar = ((beat % exercise.beatsPerBar) + exercise.beatsPerBar) % exercise.beatsPerBar;
+        const positionInBar = ((pulse % pulsesPerBar) + pulsesPerBar) % pulsesPerBar;
         this.metronome.click(this.transport.timeForBeat(beat), positionInBar === 0);
       }
     }
@@ -143,16 +163,22 @@ export class Session {
     if (playbackMode === 'off') return;
 
     while (this.nextNoteToSchedule < exercise.notes.length) {
-      const note = exercise.notes[this.nextNoteToSchedule];
+      const index = this.nextNoteToSchedule;
+      const note = exercise.notes[index];
       if (note.startBeat >= toBeat) break;
-      const beats = durationBeats(note.duration);
+      this.nextNoteToSchedule++;
+
+      // The far end of a tie is already sounding, played by the note it is tied
+      // from. Attacking it again is precisely what a tie says not to do.
+      if (isTieContinuation(exercise.notes, index)) continue;
+
+      const beats = tiedBeats(exercise.notes, index);
       this.synth.play(
         note.soundingMidi,
         this.transport.timeForBeat(note.startBeat),
         // Detached slightly so repeated notes articulate rather than slurring.
-        beats * this.transport.secondsPerBeat * 0.92,
+        this.transport.secondsBetween(note.startBeat, note.startBeat + beats) * 0.92,
       );
-      this.nextNoteToSchedule++;
     }
   }
 
@@ -176,14 +202,13 @@ export class Session {
     for (let index = this.nextNoteToResolve; index < exercise.notes.length; index++) {
       const note = exercise.notes[index];
       const onset = this.transport.timeForBeat(note.startBeat);
-      const tolerance = toleranceFor(
-        durationBeats(note.duration),
-        this.transport.secondsPerBeat,
-        scale,
-      );
+      const tolerance = toleranceFor(this.noteSeconds(index), scale);
       // Notes are in order, so once one is still to come, so is the rest.
       if (now < onset - tolerance) break;
       if (this.noticed[index]) continue;
+      // Nothing happens at the far end of a tie, so there is nothing to
+      // confirm; a green flash there would be applause for keeping still.
+      if (isTieContinuation(exercise.notes, index)) continue;
 
       if (isAlreadyCorrect(note, onset, tolerance, this.input, now)) {
         this.noticed[index] = true;
@@ -204,22 +229,23 @@ export class Session {
 
     while (this.nextNoteToResolve < exercise.notes.length) {
       const index = this.nextNoteToResolve;
+      // The far end of a tie asked nothing of the player, so there is no
+      // verdict to reach. Passed over rather than judged, which keeps it out of
+      // the totals and out of the per-note accuracy that weak-note drilling
+      // reads — a note marked right for being held is not evidence of anything.
+      if (isTieContinuation(exercise.notes, index)) {
+        this.nextNoteToResolve++;
+        continue;
+      }
+
       const note = exercise.notes[index];
-      const beats = durationBeats(note.duration);
+      const seconds = this.noteSeconds(index);
       const onset = this.transport.timeForBeat(note.startBeat);
       const scale = this.options.timingTolerance ?? 1;
-      const tolerance = toleranceFor(beats, this.transport.secondsPerBeat, scale);
+      const tolerance = toleranceFor(seconds, scale);
       if (now < onset + tolerance) break;
 
-      const judgement = judgeNote(
-        note,
-        index,
-        onset,
-        beats,
-        this.transport.secondsPerBeat,
-        this.input,
-        scale,
-      );
+      const judgement = judgeNote(note, index, onset, seconds, this.input, scale);
       this.judgements.push(judgement);
       this.options.onJudgement?.(judgement);
       this.nextNoteToResolve++;

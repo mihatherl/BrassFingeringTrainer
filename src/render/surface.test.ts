@@ -1,3 +1,4 @@
+import { metreFor } from '../domain/metre';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
 import { Transport } from '../engine/clock';
@@ -36,6 +37,7 @@ function mockContext(calls: RecordedCall[]): CanvasRenderingContext2D {
     beginPath: record('beginPath'),
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
+    quadraticCurveTo: record('quadraticCurveTo'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),
@@ -112,8 +114,7 @@ function build(kind: ExerciseKind, clef: 'treble' | 'bass', fifths: number, seed
     difficulty: difficultyById('hard'),
     kind,
     bars: 8,
-    beatsPerBar: 4,
-    beatUnit: 4,
+    metre: metreFor(4, 4),
     seed,
   });
 }
@@ -182,8 +183,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById('beginner'),
         kind: 'random',
         bars: 8,
-        beatsPerBar: 4,
-        beatUnit: 4,
+        metre: metreFor(4, 4),
         seed: 12,
       }),
       transport: new Transport(fakeAudioContext(0), 100),
@@ -263,8 +263,7 @@ describe('scrolling renderer', () => {
       difficulty: difficultyById('expert'),
       kind: 'random',
       bars: 8,
-      beatsPerBar: 4,
-      beatUnit: 4,
+      metre: metreFor(4, 4),
       seed: 5,
     });
 
@@ -398,7 +397,7 @@ describe('scrolling renderer', () => {
       renderer.draw();
 
       const { pageStartBar, barsPerPage } = renderer.scale;
-      const currentBar = Math.floor(beat / exercise.beatsPerBar);
+      const currentBar = Math.floor(beat / exercise.metre.barBeats);
       expect(currentBar, `beat ${beat}`).toBeGreaterThanOrEqual(pageStartBar);
       expect(currentBar, `beat ${beat}`).toBeLessThan(pageStartBar + barsPerPage);
     }
@@ -603,8 +602,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById('hard'),
         kind: 'random',
         bars: 32,
-        beatsPerBar: 4,
-        beatUnit: 4,
+        metre: metreFor(4, 4),
         seed: 21,
       });
       const renderer = new StaveRenderer({
@@ -665,8 +663,7 @@ describe('scrolling renderer', () => {
         difficulty: difficultyById(difficultyId),
         kind: 'random',
         bars: 16,
-        beatsPerBar: 4,
-        beatUnit: 4,
+        metre: metreFor(4, 4),
         seed: 9,
       });
       const renderer = new StaveRenderer({
@@ -709,7 +706,7 @@ describe('scrolling renderer', () => {
       // The invariant that matters: whatever the stack does, the player can see
       // the bar they are on.
       const { renderer, exercise, drawAtBeat } = stackedRenderer();
-      const beatsPerBar = exercise.beatsPerBar;
+      const beatsPerBar = exercise.metre.barBeats;
       let previousStart = 0;
 
       for (let beat = 0; beat < exercise.totalBeats; beat += 0.5) {
@@ -729,7 +726,7 @@ describe('scrolling renderer', () => {
       // Reaching the *bottom* line is what moves the stack, not reaching the
       // end of the line being read — so there is always one line spare.
       const { renderer, exercise, drawAtBeat } = stackedRenderer();
-      const beatsPerBar = exercise.beatsPerBar;
+      const beatsPerBar = exercise.metre.barBeats;
 
       drawAtBeat(0);
       const firstScreen = renderer.scale;
@@ -743,7 +740,7 @@ describe('scrolling renderer', () => {
 
     it('slides rather than cutting when it does move', () => {
       const { renderer, exercise, drawAtBeat } = stackedRenderer();
-      const beatsPerBar = exercise.beatsPerBar;
+      const beatsPerBar = exercise.metre.barBeats;
 
       drawAtBeat(0);
       const before = renderer.scale.shownOrigin;
@@ -767,7 +764,7 @@ describe('scrolling renderer', () => {
       const { barsPerPage } = renderer.scale;
       expect(barsPerPage).toBeGreaterThan(2);
 
-      const beatsPerBar = exercise.beatsPerBar;
+      const beatsPerBar = exercise.metre.barBeats;
       // Still on the first page while the playhead is short of the last bar.
       drawAtBeat((barsPerPage - 2) * beatsPerBar);
       expect(renderer.scale.pageStartBar).toBe(0);
@@ -780,7 +777,7 @@ describe('scrolling renderer', () => {
     it('slides to the new page rather than cutting to it', () => {
       const { renderer, exercise, drawAtBeat } = pagedRenderer();
       const { barsPerPage } = renderer.scale;
-      const beatsPerBar = exercise.beatsPerBar;
+      const beatsPerBar = exercise.metre.barBeats;
 
       drawAtBeat(0);
       const before = renderer.scale.shownOrigin;
@@ -809,7 +806,7 @@ describe('scrolling renderer', () => {
     it('eases in and out rather than moving at a constant rate', () => {
       const { renderer, exercise, drawAtBeat } = pagedRenderer();
       const { barsPerPage } = renderer.scale;
-      const turnBeat = (barsPerPage - 1) * exercise.beatsPerBar;
+      const turnBeat = (barsPerPage - 1) * exercise.metre.barBeats;
 
       drawAtBeat(0);
       const from = renderer.scale.shownOrigin;
@@ -852,7 +849,7 @@ describe('scrolling renderer', () => {
       // Whatever the last page starts on, the final bar is on it. Pages hold
       // different numbers of bars now, so "total less a page" is no longer a
       // number that means anything.
-      const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+      const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
       wall += 600;
       drawAtBeat(exercise.totalBeats - 0.25);
       const lastPage = renderer.scale;
@@ -864,7 +861,7 @@ describe('scrolling renderer', () => {
       // A second turn arriving mid-slide must continue from where the first got
       // to, not from the page it was heading for.
       const { renderer, exercise, drawAtBeat } = pagedRenderer();
-      const beatsPerBar = exercise.beatsPerBar;
+      const beatsPerBar = exercise.metre.barBeats;
       const { barsPerPage } = renderer.scale;
 
       drawAtBeat(0);

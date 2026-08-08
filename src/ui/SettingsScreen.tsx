@@ -382,7 +382,9 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           <span className="field__label">
             Timing tolerance{' '}
             <strong>
-              ±{Math.round(toleranceFor(1, 60 / settings.tempo, settings.timingTolerance) * 1000)} ms
+              {/* Quoted for a crotchet, which is the note the figure is easiest
+                  to picture against. */}
+              ±{Math.round(toleranceFor(60 / settings.tempo, settings.timingTolerance) * 1000)} ms
             </strong>
           </span>
           <input

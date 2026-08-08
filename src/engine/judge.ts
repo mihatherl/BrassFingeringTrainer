@@ -9,6 +9,11 @@
  *    correctly, and would be wrong to lift.
  *  - Getting there slightly early still counts, which matches how valves are
  *    actually used — you set the fingering, then blow.
+ *
+ * Ties never reach here. The far end of one is not played, so the session
+ * passes over it rather than presenting it for a verdict — see `ties.ts`. What
+ * does arrive is the head of the tie, carrying the length of the whole chain,
+ * since that is how long the note it stands for actually sounds.
  */
 
 import type { NoteEvent } from '../exercise/types';
@@ -31,22 +36,22 @@ const MAX_TOLERANCE = 0.2;
 /**
  * How much slack a note gets, in seconds.
  *
- * Scaled by the note's length so that a run of semiquavers at 160bpm demands
- * genuine precision while a minim does not, then clamped so the window never
- * becomes either unfairly tight or absurdly loose.
+ * A fixed share of the note's own length, so that a run of semiquavers at
+ * 160bpm demands genuine precision while a minim does not, then clamped so the
+ * window never becomes either unfairly tight or absurdly loose.
+ *
+ * Taking the note's length in seconds rather than in beats plus a tempo is
+ * deliberate. It was always that product and nothing else, and asking for it
+ * directly means this never has to learn what the tempo is doing — a question
+ * that stops having one answer the moment the tempo can vary within a note.
  *
  * `scale` is the player's own setting. It has a real bearing on how the app
  * feels: reading a note and then moving takes most people something like a fifth
  * of a second, which is already at the edge of the default window, so anyone
  * reading rather than reciting will want more room than the strict default.
  */
-export function toleranceFor(
-  durationInBeats: number,
-  secondsPerBeat: number,
-  scale = 1,
-): number {
-  const scaled = 0.3 * secondsPerBeat * durationInBeats;
-  return scale * Math.min(MAX_TOLERANCE, Math.max(MIN_TOLERANCE, scaled));
+export function toleranceFor(noteSeconds: number, scale = 1): number {
+  return scale * Math.min(MAX_TOLERANCE, Math.max(MIN_TOLERANCE, 0.3 * noteSeconds));
 }
 
 /**
@@ -77,12 +82,11 @@ export function judgeNote(
   note: NoteEvent,
   noteIndex: number,
   onsetTime: number,
-  durationInBeats: number,
-  secondsPerBeat: number,
+  noteSeconds: number,
   input: ValveInput,
   toleranceScale = 1,
 ): NoteJudgement {
-  const tolerance = toleranceFor(durationInBeats, secondsPerBeat, toleranceScale);
+  const tolerance = toleranceFor(noteSeconds, toleranceScale);
   const states = input.statesDuring(onsetTime - tolerance, onsetTime + tolerance);
   const accepted = new Set(note.acceptedMasks);
 

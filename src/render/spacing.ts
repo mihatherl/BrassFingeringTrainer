@@ -81,7 +81,8 @@ export interface SpacingOptions {
 }
 
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
-  const { beatsPerBar, totalBeats } = exercise;
+  const { barBeats } = exercise.metre;
+  const { totalBeats } = exercise;
   const columns = columnBeats(exercise);
 
   // Gaps between consecutive columns are the durations that matter: what a note
@@ -116,8 +117,8 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
   const widestBar = (offsets: number[]) => {
     const at = (beat: number) => interpolate(columns, offsets, beat);
     let widest = 0;
-    for (let bar = 0; bar * beatsPerBar < totalBeats; bar++) {
-      widest = Math.max(widest, at((bar + 1) * beatsPerBar) - at(bar * beatsPerBar));
+    for (let bar = 0; bar * barBeats < totalBeats; bar++) {
+      widest = Math.max(widest, at((bar + 1) * barBeats) - at(bar * barBeats));
     }
     return widest;
   };
@@ -147,7 +148,7 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
 
   const xOf = (beat: number) => interpolate(columns, offsets, beat) * scale;
   const width = xOf(totalBeats);
-  const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+  const totalBars = Math.max(1, Math.ceil(totalBeats / barBeats));
 
   return {
     xOf,
@@ -155,11 +156,11 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
     width,
     averagePixelsPerBeat: totalBeats > 0 ? width / totalBeats : 0,
     barsFitting(fromBar, available) {
-      const start = xOf(fromBar * beatsPerBar);
+      const start = xOf(fromBar * barBeats);
       let bars = 0;
       while (
         fromBar + bars < totalBars &&
-        xOf((fromBar + bars + 1) * beatsPerBar) - start <= available
+        xOf((fromBar + bars + 1) * barBeats) - start <= available
       ) {
         bars++;
       }
@@ -208,8 +209,9 @@ function columnBeats(exercise: Exercise): number[] {
   const beats = new Set<number>([0, exercise.totalBeats]);
   for (const note of exercise.notes) beats.add(note.startBeat);
   for (const rest of exercise.rests) beats.add(rest.startBeat);
-  for (let bar = 0; bar * exercise.beatsPerBar < exercise.totalBeats; bar++) {
-    beats.add(bar * exercise.beatsPerBar);
+  const { barBeats } = exercise.metre;
+  for (let bar = 0; bar * barBeats < exercise.totalBeats; bar++) {
+    beats.add(bar * barBeats);
   }
   return [...beats].sort((a, b) => a - b);
 }

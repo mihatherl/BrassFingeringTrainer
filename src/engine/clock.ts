@@ -33,8 +33,17 @@ export class Transport {
   private scheduledUntilBeat = 0;
   private onWindow: ScheduleWindow | null = null;
 
-  /** Seconds per crotchet. */
-  secondsPerBeat: number;
+  /**
+   * Seconds per crotchet at the written tempo.
+   *
+   * Named *nominal* because it is only the whole story while the tempo is
+   * constant, and it is not the way to convert anything — `secondsBetween` is.
+   * What survives a tempo map is a rate quoted at some reference point, which
+   * is exactly what the scrolling display wants: how fast the music travels is
+   * a property of the page, set once, not something that should surge and stall
+   * through a rit.
+   */
+  nominalSecondsPerBeat: number;
 
   private readonly context: AudioContext;
   /** NaN so the first comparison always misses and anchors afresh. */
@@ -43,7 +52,7 @@ export class Transport {
 
   constructor(context: AudioContext, tempo: number) {
     this.context = context;
-    this.secondsPerBeat = 60 / tempo;
+    this.nominalSecondsPerBeat = 60 / tempo;
   }
 
   get isRunning(): boolean {
@@ -57,15 +66,31 @@ export class Transport {
    */
   setTempo(bpm: number): void {
     if (this.isRunning) throw new Error('Cannot change tempo while the transport is running');
-    this.secondsPerBeat = 60 / bpm;
+    this.nominalSecondsPerBeat = 60 / bpm;
   }
 
   timeForBeat(beat: number): number {
-    return this.originTime + beat * this.secondsPerBeat;
+    return this.originTime + beat * this.nominalSecondsPerBeat;
   }
 
   beatForTime(time: number): number {
-    return (time - this.originTime) / this.secondsPerBeat;
+    return (time - this.originTime) / this.nominalSecondsPerBeat;
+  }
+
+  /**
+   * How long the music lasts between two beats, in seconds.
+   *
+   * The only form of the question that survives a varying tempo, and therefore
+   * the only one anything outside this class should be asking. "How long is
+   * this note", "how much time before the next one", "how much slack does this
+   * note get" are all this question, and none of them needs a rate.
+   *
+   * While the tempo is constant it is a subtraction and a multiply. Under a
+   * tempo map it becomes the closed-form integral between the two beats, and
+   * every caller is already phrased so that nothing has to change.
+   */
+  secondsBetween(fromBeat: number, toBeat: number): number {
+    return this.timeForBeat(toBeat) - this.timeForBeat(fromBeat);
   }
 
   /** Current musical position, which may be negative during a count-in. */
@@ -115,7 +140,7 @@ export class Transport {
     this.onWindow = onWindow;
     // A small offset gives the first scheduling pass room to run before the
     // origin passes, so the very first note is never late.
-    this.originTime = this.context.currentTime + 0.1 - startAtBeat * this.secondsPerBeat;
+    this.originTime = this.context.currentTime + 0.1 - startAtBeat * this.nominalSecondsPerBeat;
     this.scheduledUntilBeat = startAtBeat;
 
     this.tick();

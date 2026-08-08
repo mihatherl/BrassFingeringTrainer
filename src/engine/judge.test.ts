@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { maskOf } from '../domain/fingering';
+import { spellInKey } from '../domain/keys';
 import type { NoteEvent } from '../exercise/types';
 import { ValveInput } from './input';
 import { isAlreadyCorrect, judgeNote, summarise, toleranceFor } from './judge';
@@ -19,20 +20,23 @@ beforeEach(() => {
 function noteExpecting(masks: number[], startBeat = 0): NoteEvent {
   return {
     writtenMidi: 60,
+    pitch: spellInKey(60, 0),
     soundingMidi: 58,
     startBeat,
     duration: { value: 'quarter', dotted: false },
     acceptedMasks: masks,
     primaryMask: masks[0],
     beamGroup: -1,
+    tiedToNext: false,
     showAccidental: false,
   };
 }
 
-const SECONDS_PER_BEAT = 0.5; // 120 bpm
+/** A crotchet at 120bpm, which is what almost every case below is judging. */
+const CROTCHET = 0.5;
 
 function judgeAt(note: NoteEvent, onsetTime: number) {
-  return judgeNote(note, 0, onsetTime, 1, SECONDS_PER_BEAT, input);
+  return judgeNote(note, 0, onsetTime, CROTCHET, input);
 }
 
 describe('judging', () => {
@@ -150,17 +154,17 @@ describe('tolerance', () => {
 
   it('never becomes unfairly tight, however fast the tempo', () => {
     // Semiquavers at 200bpm.
-    expect(toleranceFor(0.25, 0.3)).toBeGreaterThanOrEqual(0.06);
+    expect(toleranceFor(0.25 * 0.3)).toBeGreaterThanOrEqual(0.06);
   });
 
   it('never grows wide enough to swallow neighbouring notes', () => {
-    expect(toleranceFor(4, 1.5)).toBeLessThanOrEqual(0.2);
+    expect(toleranceFor(4 * 1.5)).toBeLessThanOrEqual(0.2);
   });
 
   it('scales by the player’s setting', () => {
-    const strict = toleranceFor(1, 0.5, 0.5);
-    const normal = toleranceFor(1, 0.5, 1);
-    const relaxed = toleranceFor(1, 0.5, 3);
+    const strict = toleranceFor(CROTCHET, 0.5);
+    const normal = toleranceFor(CROTCHET, 1);
+    const relaxed = toleranceFor(CROTCHET, 3);
 
     expect(strict).toBeCloseTo(normal / 2, 6);
     expect(relaxed).toBeCloseTo(normal * 3, 6);
@@ -171,13 +175,13 @@ describe('tolerance', () => {
     // semiquaver on the lower one. If the setting only scaled the unclamped
     // figure it would do nothing at either extreme — which is exactly where
     // someone reaching for the slider is most likely to be.
-    const slowCrotchet = { beats: 1, secondsPerBeat: 0.75 };
-    const fastSemiquaver = { beats: 0.25, secondsPerBeat: 0.5 };
+    const slowCrotchet = 1 * 0.75;
+    const fastSemiquaver = 0.25 * 0.5;
 
-    for (const { beats, secondsPerBeat } of [slowCrotchet, fastSemiquaver]) {
-      const normal = toleranceFor(beats, secondsPerBeat, 1);
-      expect(toleranceFor(beats, secondsPerBeat, 2)).toBeCloseTo(normal * 2, 6);
-      expect(toleranceFor(beats, secondsPerBeat, 0.5)).toBeCloseTo(normal / 2, 6);
+    for (const seconds of [slowCrotchet, fastSemiquaver]) {
+      const normal = toleranceFor(seconds, 1);
+      expect(toleranceFor(seconds, 2)).toBeCloseTo(normal * 2, 6);
+      expect(toleranceFor(seconds, 0.5)).toBeCloseTo(normal / 2, 6);
     }
   });
 });
@@ -190,21 +194,21 @@ describe('judging with a relaxed window', () => {
     input.keyDown(1);
     const note = noteExpecting([maskOf([1])]);
 
-    expect(judgeNote(note, 0, 1.0, 1, SECONDS_PER_BEAT, input, 1).verdict).toBe('missed');
-    expect(judgeNote(note, 0, 1.0, 1, SECONDS_PER_BEAT, input, 2).verdict).toBe('correct');
+    expect(judgeNote(note, 0, 1.0, CROTCHET, input, 1).verdict).toBe('missed');
+    expect(judgeNote(note, 0, 1.0, CROTCHET, input, 2).verdict).toBe('correct');
   });
 
   it('still rejects a fingering that never arrives', () => {
     // Relaxing the window must not turn "did nothing" into a pass.
     const note = noteExpecting([maskOf([1])]);
-    expect(judgeNote(note, 0, 1.0, 1, SECONDS_PER_BEAT, input, 3).verdict).toBe('missed');
+    expect(judgeNote(note, 0, 1.0, CROTCHET, input, 3).verdict).toBe('missed');
   });
 
   it('still rejects the wrong valves, however generous the window', () => {
     now = 1.0;
     input.keyDown(3);
     const note = noteExpecting([maskOf([1, 2])]);
-    expect(judgeNote(note, 0, 1.0, 1, SECONDS_PER_BEAT, input, 3).verdict).toBe('wrong');
+    expect(judgeNote(note, 0, 1.0, CROTCHET, input, 3).verdict).toBe('wrong');
   });
 });
 
@@ -215,7 +219,7 @@ describe('confirming a note as it is played', () => {
    * earned it, and close enough to the next note to be taken for a cue.
    */
   const ONSET = 1.0;
-  const TOLERANCE = toleranceFor(1, SECONDS_PER_BEAT);
+  const TOLERANCE = toleranceFor(CROTCHET);
 
   const correctYet = (note: NoteEvent) =>
     isAlreadyCorrect(note, ONSET, TOLERANCE, input, now);
@@ -285,7 +289,7 @@ describe('confirming a note as it is played', () => {
       for (const valve of held) input.keyDown(valve);
 
       now = ONSET + TOLERANCE;
-      const verdict = judgeNote(note, 0, ONSET, 1, SECONDS_PER_BEAT, input).verdict;
+      const verdict = judgeNote(note, 0, ONSET, CROTCHET, input).verdict;
       expect(correctYet(note), `holding ${held.join('-') || 'nothing'}`).toBe(
         verdict === 'correct',
       );

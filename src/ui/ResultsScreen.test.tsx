@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { metreFor } from '../domain/metre';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { instrumentById } from '../domain/instruments';
@@ -19,8 +20,7 @@ const exercise = generateExercise({
   difficulty: difficultyById('easy'),
   kind: 'random',
   bars: 4,
-  beatsPerBar: 4,
-  beatUnit: 4,
+  metre: metreFor(4, 4),
   seed: 3,
 });
 

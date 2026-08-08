@@ -15,8 +15,8 @@
  */
 
 import { formatMask } from '../domain/fingering';
-import { spellInKey } from '../domain/keys';
 import type { Verdict } from '../engine/judge';
+import { isTieContinuation } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
 import { accidentalRoom, dotRoom, noteheadWidth } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
@@ -92,7 +92,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   const staveSpace = Math.min(18, Math.max(9, width / 34));
   const metrics = staveMetrics(exercise.clef, 0, staveSpace);
   const headerWidth =
-    measureStaveHeader(metrics, exercise.fifths, exercise.beatsPerBar, exercise.beatUnit) +
+    measureStaveHeader(metrics, exercise.fifths, exercise.metre.beatsPerBar, exercise.metre.beatUnit) +
     staveSpace;
 
   const head = noteheadWidth(metrics, { value: 'quarter', dotted: false });
@@ -105,9 +105,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
     extraWidthFor: (index) => {
       const note = exercise.notes[index];
       return {
-        before: note.showAccidental
-          ? accidentalRoom(metrics, spellInKey(note.writtenMidi, exercise.fifths))
-          : 0,
+        before: note.showAccidental ? accidentalRoom(metrics, note.pitch) : 0,
         after: dotRoom(metrics, note.duration),
       };
     },
@@ -116,7 +114,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   // Systems are filled greedily, as an engraver fills a line: take bars until
   // the next one will not fit, then break. A line of held notes therefore holds
   // far more bars than a line of semiquavers, which is the whole point.
-  const totalBars = Math.max(1, Math.ceil(exercise.totalBeats / exercise.beatsPerBar));
+  const totalBars = Math.max(1, Math.ceil(exercise.totalBeats / exercise.metre.barBeats));
   const systemStarts: number[] = [];
   for (let bar = 0; bar < totalBars; bar += spacing.barsFitting(bar, usable)) {
     systemStarts.push(bar);
@@ -141,7 +139,7 @@ function drawReviewSystem(
 ): void {
   const { exercise, verdicts, theme } = options;
   const { staveSpace, headerWidth, spacing, systemStarts } = layout;
-  const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+  const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
 
   // Three and a half spaces of clearance above the stave for ledger lines and
   // accidentals; the annotation gets what is left underneath.
@@ -157,8 +155,8 @@ function drawReviewSystem(
     // Every line justified to the margin, bar the last — see `justifiedX`.
     xForBeat: justifiedX(
       spacing,
-      firstBar * exercise.beatsPerBar,
-      Math.min(exercise.totalBeats, lastBar * exercise.beatsPerBar),
+      firstBar * exercise.metre.barBeats,
+      Math.min(exercise.totalBeats, lastBar * exercise.metre.barBeats),
       headerWidth,
       layout.usableWidth,
       !final,
@@ -169,9 +167,14 @@ function drawReviewSystem(
     colourFor: (index) => verdictColour(verdicts[index], theme),
     // Only the mistakes. A fingering under every note would be a wall of digits
     // to search rather than an answer to find.
+    //
+    // And only once per mistake: the far end of a tie wears the same verdict as
+    // its head, since it is the same sound, but writing the answer under both
+    // noteheads would twice answer a question asked once.
     annotationFor: (index) => {
       const verdict = verdicts[index];
       if (verdict === undefined || verdict === 'correct') return null;
+      if (isTieContinuation(exercise.notes, index)) return null;
       return formatMask(exercise.notes[index].primaryMask);
     },
     final,

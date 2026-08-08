@@ -23,8 +23,9 @@
  */
 
 import { formatMask } from '../domain/fingering';
-import { durationBeats } from '../domain/rhythm';
+import { barAt } from '../domain/metre';
 import { MIN_ATTEMPTS_TO_JUDGE, type NoteStats } from '../storage/stats';
+import { isTieContinuation, nextSoundedIndex, tiedBeats } from './ties';
 import type { Exercise } from './types';
 
 /**
@@ -43,7 +44,17 @@ export interface HintOptions {
   exercise: Exercise;
   /** Accuracy history for this instrument and clef. */
   stats: NoteStats;
-  secondsPerBeat: number;
+  /**
+   * How long the music lasts between two beats, in seconds — the transport's
+   * own answer rather than a tempo to multiply by.
+   *
+   * Whether a hint can be read is a question about seconds, and under a tempo
+   * that varies the seconds between two beats stop being derivable from any
+   * single number. A note in a rit. has more time above it than the same note
+   * written a bar earlier, and a hint is worth printing there when it would not
+   * be here.
+   */
+  secondsBetween: (fromBeat: number, toBeat: number) => number;
 }
 
 /**
@@ -53,8 +64,8 @@ export interface HintOptions {
  * getting on fine — the hints appear where the trouble is and nowhere else.
  */
 export function fingeringHints(options: HintOptions): Map<number, string> {
-  const { exercise, stats, secondsPerBeat } = options;
-  const { notes, beatsPerBar } = exercise;
+  const { exercise, stats, secondsBetween } = options;
+  const { notes, metre } = exercise;
   const hints = new Map<number, string>();
 
   // Worst first within each bar, so a bar containing two weak notes hints the
@@ -62,22 +73,25 @@ export function fingeringHints(options: HintOptions): Map<number, string> {
   const candidates: Array<{ index: number; bar: number; accuracy: number }> = [];
 
   notes.forEach((note, index) => {
+    // Nothing to finger at the far end of a tie, so nothing to prompt.
+    if (isTieContinuation(notes, index)) return;
+
     const stat = stats.get(note.writtenMidi);
     if (!stat || stat.attempts < MIN_ATTEMPTS_TO_JUDGE) return;
 
     const accuracy = stat.correct / stat.attempts;
     if (accuracy >= STRUGGLING_BELOW) return;
 
-    // Room is measured to the next note rather than by this note's written
-    // value: a crotchet followed at once by a run has no more room above it
-    // than the run does, and a note before a rest has plenty.
-    const next = notes[index + 1];
-    const beatsFree = next
-      ? next.startBeat - note.startBeat
-      : durationBeats(note.duration);
-    if (beatsFree * secondsPerBeat < MIN_SECONDS_TO_READ) return;
+    // Room is measured to the next note the player has to do something about,
+    // rather than by this note's written value: a crotchet followed at once by
+    // a run has no more room above it than the run does, a note before a rest
+    // has plenty, and a tie buys every beat it is held for.
+    const next = nextSoundedIndex(notes, index);
+    const until =
+      next !== null ? notes[next].startBeat : note.startBeat + tiedBeats(notes, index);
+    if (secondsBetween(note.startBeat, until) < MIN_SECONDS_TO_READ) return;
 
-    candidates.push({ index, bar: Math.floor(note.startBeat / beatsPerBar), accuracy });
+    candidates.push({ index, bar: barAt(metre, note.startBeat), accuracy });
   });
 
   const takenBars = new Set<number>();

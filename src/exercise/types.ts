@@ -1,4 +1,6 @@
 import type { Clef } from '../domain/instruments';
+import type { Metre } from '../domain/metre';
+import type { SpelledPitch } from '../domain/pitch';
 import type { Duration } from '../domain/rhythm';
 
 /**
@@ -12,6 +14,17 @@ import type { Duration } from '../domain/rhythm';
 export interface NoteEvent {
   writtenMidi: number;
   soundingMidi: number;
+  /**
+   * How the written pitch is spelled: the letter, the alteration and the
+   * octave, which is what decides where the notehead sits and which accidental
+   * it might carry.
+   *
+   * Settled here rather than worked out downstream, for the same reason the
+   * fingerings and the accidental are: it depends on the key, and the key is
+   * something the generator knows and the renderers should not have to. F sharp
+   * and G flat are the same sounding note and a different thing to read.
+   */
+  pitch: SpelledPitch;
   /** Beats from the start of the exercise, one beat being a crotchet. */
   startBeat: number;
   duration: Duration;
@@ -21,6 +34,14 @@ export interface NoteEvent {
   primaryMask: number;
   /** Index of the beam group, or -1 when the note stands alone. */
   beamGroup: number;
+  /**
+   * Joined to the note that follows: same pitch, one sound, no second attack.
+   *
+   * Held on the first note of the pair rather than the second because that is
+   * the one that sounds; see `ties.ts` for what the rest of the app does with
+   * the note on the other end of it.
+   */
+  tiedToNext: boolean;
   /**
    * Whether an accidental must be drawn. Decided once at generation time, since
    * it depends on the key signature and on what has already occurred in the bar.
@@ -40,8 +61,15 @@ export interface Exercise {
   clef: Clef;
   /** Written key signature, on the circle of fifths. */
   fifths: number;
-  beatsPerBar: number;
-  beatUnit: number;
+  /**
+   * The time signature and everything that follows from it.
+   *
+   * One field rather than a loose numerator and denominator, because the
+   * numerator is not the length of a bar and the two only agree while the
+   * denominator is 4. See `metre.ts`.
+   */
+  metre: Metre;
+  /** Length of the exercise in crotchets. */
   totalBeats: number;
   seed: number;
   /** How the material was generated, for the results screen. */

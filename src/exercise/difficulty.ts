@@ -55,6 +55,20 @@ export interface Difficulty {
   accidentalChance: number;
   /** Probability that a beat becomes a rest, in generators that use rests. */
   restChance: number;
+  /**
+   * Probability that a note which *could* cross the bar line does, and is
+   * written as a tied pair.
+   *
+   * Conditional rather than absolute, so the number means something a player
+   * would recognise: how often a bar end that could be tied over actually is.
+   * Most positions in a bar cannot produce one at all, since it takes a note
+   * longer than the room left in the bar.
+   *
+   * Scales and arpeggios never tie, for the same reason they get a rhythm pool
+   * of their own — the exercise is the shape and the fingering, and a tie there
+   * is a reading problem laid on top of a different drill.
+   */
+  tieChance: number;
   rhythms: RhythmWeight[];
 }
 
@@ -76,6 +90,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     maxInterval: 4,
     accidentalChance: 0,
     restChance: 0,
+    tieChance: 0,
     rhythms: [
       { duration: q('half'), weight: 2 },
       { duration: q('quarter'), weight: 5 },
@@ -96,6 +111,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     maxInterval: 5,
     accidentalChance: 0.05,
     restChance: 0.05,
+    tieChance: 0,
     rhythms: [
       { duration: q('half'), weight: 1 },
       { duration: q('quarter'), weight: 5 },
@@ -105,7 +121,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
   {
     id: 'medium',
     name: 'Medium',
-    blurb: 'Wider leaps, dotted rhythms, accidentals in earnest.',
+    blurb: 'Wider leaps, dotted rhythms, ties over the bar line, accidentals in earnest.',
     patterns: {
       spanSemitones: 24,
       label: '2 octaves',
@@ -122,6 +138,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     maxInterval: 7,
     accidentalChance: 0.12,
     restChance: 0.08,
+    tieChance: 0.3,
     rhythms: [
       { duration: q('quarter'), weight: 4 },
       { duration: q('quarter', true), weight: 1 },
@@ -141,6 +158,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     maxInterval: 12,
     accidentalChance: 0.25,
     restChance: 0.06,
+    tieChance: 0.3,
     rhythms: [
       { duration: q('quarter'), weight: 2 },
       { duration: q('eighth'), weight: 6 },
@@ -161,6 +179,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     maxInterval: 16,
     accidentalChance: 0.4,
     restChance: 0.03,
+    tieChance: 0.35,
     rhythms: [
       { duration: q('eighth'), weight: 3 },
       { duration: q('sixteenth'), weight: 8 },

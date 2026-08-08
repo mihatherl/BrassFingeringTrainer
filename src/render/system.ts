@@ -11,13 +11,13 @@
  * bar, and its spacing is even rather than engraved.
  */
 
-import { spellInKey } from '../domain/keys';
 import type { Exercise } from '../exercise/types';
 import {
   drawBeamGroup,
   drawFingeringHint,
   drawNote,
   drawRest,
+  drawTie,
   noteheadWidth,
   type LayoutNote,
 } from './notes';
@@ -96,10 +96,10 @@ const ANNOTATION_OFFSET = 4.6;
 export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions): void {
   const { exercise, metrics, xForBeat, theme, firstBar, lastBar } = options;
   const { staveSpace } = metrics;
-  const { beatsPerBar } = exercise;
+  const { barBeats, beatsPerBar, beatUnit } = exercise.metre;
 
-  const firstBeat = firstBar * beatsPerBar;
-  const lastBeat = Math.min(exercise.totalBeats, lastBar * beatsPerBar);
+  const firstBeat = firstBar * barBeats;
+  const lastBeat = Math.min(exercise.totalBeats, lastBar * barBeats);
   const rightEdge = xForBeat(lastBeat) - BAR_LINE_SETBACK * staveSpace;
 
   ctx.strokeStyle = theme.stave;
@@ -109,12 +109,14 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   let x = staveSpace * 0.4;
   x = drawClef(ctx, metrics, x);
   x = drawKeySignature(ctx, metrics, x, exercise.fifths);
-  drawTimeSignature(ctx, metrics, x, beatsPerBar, exercise.beatUnit);
+  // Where the music proper starts, which is where a tie arriving from the
+  // system above has to begin.
+  const musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
 
   // Every bar line except the one at the head of the system, which the clef
   // stands in for.
   ctx.strokeStyle = theme.stave;
-  for (let beat = firstBeat + beatsPerBar; beat <= lastBeat; beat += beatsPerBar) {
+  for (let beat = firstBeat + barBeats; beat <= lastBeat; beat += barBeats) {
     drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);
   }
 
@@ -134,7 +136,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
     const centre = xForBeat(note.startBeat);
     const item: LayoutNote = {
       x: centre - headWidth / 2,
-      pitch: spellInKey(note.writtenMidi, exercise.fifths),
+      pitch: note.pitch,
       duration: note.duration,
       showAccidental: note.showAccidental,
       colour: options.colourFor(index),
@@ -162,6 +164,37 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
 
   for (const note of loose) drawNote(ctx, metrics, note);
   for (const group of beamed.values()) drawBeamGroup(ctx, metrics, group);
+
+  /*
+   * Ties, drawn over the notes rather than with them.
+   *
+   * A tie belongs to two noteheads, and on an engraved page those two are
+   * routinely on different lines: the whole point of the thing is that it
+   * crosses a bar line, and a system break is a bar line. So each end is placed
+   * independently — against its notehead if that note is on this system, and
+   * against the margin if it is not — which draws the half of the tie that
+   * belongs here and leaves the other half to the system that owns it.
+   */
+  exercise.notes.forEach((note, index) => {
+    const next = exercise.notes[index + 1];
+    if (!note.tiedToNext || !next) return;
+
+    const headHere = note.startBeat >= firstBeat && note.startBeat < lastBeat;
+    const tailHere = next.startBeat >= firstBeat && next.startBeat < lastBeat;
+    if (!headHere && !tailHere) return;
+
+    drawTie(ctx, metrics, {
+      from: headHere
+        ? { x: xForBeat(note.startBeat), headWidth: noteheadWidth(metrics, note.duration) }
+        : { x: musicLeft },
+      to: tailHere
+        ? { x: xForBeat(next.startBeat), headWidth: noteheadWidth(metrics, next.duration) }
+        : { x: rightEdge },
+      pitch: note.pitch,
+      colour: options.colourFor(index),
+    });
+  });
+
   for (const { note, text, room } of hints) {
     drawFingeringHint(ctx, metrics, note, text, room, theme.hint);
   }

@@ -13,10 +13,10 @@ import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
 import { formatMask } from '../domain/fingering';
 import { instrumentById } from '../domain/instruments';
-import { spellInKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { Session } from '../engine/session';
 import { fingeringHints } from '../exercise/hints';
+import { soundingHeads } from '../exercise/ties';
 import { loadStats } from '../storage/stats';
 import type { NoteJudgement, SessionSummary, Verdict } from '../engine/judge';
 import { currentTheme, StaveRenderer } from '../render/surface';
@@ -46,7 +46,7 @@ function describeNote(exercise: Exercise, judgement: NoteJudgement): RecentNote 
   const note = exercise.notes[judgement.noteIndex];
   return {
     id: judgement.noteIndex,
-    name: formatPitch(spellInKey(note.writtenMidi, exercise.fifths)),
+    name: formatPitch(note.pitch),
     verdict: judgement.verdict,
     // A missed note means nothing was held. Saying "open" would credit the
     // player with a fingering they never chose.
@@ -80,18 +80,11 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     if (!canvas) return;
 
     verdictsRef.current = new Array(exercise.notes.length).fill(undefined);
+    // Which note actually sounds each written one, so the renderer can look a
+    // verdict up through a tie. Fixed by the exercise, so settled once here
+    // rather than walked on every note of every frame.
+    const heads = soundingHeads(exercise.notes);
     setRecent([]);
-
-    // Which notes get their fingering printed. Settled once per run: the
-    // history behind it does not change mid-exercise, and a hint that came and
-    // went would be worse than none.
-    const hints = settings.fingeringHints
-      ? fingeringHints({
-          exercise,
-          stats: loadStats(exercise.instrumentId, exercise.clef),
-          secondsPerBeat: 60 / settings.tempo,
-        })
-      : new Map<number, string>();
 
     // The very same context `unlockAudio` resumed — a second one would stay
     // suspended and the exercise would run in silence.
@@ -119,6 +112,21 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     });
     sessionRef.current = session;
 
+    // Which notes get their fingering printed. Settled once per run: the
+    // history behind it does not change mid-exercise, and a hint that came and
+    // went would be worse than none.
+    //
+    // Asked after the session exists so that how much time a note has is
+    // answered by the transport, which is the one thing that knows — rather
+    // than by dividing the tempo here and hoping the two agree.
+    const hints = settings.fingeringHints
+      ? fingeringHints({
+          exercise,
+          stats: loadStats(exercise.instrumentId, exercise.clef),
+          secondsBetween: (from, to) => session.transport.secondsBetween(from, to),
+        })
+      : new Map<number, string>();
+
     const renderer = new StaveRenderer({
       canvas,
       exercise,
@@ -126,7 +134,9 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       theme: currentTheme(),
       scrollSpeed: settings.scrollSpeed,
       readingMode: settings.readingMode,
-      verdictFor: (index) => verdictsRef.current[index],
+      // Through the tie: its far end is never judged, so it wears the verdict of
+      // the note it is tied from rather than staying unmarked beside it.
+      verdictFor: (index) => verdictsRef.current[heads[index]],
       hintFor: (index) => hints.get(index),
     });
     rendererRef.current = renderer;

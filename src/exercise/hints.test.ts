@@ -1,5 +1,7 @@
+import { metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import { maskOf } from '../domain/fingering';
+import { spellInKey } from '../domain/keys';
 import type { Duration } from '../domain/rhythm';
 import type { NoteStats } from '../storage/stats';
 import { fingeringHints } from './hints';
@@ -16,6 +18,16 @@ import type { Exercise, NoteEvent } from './types';
 
 const SLOW = 60 / 80; // 0.75s a beat
 const FAST = 60 / 200; // 0.3s a beat
+
+/**
+ * A steady tempo, in the form the hints now ask for.
+ *
+ * These cases are all about how much *time* a note has, and a constant tempo is
+ * the simplest map that answers that — but the question is asked of a function
+ * rather than of a number, so the same tests keep working when the tempo can
+ * change part-way through a bar.
+ */
+const at = (secondsPerBeat: number) => (from: number, to: number) => (to - from) * secondsPerBeat;
 
 const LENGTHS: Record<Duration['value'], number> = {
   whole: 4,
@@ -34,12 +46,14 @@ function exerciseOf(bars: Array<Array<[number, Duration['value']]>>): Exercise {
     for (const [midi, value] of bar) {
       notes.push({
         writtenMidi: midi,
+        pitch: spellInKey(midi, 0),
         soundingMidi: midi - 21,
         startBeat: beat,
         duration: { value, dotted: false },
         acceptedMasks: [maskOf([1, 2])],
         primaryMask: maskOf([1, 2]),
         beamGroup: -1,
+        tiedToNext: false,
         showAccidental: false,
       });
       beat += LENGTHS[value];
@@ -52,8 +66,7 @@ function exerciseOf(bars: Array<Array<[number, Duration['value']]>>): Exercise {
     instrumentId: 'eb-bass',
     clef: 'treble',
     fifths: -3,
-    beatsPerBar: 4,
-    beatUnit: 4,
+    metre: metreFor(4, 4),
     totalBeats: bars.length * 4,
     seed: 1,
     kind: 'random',
@@ -77,7 +90,7 @@ describe('choosing which notes to hint', () => {
     const hints = fingeringHints({
       exercise,
       stats: statsOf({ 67: STRUGGLING }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect(hints.get(0)).toBe('1-2');
@@ -90,7 +103,7 @@ describe('choosing which notes to hint', () => {
     const hints = fingeringHints({
       exercise,
       stats: statsOf({ 67: FLUENT, 69: FLUENT }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect(hints.size).toBe(0);
@@ -103,7 +116,7 @@ describe('choosing which notes to hint', () => {
     const hints = fingeringHints({
       exercise,
       stats: statsOf({ 67: [1, 0] }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect(hints.size).toBe(0);
@@ -111,7 +124,7 @@ describe('choosing which notes to hint', () => {
 
   it('says nothing about a note that has never been played', () => {
     const exercise = exerciseOf([[[67, 'quarter'], [69, 'quarter'], [71, 'quarter'], [72, 'quarter']]]);
-    expect(fingeringHints({ exercise, stats: new Map(), secondsPerBeat: SLOW }).size).toBe(0);
+    expect(fingeringHints({ exercise, stats: new Map(), secondsBetween: at(SLOW) }).size).toBe(0);
   });
 });
 
@@ -123,7 +136,7 @@ describe('leaving time to read one', () => {
     const hints = fingeringHints({
       exercise,
       stats: statsOf({ 67: STRUGGLING }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect(hints.size).toBe(0);
@@ -135,8 +148,8 @@ describe('leaving time to read one', () => {
     const exercise = exerciseOf([[[67, 'quarter'], [69, 'quarter'], [71, 'quarter'], [72, 'quarter']]]);
     const stats = statsOf({ 67: STRUGGLING });
 
-    expect(fingeringHints({ exercise, stats, secondsPerBeat: SLOW }).size).toBe(1);
-    expect(fingeringHints({ exercise, stats, secondsPerBeat: FAST }).size).toBe(0);
+    expect(fingeringHints({ exercise, stats, secondsBetween: at(SLOW) }).size).toBe(1);
+    expect(fingeringHints({ exercise, stats, secondsBetween: at(FAST) }).size).toBe(0);
   });
 
   it('measures the room to the next note, not the note itself', () => {
@@ -160,7 +173,7 @@ describe('leaving time to read one', () => {
     const hints = fingeringHints({
       exercise: crowded,
       stats: statsOf({ 67: STRUGGLING }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect(hints.has(0)).toBe(false);
@@ -176,7 +189,7 @@ describe('keeping the page readable', () => {
     const hints = fingeringHints({
       exercise,
       stats: statsOf({ 67: STRUGGLING, 69: STRUGGLING, 71: STRUGGLING, 72: STRUGGLING }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect(hints.size).toBe(2);
@@ -189,7 +202,7 @@ describe('keeping the page readable', () => {
     const hints = fingeringHints({
       exercise,
       stats: statsOf({ 67: [10, 6], 69: [10, 1] }),
-      secondsPerBeat: SLOW,
+      secondsBetween: at(SLOW),
     });
 
     expect([...hints.keys()]).toEqual([1]);

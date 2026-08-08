@@ -19,10 +19,12 @@ import {
   type Instrument,
 } from '../domain/instruments';
 import { isDiatonic, needsAccidental, spellInKey, tonicPitchClass } from '../domain/keys';
-import { durationBeats, isBeamable, type Duration } from '../domain/rhythm';
+import { durationBeats, durationFromBeats, isBeamable, type Duration } from '../domain/rhythm';
 import { pitchClass, type Letter } from '../domain/pitch';
 import type { Difficulty } from './difficulty';
+import { barAt, type Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
+import { isTieContinuation } from './ties';
 import type { Exercise, ExerciseKind, NoteEvent, RestEvent } from './types';
 
 export interface GenerateOptions {
@@ -33,8 +35,8 @@ export interface GenerateOptions {
   difficulty: Difficulty;
   kind: ExerciseKind;
   bars: number;
-  beatsPerBar: number;
-  beatUnit: number;
+  /** The time signature and what follows from it; see `metre.ts`. */
+  metre: Metre;
   seed: number;
   /**
    * Per written-pitch weighting used to bias selection toward notes the player
@@ -68,22 +70,27 @@ interface Slot {
   startBeat: number;
   duration: Duration;
   isRest: boolean;
+  /** The far end of a tie: same pitch as the slot before, and never a rest. */
+  tiedFromPrevious: boolean;
 }
 
 export function generateExercise(options: GenerateOptions): Exercise {
   const rng = createRng(options.seed);
+  const { metre } = options;
   const candidates = candidatePitches(options);
   if (candidates.length === 0) {
     throw new Error('No playable notes in range for this instrument and difficulty');
   }
 
-  const slots = generateRhythm(rng, options, isPattern(options.kind));
-  const noteSlots = slots.filter((s) => !s.isRest);
+  const slots = generateRhythm(rng, options, metre, isPattern(options.kind));
+  // A tie continuation is not a choice of pitch — it is the note before it,
+  // held — so the pitch generators are asked for one fewer note per tie.
+  const soundedSlots = slots.filter((s) => !s.isRest && !s.tiedFromPrevious);
   const pitches = generatePitches(
     rng,
     options,
     candidates,
-    noteSlots.length,
+    soundedSlots.length,
     freshStarts(slots),
   );
 
@@ -96,23 +103,39 @@ export function generateExercise(options: GenerateOptions): Exercise {
       rests.push({ startBeat: slot.startBeat, duration: slot.duration });
       continue;
     }
+    if (slot.tiedFromPrevious) {
+      const head = notes[notes.length - 1];
+      head.tiedToNext = true;
+      notes.push({
+        ...head,
+        startBeat: slot.startBeat,
+        duration: slot.duration,
+        acceptedMasks: [...head.acceptedMasks],
+        beamGroup: -1,
+        tiedToNext: false,
+        showAccidental: false,
+      });
+      continue;
+    }
     const writtenMidi = pitches[pitchIndex++];
     const soundingMidi = soundingFromWritten(writtenMidi, options.instrument, options.clef);
     const primary = primaryFingering(soundingMidi, options.instrument);
     notes.push({
       writtenMidi,
       soundingMidi,
+      pitch: spellInKey(writtenMidi, options.fifths),
       startBeat: slot.startBeat,
       duration: slot.duration,
       acceptedMasks: [...fingeringMasks(soundingMidi, options.instrument)],
       primaryMask: primary?.mask ?? 0,
       beamGroup: -1,
+      tiedToNext: false,
       showAccidental: false,
     });
   }
 
-  assignBeamGroups(notes, rests, options.beatsPerBar);
-  assignAccidentals(notes, options.fifths, options.beatsPerBar);
+  assignBeamGroups(notes, rests, metre);
+  assignAccidentals(notes, metre, options.fifths);
 
   return {
     notes,
@@ -120,9 +143,8 @@ export function generateExercise(options: GenerateOptions): Exercise {
     instrumentId: options.instrument.id,
     clef: options.clef,
     fifths: options.fifths,
-    beatsPerBar: options.beatsPerBar,
-    beatUnit: options.beatUnit,
-    totalBeats: options.bars * options.beatsPerBar,
+    metre,
+    totalBeats: options.bars * metre.barBeats,
     seed: options.seed,
     kind: options.kind,
   };
@@ -206,51 +228,113 @@ export function patternSpanFor(
 }
 
 /**
- * Fills each bar with durations drawn from the difficulty's rhythm pool.
+ * Fills the exercise with durations drawn from the difficulty's rhythm pool.
+ *
+ * Bars are filled exactly, with one exception: a note may be allowed to overrun
+ * into the next bar, in which case it is written as a tied pair. That is the
+ * only reason this runs across the whole exercise rather than a bar at a time.
  *
  * Scales and arpeggios may use a pool of their own: at the easier levels that is
  * plain crotchets end to end, so the exercise is about the fingering rather than
  * about reading a rhythm at the same time.
  */
-function generateRhythm(rng: Rng, options: GenerateOptions, pattern: boolean): Slot[] {
+function generateRhythm(
+  rng: Rng,
+  options: GenerateOptions,
+  metre: Metre,
+  pattern: boolean,
+): Slot[] {
   const slots: Slot[] = [];
-  const { beatsPerBar, difficulty } = options;
+  const { difficulty } = options;
+  // Crotchets in a bar, which is the numerator only in simple time.
+  const barBeats = metre.barBeats;
 
   const pool = (pattern && difficulty.patterns.rhythms) || difficulty.rhythms;
   const restChance =
     pattern && difficulty.patterns.restChance !== undefined
       ? difficulty.patterns.restChance
       : difficulty.restChance;
-  const smallest = pool.reduce((least, r) =>
-    durationBeats(r.duration) < durationBeats(least.duration) ? r : least,
-  ).duration;
+  const tieChance = pattern ? 0 : difficulty.tieChance;
+  const totalBeats = options.bars * barBeats;
 
-  for (let bar = 0; bar < options.bars; bar++) {
-    let beat = 0;
-    while (beat < beatsPerBar - 1e-9) {
-      const remaining = beatsPerBar - beat;
-      const affordable = pool.filter((r) => durationBeats(r.duration) <= remaining + 1e-9);
-      // If nothing in the pool fits the gap, close it with the largest that does.
-      const duration =
-        affordable.length > 0 ? rng.weighted(affordable, (r) => r.weight).duration : smallest;
+  let beat = 0;
+  while (beat < totalBeats - 1e-9) {
+    const beatInBar = beat % barBeats;
+    const remaining = barBeats - beatInBar;
 
-      const beats = durationBeats(duration);
-      if (beats > remaining + 1e-9) break;
+    /*
+     * Sometimes a note is allowed to overrun its bar.
+     *
+     * That is the one duration which cannot be written as a single note, and so
+     * the one that needs a tie: the bar is filled, the remainder is written
+     * again on the downbeat, and a curve joins the two. Rolled only where an
+     * overrun is actually available, so `tieChance` reads as "how often a bar
+     * end that could be tied over is" rather than as a rate diluted by every
+     * position in the bar that could never have produced one.
+     */
+    const overruns =
+      tieChance > 0 && beat + remaining < totalBeats - 1e-9
+        ? pool.filter((r) => splitsOverBar(durationBeats(r.duration), remaining, barBeats))
+        : [];
 
-      // Rests are kept off the downbeat so bars stay readable.
-      const isRest = beat > 0 && rng.chance(restChance);
-      slots.push({ startBeat: bar * beatsPerBar + beat, duration, isRest });
+    if (overruns.length > 0 && rng.chance(tieChance)) {
+      const beats = durationBeats(rng.weighted(overruns, (r) => r.weight).duration);
+      slots.push({
+        startBeat: beat,
+        duration: durationFromBeats(remaining) as Duration,
+        isRest: false,
+        tiedFromPrevious: false,
+      });
+      slots.push({
+        startBeat: beat + remaining,
+        duration: durationFromBeats(beats - remaining) as Duration,
+        isRest: false,
+        tiedFromPrevious: true,
+      });
       beat += beats;
+      continue;
     }
+
+    const affordable = pool.filter((r) => durationBeats(r.duration) <= remaining + 1e-9);
+    // Nothing in the pool fits what is left of the bar, so there is no honest
+    // way to fill it; move on to the next one rather than overflowing by
+    // accident, which is a thing only a tie may do.
+    if (affordable.length === 0) {
+      beat += remaining;
+      continue;
+    }
+
+    const duration = rng.weighted(affordable, (r) => r.weight).duration;
+    // Rests are kept off the downbeat so bars stay readable.
+    const isRest = beatInBar > 1e-9 && rng.chance(restChance);
+    slots.push({ startBeat: beat, duration, isRest, tiedFromPrevious: false });
+    beat += durationBeats(duration);
   }
   return slots;
 }
 
 /**
+ * Whether a note of `beats` starting `remaining` from the bar line splits into
+ * two notes that can each be written.
+ *
+ * Both halves have to be real note values — a tie is two notes, not a way of
+ * writing an arbitrary length — and the tail must not run past the end of the
+ * bar it lands in, since a note spanning two bar lines would need two ties and
+ * a middle note that is nothing but bookkeeping.
+ */
+function splitsOverBar(beats: number, remaining: number, barBeats: number): boolean {
+  const tail = beats - remaining;
+  if (tail <= 1e-9 || tail > barBeats + 1e-9) return false;
+  return durationFromBeats(remaining) !== null && durationFromBeats(tail) !== null;
+}
+
+/**
  * Which notes begin afresh — the first, and any that follows a rest.
  *
- * Indices count notes only, ignoring the rests between them, which is how the
- * pitch generators number what they are producing.
+ * Indices count sounded notes only, ignoring both the rests between them and
+ * the far ends of ties, which is how the pitch generators number what they are
+ * producing. A tie continuation can never be a fresh start in any case: it is
+ * the note before it, still sounding.
  */
 function freshStarts(slots: Slot[]): Set<number> {
   const starts = new Set<number>();
@@ -262,6 +346,7 @@ function freshStarts(slots: Slot[]): Set<number> {
       afterSilence = true;
       continue;
     }
+    if (slot.tiedFromPrevious) continue;
     if (afterSilence) starts.add(noteIndex);
     afterSilence = false;
     noteIndex++;
@@ -546,8 +631,12 @@ function nearestCandidate(candidates: Candidate[], target: number): Candidate {
  * anything crossing a beat, or interrupted by a rest or a longer note, starts a
  * new group.
  */
-function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], beatsPerBar: number): void {
-  const restBeats = new Set(rests.map((r) => Math.floor(r.startBeat)));
+function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre): void {
+  // Grouped by pulse rather than by crotchet, which is the same thing in simple
+  // time and the difference between beaming in twos and in threes once it is
+  // not: 6/8 beams three quavers to a dotted crotchet.
+  const pulseOf = (beat: number) => Math.floor(beat / metre.pulseBeats + 1e-9);
+  const restBeats = new Set(rests.map((r) => pulseOf(r.startBeat)));
   let group = 0;
   let index = 0;
 
@@ -558,14 +647,14 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], beatsPerBar: n
       continue;
     }
 
-    const beat = Math.floor(note.startBeat);
-    const bar = Math.floor(note.startBeat / beatsPerBar);
+    const beat = pulseOf(note.startBeat);
+    const bar = barAt(metre, note.startBeat);
     let end = index;
     while (
       end + 1 < notes.length &&
       isBeamable(notes[end + 1].duration) &&
-      Math.floor(notes[end + 1].startBeat) === beat &&
-      Math.floor(notes[end + 1].startBeat / beatsPerBar) === bar &&
+      pulseOf(notes[end + 1].startBeat) === beat &&
+      barAt(metre, notes[end + 1].startBeat) === bar &&
       !restBeats.has(beat)
     ) {
       end++;
@@ -585,19 +674,31 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], beatsPerBar: n
  * An accidental holds for the rest of the bar at that letter and octave, so a
  * repeated F# is marked once. Conversely a note that reverts to the key
  * signature after an accidental needs a natural to cancel it.
+ *
+ * A tie continuation never takes one. It is not a new note, so there is nothing
+ * to alter; the accidental on the head of the tie carries across the bar line
+ * with the sound. Nor does it establish anything in the bar it lands in, which
+ * means a later note of that pitch in that bar gets an accidental of its own —
+ * the cautionary an engraver would write there anyway.
  */
-function assignAccidentals(notes: NoteEvent[], fifths: number, beatsPerBar: number): void {
+function assignAccidentals(notes: NoteEvent[], metre: Metre, fifths: number): void {
   let currentBar = -1;
   let altered = new Map<string, number>();
 
-  for (const note of notes) {
-    const bar = Math.floor(note.startBeat / beatsPerBar);
+  for (const [index, note] of notes.entries()) {
+    const bar = barAt(metre, note.startBeat);
     if (bar !== currentBar) {
       currentBar = bar;
       altered = new Map();
     }
 
-    const spelled = spellInKey(note.writtenMidi, fifths);
+    if (isTieContinuation(notes, index)) {
+      note.showAccidental = false;
+      continue;
+    }
+
+    // Spelling is already settled; this only decides what has to be drawn.
+    const spelled = note.pitch;
     const key = `${spelled.letter as Letter}${spelled.octave}`;
     const established = altered.get(key);
 

@@ -1,5 +1,7 @@
+import { metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import type { Duration } from '../domain/rhythm';
+import { spellInKey } from '../domain/keys';
 import type { Exercise, NoteEvent } from '../exercise/types';
 import { engraveSpacing } from './spacing';
 import { justifiedX } from './system';
@@ -36,12 +38,14 @@ function exerciseOf(bars: Array<Array<Duration['value']>>, beatsPerBar = 4): Exe
     for (const value of bar) {
       notes.push({
         writtenMidi: 67,
+        pitch: spellInKey(67, 0),
         soundingMidi: 46,
         startBeat: beat,
         duration: duration(value),
         acceptedMasks: [0],
         primaryMask: 0,
         beamGroup: -1,
+        tiedToNext: false,
         showAccidental: false,
       });
       beat += lengths[value];
@@ -54,8 +58,7 @@ function exerciseOf(bars: Array<Array<Duration['value']>>, beatsPerBar = 4): Exe
     instrumentId: 'eb-bass',
     clef: 'treble',
     fifths: -3,
-    beatsPerBar,
-    beatUnit: 4,
+    metre: metreFor(beatsPerBar, 4),
     totalBeats: bars.length * beatsPerBar,
     seed: 1,
     kind: 'random',
@@ -79,9 +82,9 @@ function barWidths(
 ): number[] {
   const spacing = engraveSpacing(exercise, options);
   const widths: number[] = [];
-  for (let bar = 0; bar * exercise.beatsPerBar < exercise.totalBeats; bar++) {
+  for (let bar = 0; bar * exercise.metre.barBeats < exercise.totalBeats; bar++) {
     widths.push(
-      spacing.xOf((bar + 1) * exercise.beatsPerBar) - spacing.xOf(bar * exercise.beatsPerBar),
+      spacing.xOf((bar + 1) * exercise.metre.barBeats) - spacing.xOf(bar * exercise.metre.barBeats),
     );
   }
   return widths;

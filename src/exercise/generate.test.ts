@@ -1,3 +1,4 @@
+import { metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import { isPlayable } from '../domain/fingering';
 import { instrumentById, soundingFromWritten, writtenRange } from '../domain/instruments';
@@ -5,6 +6,7 @@ import { needsAccidental, spellInKey, tonicPitchClass } from '../domain/keys';
 import { durationBeats } from '../domain/rhythm';
 import { DIFFICULTIES, difficultyById } from './difficulty';
 import { generateExercise, patternSpanFor, type GenerateOptions } from './generate';
+import { isTieContinuation } from './ties';
 import type { ExerciseKind } from './types';
 
 const ebBass = instrumentById('eb-bass');
@@ -17,8 +19,7 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
     difficulty: difficultyById('medium'),
     kind: 'random',
     bars: 8,
-    beatsPerBar: 4,
-    beatUnit: 4,
+    metre: metreFor(4, 4),
     seed: 12345,
     ...overrides,
   };
@@ -358,6 +359,10 @@ describe('fingering variety', () => {
     // Two notes on one fingering ask the player to do nothing between them,
     // which is the one thing a fingering drill should not do. It cannot always
     // be avoided, so this checks it is rare rather than absent.
+    //
+    // Ties are exempt, and not by concession: the far end of a tie is the same
+    // note still sounding, so of course it carries the same fingering, and doing
+    // nothing between the two is precisely what it asks for.
     let consecutive = 0;
     let total = 0;
 
@@ -365,6 +370,7 @@ describe('fingering variety', () => {
       for (let seed = 1; seed <= 12; seed++) {
         const exercise = generateExercise(options({ kind, seed, bars: 16 }));
         for (let i = 1; i < exercise.notes.length; i++) {
+          if (isTieContinuation(exercise.notes, i)) continue;
           total++;
           if (exercise.notes[i].primaryMask === exercise.notes[i - 1].primaryMask) consecutive++;
         }
@@ -434,7 +440,7 @@ describe('accidentals', () => {
     let checked = 0;
 
     for (const note of exercise.notes) {
-      const bar = Math.floor(note.startBeat / exercise.beatsPerBar);
+      const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
       if (bar !== currentBar) {
         currentBar = bar;
         inForce = new Map();
@@ -459,12 +465,15 @@ describe('accidentals', () => {
     );
 
     // The first note of each bar that departs from the key signature must carry
-    // an accidental, regardless of what happened in the previous bar.
+    // an accidental, regardless of what happened in the previous bar. Except a
+    // tie continuation, which is not a new note at all: its accidental is on the
+    // other side of the bar line, and the sound has never stopped.
     const barsSeen = new Set<number>();
     let checked = 0;
 
-    for (const note of exercise.notes) {
-      const bar = Math.floor(note.startBeat / exercise.beatsPerBar);
+    for (const [index, note] of exercise.notes.entries()) {
+      if (isTieContinuation(exercise.notes, index)) continue;
+      const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
       if (barsSeen.has(bar)) continue;
 
       const spelled = spellInKey(note.writtenMidi, exercise.fifths);
@@ -484,9 +493,11 @@ describe('accidentals', () => {
     );
 
     const marked = new Set<string>();
-    for (const note of exercise.notes) {
+    for (const [index, note] of exercise.notes.entries()) {
+      // A tie continuation never takes one; see above.
+      if (isTieContinuation(exercise.notes, index)) continue;
       const spelled = spellInKey(note.writtenMidi, exercise.fifths);
-      const bar = Math.floor(note.startBeat / exercise.beatsPerBar);
+      const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
       const key = `${bar}:${spelled.letter}${spelled.octave}`;
       if (needsAccidental(spelled, exercise.fifths) && !marked.has(key)) {
         expect(note.showAccidental).toBe(true);

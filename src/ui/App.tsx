@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
+import { metreFor } from '../domain/metre';
 import { generateExercise } from '../exercise/generate';
 import { randomSeed } from '../exercise/rng';
 import type { Exercise } from '../exercise/types';
@@ -53,8 +54,7 @@ export function App() {
         difficulty: difficultyById(settings.difficultyId),
         kind: settings.kind,
         bars: settings.bars,
-        beatsPerBar: settings.beatsPerBar,
-        beatUnit: settings.beatUnit,
+        metre: metreFor(settings.beatsPerBar, settings.beatUnit),
         seed,
         noteWeights: weights,
       });

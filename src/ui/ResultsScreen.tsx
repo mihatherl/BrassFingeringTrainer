@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
 import type { SessionSummary, Verdict } from '../engine/judge';
+import { soundingHeads } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
 import { weakestNotes, type NoteStats } from '../storage/stats';
 import type { ChartNote } from '../render/note-chart';
@@ -33,10 +34,15 @@ export function ResultsScreen({
 
   // Judgements arrive in playing order; the stave needs them by note index, and
   // a stopped exercise leaves the rest undefined — which draws them as unplayed.
+  //
+  // The far end of a tie is never judged, so it takes the verdict of the note it
+  // is tied from: one sound gets one colour, and a green head joined to a black
+  // tail would read as half a note having gone right.
   const verdicts = useMemo(() => {
     const byIndex: Array<Verdict | undefined> = new Array(exercise.notes.length).fill(undefined);
     for (const judgement of summary.judgements) byIndex[judgement.noteIndex] = judgement.verdict;
-    return byIndex;
+    const heads = soundingHeads(exercise.notes);
+    return byIndex.map((verdict, index) => verdict ?? byIndex[heads[index]]);
   }, [exercise, summary]);
 
   const chart: ChartNote[] = useMemo(

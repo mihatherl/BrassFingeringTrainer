@@ -26,6 +26,27 @@ const ACCIDENTAL_GAP = 0.28;
 /** Gap between a notehead and its augmentation dot. */
 const DOT_GAP = 0.3;
 
+/** Gap between a notehead and the tip of a tie leaving it, in stave spaces. */
+const TIE_CLEARANCE = 0.12;
+/**
+ * How far a tie's tip sits from the centre of its notehead, as a fraction of
+ * that head's width.
+ *
+ * Less than half, deliberately. The tip is the better part of a stave space
+ * above or below the head's centre, where the ellipse has already narrowed to
+ * nothing — so clearing the head's full width buys no room and costs a great
+ * deal. At the spacing a crotchet actually gets, two noteheads sit about three
+ * head-widths apart; taking a whole one out of that leaves a speck rather than
+ * a tie.
+ */
+const TIE_INSET = 0.3;
+/** How far the crown of a tie stands off the noteheads it joins. */
+const TIE_HEIGHT = 0.66;
+/** Shallowest a short tie may be flattened to, so it still reads as a curve. */
+const TIE_MIN_HEIGHT = 0.35;
+/** Thickness of a tie at its crown; it tapers to nothing at both tips. */
+const TIE_THICKNESS = 0.17;
+
 const STEM_LENGTH = 3.5;
 const STEM_THICKNESS = 0.12;
 const BEAM_THICKNESS = 0.5;
@@ -197,6 +218,78 @@ export function drawBeamGroup(
       }
     }
   }
+}
+
+/**
+ * One end of a tie: a notehead to hang off, or a bare x to run to.
+ *
+ * The second case is a system edge. A tie whose other note is on the line below
+ * still has to leave the line it is on, and it does that by running to the
+ * margin — which is a position, with no notehead to measure against.
+ */
+export interface TieEnd {
+  /** Centre of the notehead, or the margin itself when `headWidth` is absent. */
+  x: number;
+  headWidth?: number;
+}
+
+export interface TieSegment {
+  from: TieEnd;
+  to: TieEnd;
+  /** The pitch both ends share — a tie joins one note to itself. */
+  pitch: SpelledPitch;
+  colour: string;
+}
+
+/**
+ * Draws a tie between two noteheads.
+ *
+ * Curved away from the stem, which is the engraving rule and also the practical
+ * one: a tie on the stem side runs into the stem, the beam and the flag, and on
+ * a run of quavers it would be lost among them entirely.
+ *
+ * Tapered rather than stroked — thickest at the crown and vanishing at both
+ * tips — because a tie of even weight reads as a slur drawn with a ruler. The
+ * shape is two quadratics sharing their endpoints, filled: one for each edge.
+ *
+ * A tie broken across a system takes the same call with one end at the margin,
+ * so the two halves are drawn by the same code and match.
+ */
+export function drawTie(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  tie: TieSegment,
+): void {
+  const direction = stemUp(m, tie.pitch) ? 1 : -1;
+  const y =
+    yForStep(m, diatonicStep(tie.pitch)) + direction * (0.5 + TIE_CLEARANCE) * m.staveSpace;
+
+  const gap = TIE_CLEARANCE * m.staveSpace;
+  const fromX =
+    tie.from.headWidth === undefined ? tie.from.x : tie.from.x + tie.from.headWidth * TIE_INSET + gap;
+  const toX =
+    tie.to.headWidth === undefined ? tie.to.x : tie.to.x - tie.to.headWidth * TIE_INSET - gap;
+
+  // Shallower on a short tie — a fixed rise across a semiquaver's width is a
+  // hoop rather than a curve — but never so shallow that it reads as a dash.
+  const span = Math.abs(toX - fromX);
+  const rise =
+    direction *
+    Math.max(
+      TIE_MIN_HEIGHT * m.staveSpace,
+      Math.min(TIE_HEIGHT * m.staveSpace, span * 0.35),
+    );
+  const thickness = direction * TIE_THICKNESS * m.staveSpace;
+  const midX = (fromX + toX) / 2;
+
+  // A quadratic reaches half its control point's offset at the crown, hence the
+  // doubling: the far edge is to sit `rise` from the line joining the tips.
+  ctx.fillStyle = tie.colour;
+  ctx.beginPath();
+  ctx.moveTo(fromX, y);
+  ctx.quadraticCurveTo(midX, y + 2 * rise, toX, y);
+  ctx.quadraticCurveTo(midX, y + 2 * (rise - thickness), fromX, y);
+  ctx.fill();
 }
 
 export function drawRest(

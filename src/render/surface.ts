@@ -27,9 +27,7 @@
  * the notation cannot drift out of step with the sound.
  */
 
-import { spellInKey } from '../domain/keys';
 import { durationBeats } from '../domain/rhythm';
-import type { SpelledPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
 import type { Verdict } from '../engine/judge';
 import type { Exercise } from '../exercise/types';
@@ -40,6 +38,7 @@ import {
   drawFingeringHint,
   drawNote,
   drawRest,
+  drawTie,
   noteheadWidth,
   type LayoutNote,
 } from './notes';
@@ -213,7 +212,6 @@ export interface StaveRendererOptions {
 
 export class StaveRenderer {
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly spellings: SpelledPitch[];
   /** Shortest note in this exercise, which sets how tight the spacing may go. */
   private readonly shortestNoteBeats: number;
   private frame: number | null = null;
@@ -260,9 +258,6 @@ export class StaveRenderer {
     if (!ctx) throw new Error('Canvas 2D context unavailable');
     this.ctx = ctx;
 
-    // Spelling depends only on pitch and key, so it is settled once rather than
-    // recomputed for every note on every frame.
-    this.spellings = options.exercise.notes.map((n) => spellInKey(n.writtenMidi, options.exercise.fifths));
     this.shortestNoteBeats = options.exercise.notes.reduce(
       (shortest, note) => Math.min(shortest, durationBeats(note.duration)),
       1,
@@ -390,7 +385,12 @@ export class StaveRenderer {
 
     const { exercise } = this.options;
     this.headerWidth =
-      measureStaveHeader(this.metrics, exercise.fifths, exercise.beatsPerBar, exercise.beatUnit) +
+      measureStaveHeader(
+        this.metrics,
+        exercise.fifths,
+        exercise.metre.beatsPerBar,
+        exercise.metre.beatUnit,
+      ) +
       this.metrics.staveSpace;
 
     // Sit the strike line just past the header rather than a further slice of
@@ -431,7 +431,11 @@ export class StaveRenderer {
     // A narrow screen cannot honour the speed without leaving almost no warning
     // of what is coming, so tighten just enough to keep a bar or so in view.
     const forMinimumLookahead = (this.width - this.strikeX) / MIN_BEATS_VISIBLE;
-    const forSpeed = this.options.scrollSpeed * this.options.transport.secondsPerBeat;
+    // Nominal deliberately: how far a beat travels is a property of the page,
+    // fixed when it is laid out. Spacing that tracked a varying tempo would
+    // hold pixels-per-second constant and make the notes bunch during a rit.,
+    // which would be the notation telling a lie about the music.
+    const forSpeed = this.options.scrollSpeed * this.options.transport.nominalSecondsPerBeat;
 
     this.pixelsPerBeat = Math.max(
       8,
@@ -450,7 +454,7 @@ export class StaveRenderer {
   private extraWidthFor(index: number): { before: number; after: number } {
     const note = this.options.exercise.notes[index];
     return {
-      before: note.showAccidental ? accidentalRoom(this.metrics, this.spellings[index]) : 0,
+      before: note.showAccidental ? accidentalRoom(this.metrics, note.pitch) : 0,
       after: dotRoom(this.metrics, note.duration),
     };
   }
@@ -473,8 +477,9 @@ export class StaveRenderer {
 
   /** Where each line of music begins, filled greedily as an engraver fills a page. */
   private planSystems(): number[] {
-    const { beatsPerBar, totalBeats } = this.options.exercise;
-    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const { totalBeats } = this.options.exercise;
+    const { barBeats } = this.options.exercise.metre;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / barBeats));
     const usable = this.usableWidth();
     const starts: number[] = [];
     for (let bar = 0; bar < totalBars; bar += this.barsFrom(bar, usable)) starts.push(bar);
@@ -491,8 +496,9 @@ export class StaveRenderer {
   private barsPerPage(): number {
     if (!this.stacked()) return this.barsFrom(this.pageStartBar, this.usableWidth());
 
-    const { beatsPerBar, totalBeats } = this.options.exercise;
-    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const { totalBeats } = this.options.exercise;
+    const { barBeats } = this.options.exercise.metre;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / barBeats));
     const below = this.topSystem + this.systemsShown;
     return (this.systemStarts[below] ?? totalBars) - this.systemStarts[this.topSystem];
   }
@@ -504,7 +510,7 @@ export class StaveRenderer {
 
   /** Where the current page begins horizontally, ignoring any slide. */
   private pageOrigin(): number {
-    return this.xAt(this.pageStartBar * this.options.exercise.beatsPerBar);
+    return this.xAt(this.pageStartBar * this.options.exercise.metre.barBeats);
   }
 
   /**
@@ -520,8 +526,8 @@ export class StaveRenderer {
 
   /** How much music is on screen, for tests and for debugging layout. */
   private beatsVisible(): number {
-    const { beatsPerBar } = this.options.exercise;
-    if (this.stacked()) return this.barsPerPage() * beatsPerBar;
+    const { barBeats } = this.options.exercise.metre;
+    if (this.stacked()) return this.barsPerPage() * barBeats;
     if (!this.spacing) return (this.width - this.strikeX) / this.pixelsPerBeat;
 
     const from = this.pageOrigin();
@@ -539,8 +545,8 @@ export class StaveRenderer {
   private originX(beat: number): number {
     if (this.options.readingMode === 'scrolling') return this.xAt(beat);
 
-    const { beatsPerBar } = this.options.exercise;
-    const currentBar = Math.max(0, Math.floor(beat / beatsPerBar));
+    const { barBeats } = this.options.exercise.metre;
+    const currentBar = Math.max(0, Math.floor(beat / barBeats));
 
     if (currentBar < this.pageStartBar) {
       // Counted in, or restarted.
@@ -565,8 +571,9 @@ export class StaveRenderer {
    * once per layout rather than per frame, since only the geometry decides it.
    */
   private findLastPageStart(): number {
-    const { beatsPerBar, totalBeats } = this.options.exercise;
-    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const { totalBeats } = this.options.exercise;
+    const { barBeats } = this.options.exercise.metre;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / barBeats));
     const usable = this.width - this.strikeX - this.metrics.staveSpace;
 
     let start = totalBars - 1;
@@ -582,7 +589,7 @@ export class StaveRenderer {
    */
   private barsFrom(bar: number, usable: number): number {
     if (!this.spacing) {
-      const perBar = this.options.exercise.beatsPerBar * this.pixelsPerBeat;
+      const perBar = this.options.exercise.metre.barBeats * this.pixelsPerBeat;
       return Math.max(1, Math.floor(usable / perBar));
     }
     return this.spacing.barsFitting(bar, usable);
@@ -673,8 +680,8 @@ export class StaveRenderer {
     drawStaveLines(ctx, this.metrics, this.headerWidth, this.width);
 
     ctx.strokeStyle = theme.stave;
-    for (let bar = 0; bar * exercise.beatsPerBar <= exercise.totalBeats; bar++) {
-      const x = xForBeat(bar * exercise.beatsPerBar);
+    for (let bar = 0; bar * exercise.metre.barBeats <= exercise.totalBeats; bar++) {
+      const x = xForBeat(bar * exercise.metre.barBeats);
       if (x < this.headerWidth - 20 || x > this.width + 20) continue;
       // Set back from the beat rather than on it. A note is positioned by its
       // centre, so a downbeat drawn at the same x puts the notehead astride the
@@ -713,10 +720,11 @@ export class StaveRenderer {
     const { theme, exercise } = this.options;
     const spacing = this.spacing;
     if (!spacing) return;
-    const { beatsPerBar, totalBeats } = exercise;
-    const totalBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const { totalBeats } = exercise;
+    const { barBeats } = exercise.metre;
+    const totalBars = Math.max(1, Math.ceil(totalBeats / barBeats));
 
-    const current = this.systemContaining(Math.max(0, Math.floor(beat / beatsPerBar)));
+    const current = this.systemContaining(Math.max(0, Math.floor(beat / barBeats)));
     if (current < this.topSystem || current >= this.topSystem + this.systemsShown - 1) {
       this.topSystem = current;
     }
@@ -752,8 +760,8 @@ export class StaveRenderer {
         // Every line justified to the margin, bar the last — see `justifiedX`.
         xForBeat: justifiedX(
           spacing,
-          firstBar * beatsPerBar,
-          Math.min(totalBeats, lastBar * beatsPerBar),
+          firstBar * barBeats,
+          Math.min(totalBeats, lastBar * barBeats),
           this.headerWidth,
           this.usableWidth(),
           !final,
@@ -782,7 +790,7 @@ export class StaveRenderer {
       const item: LayoutNote = {
         // Centre the notehead on the beat, so it meets the strike line squarely.
         x: x - headWidth / 2,
-        pitch: this.spellings[index],
+        pitch: note.pitch,
         duration: note.duration,
         showAccidental: note.showAccidental,
         colour: verdictColour(this.options.verdictFor(index), theme),
@@ -806,9 +814,39 @@ export class StaveRenderer {
 
     for (const note of layout) drawNote(this.ctx, this.metrics, note);
     for (const group of groups.values()) drawBeamGroup(this.ctx, this.metrics, group);
+    this.drawTies(xForBeat);
     for (const { note, text, room } of hints) {
       drawFingeringHint(this.ctx, this.metrics, note, text, room, theme.hint);
     }
+  }
+
+  /**
+   * Ties on the endless line.
+   *
+   * Separate from `drawNotes` because a tie can outlive both its notes on
+   * screen: a long one may have its head already past the left edge and its
+   * tail not yet arrived, and neither note would survive that pass's culling
+   * while the curve across the middle of the display plainly should. So the
+   * curve is culled by its own extent rather than by its notes'.
+   */
+  private drawTies(xForBeat: (beat: number) => number): void {
+    const { exercise, theme } = this.options;
+
+    exercise.notes.forEach((note, index) => {
+      const next = exercise.notes[index + 1];
+      if (!note.tiedToNext || !next) return;
+
+      const from = xForBeat(note.startBeat);
+      const to = xForBeat(next.startBeat);
+      if (to < -20 || from > this.width + 20) return;
+
+      drawTie(this.ctx, this.metrics, {
+        from: { x: from, headWidth: noteheadWidth(this.metrics, note.duration) },
+        to: { x: to, headWidth: noteheadWidth(this.metrics, next.duration) },
+        pitch: note.pitch,
+        colour: verdictColour(this.options.verdictFor(index), theme),
+      });
+    });
   }
 
   private drawStrikeLine(): void {
@@ -867,7 +905,7 @@ export class StaveRenderer {
     let x = this.metrics.staveSpace * 0.4;
     x = drawClef(ctx, this.metrics, x);
     x = drawKeySignature(ctx, this.metrics, x, exercise.fifths);
-    drawTimeSignature(ctx, this.metrics, x, exercise.beatsPerBar, exercise.beatUnit);
+    drawTimeSignature(ctx, this.metrics, x, exercise.metre.beatsPerBar, exercise.metre.beatUnit);
   }
 
   private drawCountIn(beat: number): void {

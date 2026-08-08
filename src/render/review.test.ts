@@ -1,3 +1,4 @@
+import { metreFor } from '../domain/metre';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
@@ -34,6 +35,7 @@ function mockCanvas(calls: RecordedCall[], width = 600) {
     beginPath: record('beginPath'),
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
+    quadraticCurveTo: record('quadraticCurveTo'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),
@@ -79,8 +81,7 @@ function build(difficultyId: string, bars = 8) {
     difficulty: difficultyById(difficultyId),
     kind: 'random',
     bars,
-    beatsPerBar: 4,
-    beatUnit: 4,
+    metre: metreFor(4, 4),
     seed: 7,
   });
 }
@@ -91,7 +92,7 @@ describe('planning the review', () => {
       for (const difficultyId of ['beginner', 'easy', 'medium', 'hard', 'expert']) {
         const exercise = build(difficultyId);
         const plan = planReview(width, exercise);
-        const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+        const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
         const where = `${width} ${difficultyId}`;
 
         expect(plan.systemStarts[0], where).toBe(0);
@@ -117,12 +118,12 @@ describe('planning the review', () => {
     // width its busiest one needed; the rule itself is tested in spacing.test.
     const exercise = build('expert', 16);
     const { spacing } = planReview(900, exercise);
-    const { beatsPerBar } = exercise;
-    const totalBars = Math.ceil(exercise.totalBeats / beatsPerBar);
+    const { barBeats } = exercise.metre;
+    const totalBars = Math.ceil(exercise.totalBeats / barBeats);
 
     const widths: number[] = [];
     for (let bar = 0; bar < totalBars; bar++) {
-      widths.push(spacing.xOf((bar + 1) * beatsPerBar) - spacing.xOf(bar * beatsPerBar));
+      widths.push(spacing.xOf((bar + 1) * barBeats) - spacing.xOf(bar * barBeats));
     }
 
     expect(Math.max(...widths)).toBeGreaterThan(Math.min(...widths) * 1.1);
@@ -133,7 +134,7 @@ describe('planning the review', () => {
     // bar would not quite fit; the bars that did fit are stretched to fill it.
     const exercise = build('easy', 16);
     const plan = planReview(600, exercise);
-    const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+    const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
     expect(plan.systems).toBeGreaterThan(1);
 
     plan.systemStarts.forEach((start, i) => {
@@ -141,13 +142,13 @@ describe('planning the review', () => {
       const final = end >= totalBars;
       const x = justifiedX(
         plan.spacing,
-        start * exercise.beatsPerBar,
-        Math.min(exercise.totalBeats, end * exercise.beatsPerBar),
+        start * exercise.metre.barBeats,
+        Math.min(exercise.totalBeats, end * exercise.metre.barBeats),
         plan.headerWidth,
         plan.usableWidth,
         !final,
       );
-      const used = x(Math.min(exercise.totalBeats, end * exercise.beatsPerBar)) - plan.headerWidth;
+      const used = x(Math.min(exercise.totalBeats, end * exercise.metre.barBeats)) - plan.headerWidth;
 
       if (final) {
         // Left ragged: stretching a couple of remaining bars across a full line
@@ -165,13 +166,13 @@ describe('planning the review', () => {
         const exercise = build(difficultyId);
         const plan = planReview(width, exercise);
         const usable = width - plan.headerWidth - plan.staveSpace * 2;
-        const totalBars = Math.ceil(exercise.totalBeats / exercise.beatsPerBar);
+        const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
 
         plan.systemStarts.forEach((start, i) => {
           const end = plan.systemStarts[i + 1] ?? totalBars;
           const used =
-            plan.spacing.xOf(end * exercise.beatsPerBar) -
-            plan.spacing.xOf(start * exercise.beatsPerBar);
+            plan.spacing.xOf(end * exercise.metre.barBeats) -
+            plan.spacing.xOf(start * exercise.metre.barBeats);
           // A single bar too wide for the screen is scaled to fit rather than
           // clipped, so every system must land inside the width.
           expect(used, `${width} ${difficultyId} system ${i}`).toBeLessThanOrEqual(usable + 0.001);
@@ -238,8 +239,7 @@ describe('drawing the review', () => {
           difficulty: difficultyById(difficultyId),
           kind: 'phrases',
           bars: 8,
-          beatsPerBar: 4,
-          beatUnit: 4,
+          metre: metreFor(4, 4),
           seed: 31,
         });
         const verdicts = verdictsFor(exercise.notes.length, [
