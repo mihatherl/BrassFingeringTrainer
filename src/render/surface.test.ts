@@ -739,10 +739,12 @@ describe('scrolling renderer', () => {
       expect(stacked.barsPerPage).toBeGreaterThan(oneLine.barsPerPage * 2);
     });
 
-    it('draws the clef on only the top line of the stack', () => {
+    it('draws the clef on the first line of the piece, and never again once the page turns', () => {
       // The clef, key and time signature never change within an exercise, so
       // repeating them on every stacked line spends a phone's narrowest
-      // dimension on furniture instead of music.
+      // dimension on furniture instead of music — and a player who has seen
+      // them once at the start does not need them shown again just because a
+      // later line has scrolled to the top of the stack.
       const calls: RecordedCall[] = [];
       const exercise = generateExercise({
         instrument: instrumentById('eb-bass'),
@@ -763,13 +765,28 @@ describe('scrolling renderer', () => {
         readingMode: 'paged',
         verdictFor: () => undefined,
       });
+      const drawAtBeat = (beat: number) => {
+        (renderer as unknown as { options: { transport: Transport } }).options.transport =
+          new Transport(fakeAudioContext(beat * 0.6), 100);
+        renderer.draw();
+      };
+      const clef = glyphPath('gClef');
+      const clefDraws = () => calls.filter((c) => c.method === 'fill' && c.args[0] === clef).length;
 
       expect(renderer.scale.systemsShown).toBeGreaterThan(1);
-      renderer.draw();
+      drawAtBeat(0);
+      expect(clefDraws()).toBe(1);
 
-      const clef = glyphPath('gClef');
-      const clefDraws = calls.filter((c) => c.method === 'fill' && c.args[0] === clef).length;
-      expect(clefDraws).toBe(1);
+      // Deep enough into the piece that the stack has turned at least once —
+      // this is the case the top-of-the-visible-stack version got wrong. Two
+      // draws: the first starts the turn, the second — once the slide has
+      // had time to finish — is the settled frame actually being checked.
+      drawAtBeat(exercise.totalBeats * 0.75);
+      wall += 600;
+      calls.length = 0;
+      drawAtBeat(exercise.totalBeats * 0.75);
+      expect(renderer.scale.pageStartBar).toBeGreaterThan(0);
+      expect(clefDraws()).toBe(0);
     });
 
     it('keeps the bar being played on screen, all the way through', () => {

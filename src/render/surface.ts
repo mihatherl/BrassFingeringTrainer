@@ -814,12 +814,12 @@ export class StaveRenderer {
       );
 
       const final = lastBar >= totalBars;
-      // Only the top line of the stack carries the courtesy clef, key and time
-      // signature — none of the three ever change within an exercise, so
-      // repeating them on every stacked line would spend the phone's narrowest
-      // dimension on furniture rather than music. The lines below get that
-      // width back instead of a blank gutter.
-      const header = index === this.topSystem;
+      // Only the very first line of the piece carries the courtesy clef, key
+      // and time signature — none of the three ever change within an
+      // exercise, so a player who has seen them once does not need them
+      // again just because the page has turned. Every later line, wherever it
+      // lands in the stack, gets that width back for music instead.
+      const header = index === 0;
       const from = header ? this.headerWidth : this.leftMarginFor(firstBar, lastBar, metrics);
       drawSystem(ctx, {
         exercise,
