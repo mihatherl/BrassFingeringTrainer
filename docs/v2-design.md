@@ -69,6 +69,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `tools/stave-to-svg.mts` | `npm run svg` — renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
 | `tools/render-svg.mts` | The drawing itself, shared by that tool and the engraving snapshots so the two cannot drift. |
 | `src/render/__snapshots__/engraving/` | Seven committed SVGs, held to the byte by `engraving.test.ts`. Open them; they are pictures. |
+| `tools/shots.mts` | `npm run shots` — drives the real app at five viewports and photographs it. The viewport list is the valuable part. |
 | `input/` | Reference material, gitignored. Currently a conducting textbook chapter. |
 
 `tools/` **is** typechecked now, by `tsconfig.tools.json`, which the root
@@ -102,8 +103,24 @@ good faith beforehand:
   and so had nothing to say about the left edge.
 - The cancelling naturals were drawn hard against the new signature.
 
-So: `npm run dev` plus a throwaway `playwright-core` script driving
-`localhost:5173` at chosen viewport sizes, and `npm run svg` for engraving.
+So: `npm run shots` for the page, and `npm run svg` for the engraving.
+
+**The browser route is a committed script now** — `tools/shots.mts`, driving
+the real app at five viewports and photographing the settings and play screens.
+It was rebuilt from memory each time before, which meant the viewport list, the
+part actually worth keeping, was rewritten each time too. The sizes are chosen
+against the breakpoints in `index.css` rather than from a device list: both
+sides of the `landscape and max-height: 32rem` line, since a tablet on its side
+took a phone's concessions for a long time. Nothing sits *near* 32rem, because
+that line is deliberately in open country.
+
+It starts the dev server itself, reading the port out of Vite's output rather
+than assuming 5173, and `--tier free` photographs the gated screen — which is
+the fastest way to see the blocker below, chip by ungreyed chip. `--theme dark`
+and `--viewport <name>` narrow it down. The screenshots are **not** committed
+and are not snapshots: they vary with the host's fonts and GPU, so diffing them
+across machines would cry wolf. They are for looking at. The byte-for-byte
+check is the SVG one.
 
 **That SVG route now runs as a test.** `src/render/engraving.test.ts` draws
 seven figures and holds each to a committed SVG, byte for byte. It was the
@@ -839,7 +856,9 @@ something is not.
 **Traps.**
 
 - `?tier=free` forces the free tier in any build (`forcedFree` in
-  `licence.ts`), which is how to look at this without a gated build. Use it.
+  `licence.ts`), which is how to look at this without a gated build. Use it —
+  `npm run shots -- --tier free` photographs it in one command, and the fault
+  is plain in the picture: every key chip offered, none of them greyed.
 - `FREE_TIER.playbackMode` is declared but never read — there is no playback
   entitlement. Either wire it up or delete the field; leaving it invites the
   belief that playback is gated when it is not.

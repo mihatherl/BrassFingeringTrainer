@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "svg": "tsx tools/stave-to-svg.mts"
+    "svg": "tsx tools/stave-to-svg.mts",
+    "shots": "tsx tools/shots.mts"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -25,6 +26,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "happy-dom": "^20.11.1",
     "oxlint": "^1.75.0",
+    "playwright-core": "^1.62.1",
     "tsx": "^4.20.7",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

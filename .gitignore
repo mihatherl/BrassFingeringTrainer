@@ -31,3 +31,8 @@ dist-ssr
 
 # Reference material dropped in for reading — not part of the app.
 input/
+
+# Screenshots from `npm run shots`. Deliberately not committed: they vary with
+# the host's fonts and GPU, so diffing them across machines would cry wolf. The
+# committed engraving check is the SVG one in src/render/__snapshots__.
+shots/
