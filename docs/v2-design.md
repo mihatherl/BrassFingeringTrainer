@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.5.1 is deployed** to GitHub Pages, 430 tests. Since v1:
+**v1.5.1 is deployed** to GitHub Pages, 439 tests. Since v1:
 
 | | |
 |---|---|
@@ -66,7 +66,9 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/render/conductor.ts` | Pattern geometry, ported from the spike. |
 | `src/licensing/` | The only two files that know money exists. |
 | `public/spike/` | Throwaway. The conductor and microphone spikes, and where shapes are argued about. |
-| `tools/stave-to-svg.mts` | Renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
+| `tools/stave-to-svg.mts` | `npm run svg` — renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
+| `tools/render-svg.mts` | The drawing itself, shared by that tool and the engraving snapshots so the two cannot drift. |
+| `src/render/__snapshots__/engraving/` | Seven committed SVGs, held to the byte by `engraving.test.ts`. Open them; they are pictures. |
 | `input/` | Reference material, gitignored. Currently a conducting textbook chapter. |
 
 `tools/` **is** typechecked now, by `tsconfig.tools.json`, which the root
@@ -101,10 +103,34 @@ good faith beforehand:
 - The cancelling naturals were drawn hard against the new signature.
 
 So: `npm run dev` plus a throwaway `playwright-core` script driving
-`localhost:5173` at chosen viewport sizes, and `tools/stave-to-svg.mts` for
-engraving. That SVG route is also the cheapest regression check there is — the
-same exercise and seed before and after a refactor should render byte-for-byte,
-and it proved the key-list change inert to fourteen decimal places.
+`localhost:5173` at chosen viewport sizes, and `npm run svg` for engraving.
+
+**That SVG route now runs as a test.** `src/render/engraving.test.ts` draws
+seven figures and holds each to a committed SVG, byte for byte. It was the
+cheapest regression check available and it depended on somebody remembering to
+do it; now it does not.
+
+Be clear about what it buys, because a snapshot only knows what it was shown
+first. **It cannot say a drawing is right** — all three faults above would have
+been recorded as correct had this existed at the time. What it does is stop a
+fixed thing from quietly un-fixing, which is exactly what had happened to the
+clef. So a failure is a question, not a verdict: the diff says the engraving
+moved, and whether it moved for the better is settled by opening the file,
+since the snapshots are ordinary SVGs a browser will draw. Look before
+accepting one with `vitest -u`, or it degrades into a test that records
+whatever the code happens to do.
+
+The figures are chosen for what has broken or what carries a rule this project
+committed to, not for coverage: ties curving both ways, a key change *and* a
+change into C major, a scale in cycles, 6/8, and the bass clef. Two of them
+depend on `seed: 6` putting the change mid-system — on a system break a change
+draws nothing but the signature every line states anyway, so the double bar and
+the cancelling naturals would go unexercised. A test asserts that seed still
+does so, rather than leaving it to be lost silently.
+
+`tools/render-svg.mts` holds the drawing, shared by the tool and the test. That
+sharing is the point: a snapshot of a reimplementation would go on passing
+while the tool drew something else.
 
 ## The direction
 
