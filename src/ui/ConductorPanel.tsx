@@ -158,8 +158,26 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
   // alone. Guessing a shape would teach a gesture no conductor will ever make.
   if (!pattern) return null;
 
+  /*
+   * The box takes the gesture's own proportions.
+   *
+   * A pattern is nothing like square and no two metres agree: beaten in two
+   * it is roughly three times as tall as it is wide, in four it is wider than
+   * it is tall. A fixed box fits whichever it was guessed for and letterboxes
+   * the rest — the two pattern was drawing at under half the size its panel
+   * could hold, in the corner of the screen where it is least visible anyway.
+   *
+   * The draw loop already fits the gesture to whatever box it is given, so
+   * this only has to stop the box lying about the shape it holds.
+   */
+  const extent = extentOf(pattern, STYLE);
+
   return (
-    <div className="conductor" aria-hidden="true">
+    <div
+      className="conductor"
+      aria-hidden="true"
+      style={{ aspectRatio: `${extent.width} / ${extent.height}` }}
+    >
       <canvas ref={canvasRef} className="conductor__canvas" />
     </div>
   );

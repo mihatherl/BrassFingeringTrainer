@@ -59,6 +59,7 @@ function describeNote(exercise: Exercise, judgement: NoteJudgement): RecentNote 
 
 export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const screenRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<Session | null>(null);
   const rendererRef = useRef<StaveRenderer | null>(null);
   const verdictsRef = useRef<Array<Verdict | undefined>>([]);
@@ -148,6 +149,15 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       // the note it is tied from rather than staying unmarked beside it.
       verdictFor: (index) => verdictsRef.current[heads[index]],
       hintFor: (index) => hints.get(index),
+      /*
+       * The notation's own scale, handed to the stylesheet so the conductor
+       * and the recent-notes band can be measured in it too — see
+       * `--stave-unit` in `index.css`. Without this they were sized by an
+       * unrelated rule of their own, and on a tablet the notation grew past
+       * them until the conductor looked like an afterthought.
+       */
+      onLayout: (staveUnit) =>
+        screenRef.current?.style.setProperty('--stave-unit', `${staveUnit}px`),
     });
     rendererRef.current = renderer;
 
@@ -296,7 +306,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   const accuracy = progress.done === 0 ? 0 : Math.round((progress.correct / progress.done) * 100);
 
   return (
-    <div className="screen screen--play">
+    <div className="screen screen--play" ref={screenRef}>
       <div className="play-bar">
         <button type="button" className="button button--quiet" onClick={onExit}>
           Stop

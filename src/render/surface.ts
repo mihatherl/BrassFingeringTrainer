@@ -64,7 +64,35 @@ const MIN_BEATS_VISIBLE = 3;
  * Four for the stave itself; the rest is what hangs off it — ledger lines and
  * accidentals above and below. Also what decides how many systems a page holds.
  */
-const SYSTEM_SPACES = 11;
+export const SYSTEM_SPACES = 11;
+
+/**
+ * Largest a stave space may be drawn, in CSS pixels.
+ *
+ * A ceiling rather than a target: notation stops becoming easier to read
+ * somewhere well short of as-large-as-the-screen-allows, and past that point
+ * the room is better spent on more bars in view than on bigger noteheads. On
+ * a tablet the difference is stark — uncapped, a page holds two enormous
+ * lines where it could comfortably hold four.
+ */
+const STAVE_SPACE_MAX = 22;
+
+/**
+ * How large one stave space may be at a given display width, in CSS pixels.
+ *
+ * Width alone, deliberately, and that is what makes this safe to share. The
+ * play screen sizes the conductor and the recent-notes band from this too, so
+ * the notation and everything beside it grow together instead of drifting
+ * apart as the screen changes — which they did, badly, on a tablet.
+ *
+ * Those things consume *height*. If this took height into account, sizing
+ * them from it would feed their own effect back into the number that sized
+ * them, and the layout would oscillate. `StaveCanvas.tsx` documents the same
+ * hazard for the results-screen canvases.
+ */
+export function staveSpaceCeiling(width: number): number {
+  return Math.min(STAVE_SPACE_MAX, width / 30);
+}
 
 /**
  * How close to the end of a page the playhead gets before the page turns.
@@ -229,6 +257,14 @@ export interface StaveRendererOptions {
   verdictFor: (noteIndex: number) => Verdict | undefined;
   /** Fingering to print above a note, for the ones the player struggles with. */
   hintFor?: (noteIndex: number) => string | undefined;
+  /**
+   * Reports the stave-space ceiling whenever the layout settles, so the rest
+   * of the play screen can size itself in the same unit as the notation.
+   *
+   * See `staveSpaceCeiling`: it is a function of width alone, which is what
+   * keeps a listener that consumes height from feeding back into it.
+   */
+  onLayout?: (staveUnit: number) => void;
 }
 
 export class StaveRenderer {
@@ -402,7 +438,11 @@ export class StaveRenderer {
      * and three quarter systems is better spent on two slightly smaller ones
      * than on one with a quarter of the height left blank.
      */
-    const widthAllows = Math.min(30, this.width / 30);
+    const widthAllows = staveSpaceCeiling(this.width);
+    // Reported here rather than at the foot of the method because this is
+    // where the value is settled — nothing below changes it, and the paged
+    // branch returns early.
+    this.options.onLayout?.(widthAllows);
     this.systemsShown = paged
       ? Math.max(1, Math.round(this.height / (SYSTEM_SPACES * widthAllows)))
       : 1;
@@ -795,16 +835,24 @@ export class StaveRenderer {
 
     this.systemStarts.forEach((firstBar, index) => {
       const top = padTop + index * this.systemHeight - shown;
-      if (top + this.systemHeight < 0 || top > this.height) return;
+      /*
+       * Culled by its stave rather than by the whole system's extent.
+       *
+       * A system is three and a half spaces of clearance, then the stave, then
+       * as much clearance again — so a line whose stave sits below the canvas
+       * can still have its clearance on screen, and what lands there is the
+       * tops of stems and the ledger lines of high notes, drawn in mid air
+       * with no stave under them. Read as a stray mark rather than as music,
+       * which is exactly what it was reported as.
+       */
+      const staveTop = top + this.metrics.staveSpace * 3.5;
+      const staveBottom = staveTop + this.metrics.staveSpace * 4;
+      if (staveBottom < 0 || staveTop > this.height) return;
 
       const lastBar = this.systemStarts[index + 1] ?? totalBars;
       // Three and a half spaces of clearance above the stave for ledger lines
       // and accidentals, and as much again beneath.
-      const metrics = staveMetrics(
-        exercise.clef,
-        top + this.metrics.staveSpace * 3.5,
-        this.metrics.staveSpace,
-      );
+      const metrics = staveMetrics(exercise.clef, staveTop, this.metrics.staveSpace);
 
       const final = lastBar >= totalBars;
       // Only the very first line of the piece carries the courtesy clef — it

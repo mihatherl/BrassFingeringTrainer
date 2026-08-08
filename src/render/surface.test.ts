@@ -9,7 +9,13 @@ import type { ExerciseKind } from '../exercise/types';
 import { glyphPath } from './glyphs';
 import { drawFingeringHint, type LayoutNote } from './notes';
 import { staveMetrics } from './stave';
-import { DARK_THEME, LIGHT_THEME, revealByBar, StaveRenderer } from './surface';
+import {
+  DARK_THEME,
+  LIGHT_THEME,
+  revealByBar,
+  StaveRenderer,
+  staveSpaceCeiling,
+} from './surface';
 
 /**
  * A smoke test for the drawing path.
@@ -285,15 +291,18 @@ describe('scrolling renderer', () => {
     expect(pixelsPerBeat * shortest).toBeGreaterThan(noteheadWidth);
   });
 
-  it('draws notes larger in landscape than it used to', () => {
-    // A wide screen was showing needlessly small notes and more bars than anyone
-    // reads ahead. Bigger stave, nearer horizon — one lever does both, because
-    // note spacing is a multiple of the stave size.
+  it('draws notes larger in landscape than a phone, up to a ceiling', () => {
+    // A wide screen was once showing needlessly small notes and more bars than
+    // anyone reads ahead, so the stave was allowed to grow with the width.
+    // It then grew too far: on a tablet the notation was larger than reading
+    // needs and the room would have been better spent on more bars in view,
+    // so the growth now stops at a ceiling. See `staveSpaceCeiling`.
     const landscapePhone = rendererFor(780, 260).scale;
     const tablet = rendererFor(1180, 500).scale;
 
     expect(landscapePhone.staveSpace).toBeGreaterThan(20);
-    expect(tablet.staveSpace).toBeGreaterThan(25);
+    expect(tablet.staveSpace).toBeGreaterThan(landscapePhone.staveSpace * 0.9);
+    expect(tablet.staveSpace).toBeLessThanOrEqual(staveSpaceCeiling(1180));
 
     // Portrait is deliberately untouched: it was already tight for lookahead.
     expect(rendererFor(390, 450).scale.staveSpace).toBeCloseTo(13, 5);
@@ -352,6 +361,56 @@ describe('scrolling renderer', () => {
     expect(rendererFor(1400, 320, 60).scale.beatsVisible).toBeGreaterThan(
       rendererFor(1400, 320, 200).scale.beatsVisible,
     );
+  });
+
+  describe('the shared stave unit', () => {
+    /*
+     * The play screen measures the conductor and the recent-notes band in this
+     * too, so that the notation and the things beside it grow together. Twice
+     * they did not, and the conductor ended up looking like an afterthought on
+     * a tablet; these are the properties that stop it happening again.
+     */
+    it('depends on width alone', () => {
+      // Load-bearing, not incidental. What is sized from this consumes height,
+      // so a unit that read the height would be changed by its own effect and
+      // the layout would oscillate.
+      expect(staveSpaceCeiling(390)).toBe(staveSpaceCeiling(390));
+      for (const width of [320, 390, 744, 834, 1024, 1920]) {
+        expect(Number.isFinite(staveSpaceCeiling(width)), `${width}`).toBe(true);
+      }
+    });
+
+    it('grows with the screen, then stops', () => {
+      // Notation stops becoming easier to read well short of as-large-as-it-
+      // will-go; past that the room is better spent on more bars in view.
+      expect(staveSpaceCeiling(744)).toBeGreaterThan(staveSpaceCeiling(390));
+      expect(staveSpaceCeiling(1920)).toBe(staveSpaceCeiling(1024));
+    });
+
+    it('is what the renderer actually lays out against', () => {
+      // The published number has to be the one the notation is drawn at, or
+      // the two drift apart again — which is the whole fault being fixed.
+      const reported: number[] = [];
+      new StaveRenderer({
+        canvas: mockCanvas([], 834, 600),
+        exercise: build('random', 'treble', -3, 5),
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'paged',
+        verdictFor: () => undefined,
+        onLayout: (unit) => reported.push(unit),
+      });
+
+      expect(reported.length).toBeGreaterThan(0);
+      expect(reported[reported.length - 1]).toBe(staveSpaceCeiling(834));
+    });
+
+    it('leaves a phone exactly where it was', () => {
+      // The regression bar for the whole exercise: a phone is the device this
+      // was tuned on and the one place nothing may move.
+      expect(staveSpaceCeiling(390)).toBeCloseTo(13, 6);
+    });
   });
 
   it('draws no strike line in paged mode', () => {
@@ -729,6 +788,46 @@ describe('scrolling renderer', () => {
       // Sideways there is no spare height, so it stays a single line.
       const sideways = stackedRenderer(750, 217).renderer.scale;
       expect(sideways.systemsShown).toBe(1);
+    });
+
+    it('never draws a line whose stave is off the page', () => {
+      /*
+       * A system is clearance, then the stave, then clearance again. Culling
+       * a line by its whole extent let one whose stave sat below the canvas
+       * still draw the clearance above it — so the tops of stems and the
+       * ledger lines of high notes appeared in mid air, with no stave under
+       * them, in the margin below the last line. It read as a stray mark.
+       *
+       * Every stave line runs the width of its system, so a horizontal rule
+       * is the giveaway: count them, and none may sit outside the canvas.
+       */
+      const calls: RecordedCall[] = [];
+      const height = 834;
+      const renderer = new StaveRenderer({
+        canvas: mockCanvas(calls, 1194, height),
+        exercise: build('random', 'treble', -3, 5),
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'paged',
+        verdictFor: () => undefined,
+      });
+      renderer.draw();
+
+      const horizontals: number[] = [];
+      for (let i = 0; i < calls.length - 1; i++) {
+        const [from, to] = [calls[i], calls[i + 1]];
+        if (from.method !== 'moveTo' || to.method !== 'lineTo') continue;
+        const [, y1] = from.args as number[];
+        const [, y2] = to.args as number[];
+        if (Math.abs(y1 - y2) < 0.01) horizontals.push(y1);
+      }
+
+      expect(horizontals.length).toBeGreaterThan(0);
+      for (const y of horizontals) {
+        expect(y, `stave line at ${y} outside 0..${height}`).toBeGreaterThanOrEqual(0);
+        expect(y, `stave line at ${y} outside 0..${height}`).toBeLessThanOrEqual(height);
+      }
     });
 
     it('shows several times as many bars for it', () => {

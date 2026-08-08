@@ -219,30 +219,42 @@ body {
   gap: 0.5rem;
   min-width: 0;
   /*
-   * Was a flat 8rem, which is a phone figure — `font-size` is a fixed 16px
-   * throughout, so a `rem` is the same physical size on every device and does
-   * not know a tablet is bigger. The stave takes whatever height this row
-   * does not, so a fixed figure here meant a tablet's spare height all went
-   * to the notation while the conductor stayed exactly the size it is on a
-   * phone. Scaling with `vh` instead lets it grow there too.
+   * Measured in the notation's own unit, not in one of its own.
    *
-   * The floor is exactly the old figure, chosen so the `vh` term stays under
-   * it on every phone this was tuned against — the tallest is about 930px, and
-   * 13% of that is under 8rem — so nothing moves on a phone. It clears the
-   * floor from a small tablet upward and is capped well short of anything a
-   * big tablet's spare height would otherwise let it reach.
+   * `--stave-unit` is the largest a stave space may be drawn at this width,
+   * published by the renderer — see `staveSpaceCeiling` in `render/surface.ts`
+   * and where `PlayScreen.tsx` sets it. Ten of them, which is a shade under
+   * one system's height, so the band and a line of music stay in proportion
+   * on every screen.
+   *
+   * Two earlier attempts sized this independently — first a flat `8rem`, then
+   * `clamp(8rem, 13vh, 16rem)` — and both drifted, because the notation and
+   * the things beside it were growing on unrelated curves. On a tablet the
+   * stave nearly doubled while the band moved by a third, which is why the
+   * conductor kept looking too small however the figure here was tuned.
+   *
+   * The fallback is the phone's figure, for the frame before the renderer has
+   * laid out; without it the band visibly resizes on load.
+   *
+   * NB this consumes *height*, and `--stave-unit` is derived from *width*
+   * alone. That is deliberate and load-bearing: a unit that took height into
+   * account would be changed by this rule's own effect, and the layout would
+   * oscillate. Do not size anything from `--stave-unit` in a way that changes
+   * the play surface's width.
    */
-  --aside-size: clamp(8rem, 13vh, 16rem);
+  --aside-size: calc(var(--stave-unit, 12.8px) * 10);
 }
 
 .conductor {
   flex: 0 0 auto;
-  /* Same 9:8 ratio as the old fixed 9rem / 8rem, scaling with the row now
-     instead of sitting at a phone-sized figure regardless of the screen. */
-  width: min(calc(var(--aside-size) * 9 / 8), 42%);
   /* Matches the list's height, so the stave never moves when the conductor is
      switched on or off. */
   height: var(--aside-size);
+  /* Width follows from the height and the gesture's own proportions, which
+     `ConductorPanel.tsx` sets as an `aspect-ratio` per metre — a two pattern
+     is a tall narrow shape, a four is a wide one. Still capped as a share of
+     the row, so a wide pattern cannot crowd out the note list beside it. */
+  max-width: 42%;
 }
 
 .conductor__canvas {
@@ -721,19 +733,31 @@ input[type='checkbox'] {
 }
 
 /*
- * Sideways, the recent-notes list drops down beside the valve pad.
+ * Sideways *and short* — a phone on its side, and nothing else.
  *
- * Above the stave it would cost height the stave cannot spare: turned on its
- * side, the stave is sized by the height rather than the width, so every row
- * taken from it shrinks the notation. Beside the pad it costs nothing at all —
- * the pad keeps a hand-sized width and centres itself, and both flanks are
- * already empty.
+ * The height test is the whole point of this rule and was missing from it for
+ * a long time. Turned sideways a phone really has no vertical room, and this
+ * block is a series of concessions to that. But orientation alone is not
+ * scarcity: a tablet on its side and a desktop window are both landscape and
+ * both have height to spare, and they were getting a phone's concessions —
+ * most visibly the conductor being switched off entirely on a monitor, where
+ * narrowing the window until it was taller than wide was the only way to get
+ * it back. Anything with real height takes the roomy rule below instead.
  *
- * The equal side columns are what keep the pad centred on the screen rather
- * than merely centred in whatever the list leaves over: the buttons have to
- * stay under the same fingers whether anything has been played yet or not.
+ * 32rem is deliberately in open country. A phone sideways tops out around
+ * 27rem of height; the smallest tablet in that position has 46rem. Nothing
+ * sits near the line, so nothing flips across it by accident.
+ *
+ * What the concessions are: the recent-notes list drops down beside the valve
+ * pad, because above the stave it would cost height the stave cannot spare —
+ * sideways the stave is sized by height rather than width, so every row taken
+ * from it shrinks the notation, while beside the pad it costs nothing, both
+ * flanks there being empty already. The equal side columns keep the pad
+ * centred on the screen rather than merely centred in what the list leaves
+ * over: the buttons have to stay under the same fingers whether anything has
+ * been played yet or not.
  */
-@media (orientation: landscape) {
+@media (orientation: landscape) and (max-height: 32rem) {
   .screen--play {
     grid-template-columns: 1fr auto 1fr;
     grid-template-rows: auto 1fr auto;
@@ -786,5 +810,71 @@ input[type='checkbox'] {
 
   .valve__hint {
     display: none;
+  }
+}
+
+/*
+ * Sideways with room to spare — a tablet on its side, or any desktop window.
+ *
+ * Upright, everything that is not the stave sits in a band above it and is
+ * paid for in height. That is the right trade on a phone, where width is the
+ * scarce thing and there is always some vertical slack. Here it is exactly
+ * backwards: height is what the stave is sized by, and width is what there is
+ * too much of. So the band becomes a column instead, and the notation gets
+ * back every row it was spending on it — the stave is taller here than it has
+ * ever been in landscape, while the conductor is larger too rather than
+ * switched off.
+ *
+ * The pad keeps the full width and stays centred. It is the one thing on the
+ * screen that is aimed at rather than read, and moving it to a side column to
+ * save space would put the buttons somewhere the hands have to find.
+ */
+@media (orientation: landscape) and (min-height: 32rem) {
+  .screen--play {
+    /* The column is a share of the width with a floor under it, so the note
+       list stays readable on a modest window without eating a wide one. */
+    grid-template-columns: 1fr minmax(11rem, 20%);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'bar bar'
+      'stave aside'
+      'pad pad';
+  }
+
+  .play-aside {
+    grid-area: aside;
+    /* Stacked rather than side by side: the column is narrow, and the
+       conductor wants to be as large as that width allows. */
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    min-height: 0;
+  }
+
+  /* Conductor above the list, which is the one thing the source order cannot
+     give: a conductor stands high in a player's vision and is watched
+     continuously, while the list is glanced at in the gaps. */
+  .conductor {
+    order: -1;
+  }
+
+  /*
+   * Both sized by the column's width now, not by the shared band height —
+   * there is no band. The conductor takes the full width and lets its
+   * `aspect-ratio` decide the height; the list takes whatever is left.
+   */
+  .conductor {
+    width: 100%;
+    max-width: none;
+    height: auto;
+  }
+
+  .recent {
+    flex: 0 1 auto;
+    width: 100%;
+    height: auto;
+    padding: 0;
   }
 }
