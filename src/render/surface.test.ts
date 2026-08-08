@@ -2,12 +2,14 @@ import { metreFor } from '../domain/metre';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
 import { Transport } from '../engine/clock';
+import type { Verdict } from '../engine/judge';
 import { difficultyById } from '../exercise/difficulty';
 import { generateExercise } from '../exercise/generate';
 import type { ExerciseKind } from '../exercise/types';
+import { glyphPath } from './glyphs';
 import { drawFingeringHint, type LayoutNote } from './notes';
 import { staveMetrics } from './stave';
-import { DARK_THEME, LIGHT_THEME, StaveRenderer } from './surface';
+import { DARK_THEME, LIGHT_THEME, revealByBar, StaveRenderer } from './surface';
 
 /**
  * A smoke test for the drawing path.
@@ -584,6 +586,41 @@ describe('scrolling renderer', () => {
         calls.some((c) => c.method === 'strokeStyle=' && c.args[0] === LIGHT_THEME.correct),
       ).toBe(false);
     });
+
+    it('withholds a note colour in paged mode until its bar is judged, unlike scrolling', () => {
+      // Beginner rhythm never runs longer than a minim, so a 4/4 bar always
+      // holds at least two notes — judging only the first always leaves the
+      // bar incomplete, which is the case this needs.
+      const exercise = generateExercise({
+        instrument: instrumentById('eb-bass'),
+        clef: 'treble',
+        fifths: -3,
+        difficulty: difficultyById('beginner'),
+        kind: 'random',
+        bars: 2,
+        metre: metreFor(4, 4),
+        seed: 4,
+      });
+
+      const colourShown = (readingMode: 'scrolling' | 'paged') => {
+        const calls: RecordedCall[] = [];
+        new StaveRenderer({
+          canvas: mockCanvas(calls, 900, 320),
+          exercise,
+          transport: new Transport(fakeAudioContext(0), 100),
+          theme: LIGHT_THEME,
+          scrollSpeed: 110,
+          readingMode,
+          // Only the very first note has been judged; whatever shares its bar
+          // has not.
+          verdictFor: (index) => (index === 0 ? 'correct' : undefined),
+        }).draw();
+        return calls.some((c) => c.method === 'fillStyle=' && c.args[0] === LIGHT_THEME.correct);
+      };
+
+      expect(colourShown('scrolling')).toBe(true);
+      expect(colourShown('paged')).toBe(false);
+    });
   });
 
   describe('turning the page', () => {
@@ -700,6 +737,39 @@ describe('scrolling renderer', () => {
 
       expect(oneLine.systemsShown).toBe(1);
       expect(stacked.barsPerPage).toBeGreaterThan(oneLine.barsPerPage * 2);
+    });
+
+    it('draws the clef on only the top line of the stack', () => {
+      // The clef, key and time signature never change within an exercise, so
+      // repeating them on every stacked line spends a phone's narrowest
+      // dimension on furniture instead of music.
+      const calls: RecordedCall[] = [];
+      const exercise = generateExercise({
+        instrument: instrumentById('eb-bass'),
+        clef: 'treble',
+        fifths: -3,
+        difficulty: difficultyById('easy'),
+        kind: 'random',
+        bars: 16,
+        metre: metreFor(4, 4),
+        seed: 9,
+      });
+      const renderer = new StaveRenderer({
+        canvas: mockCanvas(calls, 390, 402),
+        exercise,
+        transport: new Transport(fakeAudioContext(0), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode: 'paged',
+        verdictFor: () => undefined,
+      });
+
+      expect(renderer.scale.systemsShown).toBeGreaterThan(1);
+      renderer.draw();
+
+      const clef = glyphPath('gClef');
+      const clefDraws = calls.filter((c) => c.method === 'fill' && c.args[0] === clef).length;
+      expect(clefDraws).toBe(1);
     });
 
     it('keeps the bar being played on screen, all the way through', () => {
@@ -905,5 +975,58 @@ describe('scrolling renderer', () => {
 
     // Once under way there is no countdown to show.
     expect(drawAt(1).filter((c) => c.method === 'fillText')).toHaveLength(0);
+  });
+});
+
+describe('revealByBar', () => {
+  // Beginner rhythm never runs longer than a minim, so a 4/4 bar always holds
+  // at least two notes — the guarantee every case here relies on.
+  function twoBarExercise() {
+    return generateExercise({
+      instrument: instrumentById('eb-bass'),
+      clef: 'treble',
+      fifths: -3,
+      difficulty: difficultyById('beginner'),
+      kind: 'random',
+      bars: 2,
+      metre: metreFor(4, 4),
+      seed: 4,
+    });
+  }
+
+  it('withholds every note in a bar until the whole bar is judged', () => {
+    const exercise = twoBarExercise();
+    const { barBeats } = exercise.metre;
+    const barOf = (index: number) => Math.floor(exercise.notes[index].startBeat / barBeats);
+    const firstBarCount = exercise.notes.filter((_, index) => barOf(index) === 0).length;
+    expect(firstBarCount).toBeGreaterThan(1);
+
+    const verdicts = new Array<Verdict | undefined>(exercise.notes.length).fill(undefined);
+    const reveal = revealByBar(exercise, (index) => verdicts[index]);
+
+    // Every note but the last in the bar has been judged; the bar stays hidden.
+    for (let i = 0; i < firstBarCount - 1; i++) verdicts[i] = 'correct';
+    for (let i = 0; i < firstBarCount; i++) expect(reveal(i), `note ${i}`).toBeUndefined();
+
+    // The last note completes it: the whole bar reveals together.
+    verdicts[firstBarCount - 1] = 'wrong';
+    for (let i = 0; i < firstBarCount - 1; i++) expect(reveal(i), `note ${i}`).toBe('correct');
+    expect(reveal(firstBarCount - 1)).toBe('wrong');
+
+    // The following bar is untouched by the first one completing.
+    expect(reveal(firstBarCount)).toBeUndefined();
+  });
+
+  it('treats a missed note as judged, same as a correct or wrong one', () => {
+    const exercise = twoBarExercise();
+    const { barBeats } = exercise.metre;
+    const firstBarCount = exercise.notes.filter(
+      (note) => Math.floor(note.startBeat / barBeats) === 0,
+    ).length;
+
+    const verdicts: Array<Verdict | undefined> = new Array(exercise.notes.length).fill('missed');
+    const reveal = revealByBar(exercise, (index) => verdicts[index]);
+
+    for (let i = 0; i < firstBarCount; i++) expect(reveal(i), `note ${i}`).toBe('missed');
   });
 });

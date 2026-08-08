@@ -78,6 +78,18 @@ export interface SpacingOptions {
    * counts only noteheads will happily lay a sharp on top of its neighbour.
    */
   extraWidthFor?: (noteIndex: number) => { before: number; after: number };
+  /**
+   * Room to reserve immediately before every bar line, on top of the note
+   * clearance already given to whatever precedes it.
+   *
+   * A bar line is drawn set back from its column rather than on it — see
+   * `BAR_LINE_SETBACK` — and that setback lands inside whatever gap the
+   * previous note was given. Left unaccounted for, a bar's last note can end
+   * up sitting on the line that is supposed to follow it, most visibly when
+   * that note is also the shortest in the exercise and its column is already
+   * packed to the floor.
+   */
+  barLineRoom?: number;
 }
 
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
@@ -104,7 +116,10 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
    */
   const elastic = gaps.map((gap) => unit * gap ** EXPONENT);
   const noteAt = notesByBeat(exercise);
-  const floors = gaps.map((_, index) => floorWidth(noteAt, columns, index, options));
+  const barBoundaries = barBoundaryBeats(exercise);
+  const floors = gaps.map((_, index) =>
+    floorWidth(noteAt, columns, index, options, barBoundaries),
+  );
 
   const offsetsAt = (give: number) => {
     const offsets = [0];
@@ -177,16 +192,18 @@ function floorWidth(
   columns: number[],
   index: number,
   options: SpacingOptions,
+  barBoundaries: Set<number>,
 ): number {
   const extra = options.extraWidthFor;
-  if (!extra) return options.minColumnWidth;
-
   const here = noteAt.get(columns[index]);
   const next = noteAt.get(columns[index + 1]);
+  const barLine = barBoundaries.has(columns[index + 1]) ? (options.barLineRoom ?? 0) : 0;
+
   return (
     options.minColumnWidth +
-    (here === undefined ? 0 : extra(here).after) +
-    (next === undefined ? 0 : extra(next).before)
+    barLine +
+    (extra === undefined || here === undefined ? 0 : extra(here).after) +
+    (extra === undefined || next === undefined ? 0 : extra(next).before)
   );
 }
 
@@ -195,6 +212,15 @@ function notesByBeat(exercise: Exercise): Map<number, number> {
   const byBeat = new Map<number, number>();
   exercise.notes.forEach((note, index) => byBeat.set(note.startBeat, index));
   return byBeat;
+}
+
+/** Every beat a bar line falls on, including the closing one. */
+function barBoundaryBeats(exercise: Exercise): Set<number> {
+  const { barBeats } = exercise.metre;
+  const { totalBeats } = exercise;
+  const beats = new Set<number>([totalBeats]);
+  for (let bar = 1; bar * barBeats < totalBeats; bar++) beats.add(bar * barBeats);
+  return beats;
 }
 
 /**

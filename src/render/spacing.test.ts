@@ -168,6 +168,30 @@ describe('engraved spacing', () => {
     ).toBeCloseTo(MIN + dot, 6);
   });
 
+  it('leaves room before a bar line for the note that precedes it', () => {
+    // A bar line is drawn set back from its column into the gap the previous
+    // note was given (see BAR_LINE_SETBACK in system.ts), so that gap has to be
+    // wider than a note's ordinary clearance or the two collide. A bar of
+    // semiquavers packs its columns to the floor, which is exactly where the
+    // collision would show first.
+    const exercise = exerciseOf([new Array(16).fill('sixteenth'), ['whole']]);
+    const barLineRoom = 15;
+
+    const plain = engraveSpacing(exercise, { minColumnWidth: MIN });
+    const withBarLineRoom = engraveSpacing(exercise, { minColumnWidth: MIN, barLineRoom });
+
+    // The bar line sits at beat 4, the last semiquaver at beat 3.75.
+    expect(plain.xOf(4) - plain.xOf(3.75)).toBeCloseTo(MIN, 6);
+    expect(withBarLineRoom.xOf(4) - withBarLineRoom.xOf(3.75)).toBeCloseTo(MIN + barLineRoom, 6);
+  });
+
+  it('does not spend bar-line room between two ordinary notes', () => {
+    const exercise = exerciseOf([new Array(16).fill('sixteenth'), ['whole']]);
+    const spacing = engraveSpacing(exercise, { minColumnWidth: MIN, barLineRoom: 15 });
+
+    expect(spacing.xOf(0.25) - spacing.xOf(0)).toBeCloseTo(MIN, 6);
+  });
+
   it('gives up elastic room before it gives up glyph room', () => {
     // A bar too wide for its line has to lose something. What the duration asks
     // for can go; what the glyphs physically occupy cannot, or the notes touch.

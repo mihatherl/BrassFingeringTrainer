@@ -40,6 +40,12 @@ import type { StaveTheme } from './surface';
  */
 export const BAR_LINE_SETBACK = 1.75;
 
+/**
+ * Left margin before the music, in stave spaces, when a system carries no
+ * clef, key or time signature to provide one of its own.
+ */
+export const MUSIC_MARGIN = 0.4;
+
 export interface SystemOptions {
   exercise: Exercise;
   metrics: StaveMetrics;
@@ -57,6 +63,16 @@ export interface SystemOptions {
   hintFor?: (noteIndex: number) => string | undefined;
   /** Whether this system ends the music, and so gets a closing double bar. */
   final: boolean;
+  /**
+   * Whether to draw the clef, key and time signature at the head of this system.
+   *
+   * None of the three ever change within an exercise, so a caller showing
+   * several systems at once — several stacked on one screen — can ask for the
+   * courtesy repeat to be skipped on all but the first and get that space back
+   * for music instead. Static callers such as the results review show it on
+   * every system, as engraved music conventionally does.
+   */
+  header: boolean;
 }
 
 /**
@@ -106,15 +122,20 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   ctx.fillStyle = theme.stave;
   drawStaveLines(ctx, metrics, 0, rightEdge);
 
-  let x = staveSpace * 0.4;
-  x = drawClef(ctx, metrics, x);
-  x = drawKeySignature(ctx, metrics, x, exercise.fifths);
   // Where the music proper starts, which is where a tie arriving from the
-  // system above has to begin.
-  const musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
+  // system above has to begin. Left at the plain margin when the courtesy
+  // clef, key and time signature are skipped, so the music moves up to fill
+  // the room they would have taken.
+  let musicLeft = staveSpace * MUSIC_MARGIN;
+  if (options.header) {
+    let x = musicLeft;
+    x = drawClef(ctx, metrics, x);
+    x = drawKeySignature(ctx, metrics, x, exercise.fifths);
+    musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
+  }
 
-  // Every bar line except the one at the head of the system, which the clef
-  // stands in for.
+  // Every bar line except the one at the head of the system: the start of the
+  // stave already marks it, clef or no clef.
   ctx.strokeStyle = theme.stave;
   for (let beat = firstBeat + barBeats; beat <= lastBeat; beat += barBeats) {
     drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);

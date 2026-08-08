@@ -43,7 +43,7 @@ import {
   type LayoutNote,
 } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
-import { drawSystem, justifiedX } from './system';
+import { BAR_LINE_SETBACK, drawSystem, justifiedX, MUSIC_MARGIN } from './system';
 import {
   drawBarLine,
   drawClef,
@@ -94,14 +94,6 @@ const PAGE_TURN_MS = 550;
 function easeInOut(t: number): number {
   return 0.5 - 0.5 * Math.cos(Math.PI * t);
 }
-
-/**
- * How far a bar line sits to the left of its downbeat, in stave spaces.
- *
- * Half a notehead clears the note itself; the rest is the gap an engraver would
- * leave, so the note reads as being *after* the bar line rather than on it.
- */
-const BAR_LINE_SETBACK = 1.75;
 
 /**
  * How long the strike line holds its confirming colour, in milliseconds.
@@ -185,6 +177,35 @@ export function verdictColour(verdict: Verdict | undefined, theme: StaveTheme): 
   }
 }
 
+/**
+ * Withholds a note's verdict until every note in its bar has one.
+ *
+ * Paged reading marks nothing on screen to say when to play — that is the
+ * whole point of it — so a note turning green or red the instant it is judged
+ * would hand that cue back through the notation itself. Waiting for the bar
+ * to finish still answers a coarser question, which bar just went right or
+ * wrong, without answering the one the player is meant to work out unaided:
+ * where they are inside it.
+ */
+export function revealByBar(
+  exercise: Exercise,
+  verdictFor: (noteIndex: number) => Verdict | undefined,
+): (noteIndex: number) => Verdict | undefined {
+  const { barBeats } = exercise.metre;
+  const barOf = (index: number) => Math.floor(exercise.notes[index].startBeat / barBeats);
+
+  return (noteIndex) => {
+    const bar = barOf(noteIndex);
+    for (let i = noteIndex; i >= 0 && barOf(i) === bar; i--) {
+      if (verdictFor(i) === undefined) return undefined;
+    }
+    for (let i = noteIndex + 1; i < exercise.notes.length && barOf(i) === bar; i++) {
+      if (verdictFor(i) === undefined) return undefined;
+    }
+    return verdictFor(noteIndex);
+  };
+}
+
 export interface StaveRendererOptions {
   canvas: HTMLCanvasElement;
   exercise: Exercise;
@@ -249,6 +270,14 @@ export class StaveRenderer {
   private slide: { from: number; to: number; startedAt: number } | null = null;
   /** When the last confirmation landed, on the wall clock. */
   private flash: number | null = null;
+  /**
+   * What colour a note should show.
+   *
+   * The raw callback in paged mode, wrapped so a note's verdict waits for its
+   * bar to finish; see `revealByBar`. Scrolling keeps the raw callback, since
+   * the strike line already says when each note is being judged.
+   */
+  private readonly verdictFor: (noteIndex: number) => Verdict | undefined;
 
   private options: StaveRendererOptions;
 
@@ -257,6 +286,11 @@ export class StaveRenderer {
     const ctx = options.canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context unavailable');
     this.ctx = ctx;
+
+    this.verdictFor =
+      options.readingMode === 'paged'
+        ? revealByBar(options.exercise, options.verdictFor)
+        : options.verdictFor;
 
     this.shortestNoteBeats = options.exercise.notes.reduce(
       (shortest, note) => Math.min(shortest, durationBeats(note.duration)),
@@ -419,6 +453,7 @@ export class StaveRenderer {
         // A line is measured in bars, so at least one whole bar has to fit.
         maxBarWidth: this.usableWidth(),
         extraWidthFor: (index) => this.extraWidthFor(index),
+        barLineRoom: BAR_LINE_SETBACK * staveSpace,
       });
       this.pixelsPerBeat = this.spacing.averagePixelsPerBeat;
       this.systemStarts = this.planSystems();
@@ -457,6 +492,31 @@ export class StaveRenderer {
       before: note.showAccidental ? accidentalRoom(this.metrics, note.pitch) : 0,
       after: dotRoom(this.metrics, note.duration),
     };
+  }
+
+  /**
+   * Left margin a header-less system needs, so its first note — and that
+   * note's accidental, if it has one — is not centred so close to the edge
+   * that half the glyph is drawn off the canvas.
+   *
+   * A header-bearing system never has this problem: `headerWidth` is comfortably
+   * wider than any notehead. A header-less one starts from a plain margin
+   * instead (see `MUSIC_MARGIN`), which is only enough for a note with no
+   * accidental to clear — a system that happens to begin with a wide notehead,
+   * or one carrying a sharp or flat, needs more than that plain margin gives it.
+   */
+  private leftMarginFor(firstBar: number, lastBar: number, metrics: StaveMetrics): number {
+    const { exercise } = this.options;
+    const { barBeats } = exercise.metre;
+    const from = firstBar * barBeats;
+    const to = Math.min(exercise.totalBeats, lastBar * barBeats);
+    const first = exercise.notes.find((note) => note.startBeat >= from && note.startBeat < to);
+    const plain = metrics.staveSpace * MUSIC_MARGIN;
+    if (!first) return plain;
+
+    const clearance = noteheadWidth(metrics, first.duration) / 2;
+    const accidental = first.showAccidental ? accidentalRoom(metrics, first.pitch) : 0;
+    return plain + clearance + accidental;
   }
 
   /**
@@ -754,6 +814,13 @@ export class StaveRenderer {
       );
 
       const final = lastBar >= totalBars;
+      // Only the top line of the stack carries the courtesy clef, key and time
+      // signature — none of the three ever change within an exercise, so
+      // repeating them on every stacked line would spend the phone's narrowest
+      // dimension on furniture rather than music. The lines below get that
+      // width back instead of a blank gutter.
+      const header = index === this.topSystem;
+      const from = header ? this.headerWidth : this.leftMarginFor(firstBar, lastBar, metrics);
       drawSystem(ctx, {
         exercise,
         metrics,
@@ -762,16 +829,17 @@ export class StaveRenderer {
           spacing,
           firstBar * barBeats,
           Math.min(totalBeats, lastBar * barBeats),
-          this.headerWidth,
-          this.usableWidth(),
+          from,
+          this.width - from - this.metrics.staveSpace,
           !final,
         ),
         firstBar,
         lastBar,
         theme,
-        colourFor: (note) => verdictColour(this.options.verdictFor(note), theme),
+        colourFor: (note) => verdictColour(this.verdictFor(note), theme),
         hintFor: this.options.hintFor,
         final,
+        header,
       });
     });
   }
@@ -793,7 +861,7 @@ export class StaveRenderer {
         pitch: note.pitch,
         duration: note.duration,
         showAccidental: note.showAccidental,
-        colour: verdictColour(this.options.verdictFor(index), theme),
+        colour: verdictColour(this.verdictFor(index), theme),
       };
 
       const hint = this.options.hintFor?.(index);
@@ -844,7 +912,7 @@ export class StaveRenderer {
         from: { x: from, headWidth: noteheadWidth(this.metrics, note.duration) },
         to: { x: to, headWidth: noteheadWidth(this.metrics, next.duration) },
         pitch: note.pitch,
-        colour: verdictColour(this.options.verdictFor(index), theme),
+        colour: verdictColour(this.verdictFor(index), theme),
       });
     });
   }

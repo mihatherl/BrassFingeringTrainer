@@ -21,7 +21,7 @@ import type { Exercise } from '../exercise/types';
 import { accidentalRoom, dotRoom, noteheadWidth } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
 import { measureStaveHeader, staveMetrics } from './stave';
-import { drawSystem, justifiedX } from './system';
+import { BAR_LINE_SETBACK, drawSystem, justifiedX } from './system';
 import { verdictColour, type StaveTheme } from './surface';
 
 /**
@@ -109,6 +109,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
         after: dotRoom(metrics, note.duration),
       };
     },
+    barLineRoom: BAR_LINE_SETBACK * staveSpace,
   });
 
   // Systems are filled greedily, as an engraver fills a line: take bars until
@@ -178,5 +179,9 @@ function drawReviewSystem(
       return formatMask(exercise.notes[index].primaryMask);
     },
     final,
+    // Read top to bottom rather than glanced at a screenful of stacked lines
+    // at once, so the review keeps the courtesy clef, key and time signature
+    // on every system, as engraved music conventionally does.
+    header: true,
   });
 }
