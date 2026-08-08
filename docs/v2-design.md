@@ -31,7 +31,18 @@ real build that gets published. The version in `package.json` is stamped into
 the build and shown on the settings screen, so bump it with anything
 user-visible — there must never be doubt about what a device is running.
 
-**Nothing is tagged past `v1.0.0`.**
+**Every version is tagged**, `v1.0.0` through `v1.5.1`, annotated with what
+shipped in it. This was not true for a long time — the tags stopped at `v1.2.0`
+while ten more versions went out — and it was backfilled before starting the
+tempo map deliberately. That is the item this document calls the highest risk
+in the project, on the grounds that a bug in `timeForBeat` desynchronises sound
+from notation, and the question when that happens is *which build was still
+right*. `git bisect` needs named points to answer it.
+
+The convention: a tag sits on the **last** commit at that version, so it covers
+everything that shipped under the number rather than the moment the number
+changed. Each tag's commit has that version in its `package.json`, and it is
+worth keeping that true.
 
 ### The state of things, for someone picking this up cold
 
