@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.8.0 is deployed** to GitHub Pages, 472 tests. Since v1:
+**v1.9.0 is deployed** to GitHub Pages, 472 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Twenty-three, hand-written: eighteen phrases and one tune varied across all five levels. |
+| `src/exercise/themes.ts` | The corpus itself. Twenty-five, hand-written: eighteen phrases, and one tune varied across all five levels plus two figuration variations. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -616,6 +616,16 @@ do what variations are for: the fifth is arpeggiated at Beginner and walked up
 in quavers at Easy. Expect this to recur with any real tune — the ladder
 measures difficulty as a random walk experiences it, and a theme is not a random
 walk.
+
+**A figuration variation keeps one melody note a bar and arpeggiates round it**,
+which is what Mozart's variations do to this tune and what `twinkle-centred` and
+`twinkle-figured` do here. They exist as a pair because the obvious rule and the
+right one differ: taking the triad *centred* on the melody note — a third below,
+a third above — is tidy and puts the note inside its own chord, but the triad it
+lands on is not always the chord the bar is in. On the melody's fifth it gives
+the mediant where the tune wants the tonic. Arpeggiating the bar's actual
+harmony is less tidy as a rule and is what the music is doing anyway. Both are
+kept so the difference can be heard rather than argued.
 
 **Every difficulty now has themes in 4/4** — three or four apiece, eighteen in
 the corpus — so the fallback below no longer fires for the metre almost

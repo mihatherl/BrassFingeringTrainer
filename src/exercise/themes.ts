@@ -646,7 +646,113 @@ const VARIATIONS: readonly Theme[] = [
   },
 ];
 
-export const THEMES: readonly Theme[] = [...FIRST_BATCH, ...HARDER, ...VARIATIONS];
+/*
+ * Two figuration variations on the same tune, written to be compared.
+ *
+ * The idea: each bar keeps one note of the melody, on the first quaver, and
+ * spends the rest of the bar arpeggiating around it. That is a real and old
+ * device — it is what Mozart's variations do to this very tune — and the tune
+ * survives it, because the ear picks the downbeats out of the figuration and
+ * hears the melody underneath.
+ *
+ * Where the two differ is which triad gets arpeggiated, and it is worth hearing
+ * rather than being told:
+ *
+ * `twinkle-centred` takes the triad *centred* on the melody note — a third
+ * below and a third above — so the melody note always sits in the middle of its
+ * own figure. Neat, symmetrical, and harmonically loose: on the melody's fifth
+ * it produces the mediant where the tune wants the tonic, so the bar leans
+ * somewhere the tune does not.
+ *
+ * `twinkle-figured` arpeggiates the chord the bar is actually in, arranged so
+ * the melody note is one of its notes. Less tidy as a rule, and it is what the
+ * harmony is doing anyway.
+ *
+ * One melody note per bar reduces the tune to its downbeats, which is the usual
+ * price of this device and part of why it is a hard read: the player is holding
+ * a tune that is only implied.
+ */
+const FIGURED: readonly Theme[] = [
+  {
+    id: 'twinkle-centred',
+    name: 'Twinkle — centred triads',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 12,
+    /* Third below, third above, so the melody note sits inside its own chord. */
+    events: [
+      n(1, 0.5), n(6, 0.5, { octave: -1 }), n(1, 0.5), n(3, 0.5),
+      n(1, 0.5), n(3, 0.5), n(1, 0.5), n(6, 0.5, { octave: -1 }),
+      n(6, 0.5), n(1, 0.5, { octave: 1 }), n(6, 0.5), n(4, 0.5),
+      n(6, 0.5), n(4, 0.5), n(6, 0.5), n(1, 0.5, { octave: 1 }),
+      n(4, 0.5), n(2, 0.5), n(4, 0.5), n(6, 0.5),
+      n(4, 0.5), n(6, 0.5), n(4, 0.5), n(2, 0.5),
+      n(2, 0.5), n(7, 0.5, { octave: -1 }), n(2, 0.5), n(4, 0.5),
+      n(2, 0.5), n(4, 0.5), n(2, 0.5), n(7, 0.5, { octave: -1 }),
+      n(5, 0.5), n(3, 0.5), n(5, 0.5), n(7, 0.5),
+      n(5, 0.5), n(7, 0.5), n(5, 0.5), n(3, 0.5),
+      n(3, 0.5), n(1, 0.5), n(3, 0.5), n(5, 0.5),
+      n(3, 0.5), n(5, 0.5), n(3, 0.5), n(1, 0.5),
+      n(5, 0.5), n(7, 0.5), n(5, 0.5), n(3, 0.5),
+      n(5, 0.5), n(3, 0.5), n(5, 0.5), n(7, 0.5),
+      n(3, 0.5), n(5, 0.5), n(3, 0.5), n(1, 0.5),
+      n(3, 0.5), n(1, 0.5), n(3, 0.5), n(5, 0.5),
+      n(1, 0.5), n(3, 0.5), n(1, 0.5), n(6, 0.5, { octave: -1 }),
+      n(1, 0.5), n(6, 0.5, { octave: -1 }), n(1, 0.5), n(3, 0.5),
+      n(6, 0.5), n(4, 0.5), n(6, 0.5), n(1, 0.5, { octave: 1 }),
+      n(6, 0.5), n(1, 0.5, { octave: 1 }), n(6, 0.5), n(4, 0.5),
+      n(4, 0.5), n(6, 0.5), n(4, 0.5), n(2, 0.5),
+      n(4, 0.5), n(2, 0.5), n(4, 0.5), n(6, 0.5),
+      n(2, 0.5), n(4, 0.5), n(2, 0.5), n(7, 0.5, { octave: -1 }), n(1, 2),
+    ],
+  },
+  {
+    id: 'twinkle-figured',
+    name: 'Twinkle — figured on the harmony',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * The same shape, arpeggiating the chord each bar is really in — tonic
+     * where the tune sits on the tonic, subdominant under the sixth and the
+     * fourth, dominant before the close. The melody note is still the first
+     * quaver; it is simply a note of the bar's own chord rather than the middle
+     * of a triad built on itself.
+     */
+    events: [
+      n(1, 0.5), n(3, 0.5), n(5, 0.5), n(1, 0.5, { octave: 1 }),
+      n(5, 0.5), n(3, 0.5), n(5, 0.5), n(3, 0.5),
+      n(6, 0.5), n(4, 0.5), n(6, 0.5), n(1, 0.5, { octave: 1 }),
+      n(6, 0.5), n(4, 0.5), n(6, 0.5), n(4, 0.5),
+      n(4, 0.5), n(6, 0.5), n(1, 0.5, { octave: 1 }), n(6, 0.5),
+      n(4, 0.5), n(6, 0.5), n(4, 0.5), n(1, 0.5),
+      n(2, 0.5), n(5, 0.5), n(7, 0.5), n(2, 0.5, { octave: 1 }),
+      n(7, 0.5), n(5, 0.5), n(7, 0.5), n(2, 0.5),
+      n(5, 0.5), n(3, 0.5), n(1, 0.5), n(3, 0.5),
+      n(5, 0.5), n(1, 0.5, { octave: 1 }), n(5, 0.5), n(3, 0.5),
+      n(3, 0.5), n(5, 0.5), n(1, 0.5, { octave: 1 }), n(5, 0.5),
+      n(3, 0.5), n(1, 0.5), n(3, 0.5), n(5, 0.5),
+      n(5, 0.5), n(1, 0.5, { octave: 1 }), n(5, 0.5), n(3, 0.5),
+      n(1, 0.5), n(3, 0.5), n(5, 0.5), n(3, 0.5),
+      n(3, 0.5), n(1, 0.5), n(3, 0.5), n(5, 0.5),
+      n(1, 0.5, { octave: 1 }), n(5, 0.5), n(3, 0.5), n(1, 0.5),
+      n(1, 0.5), n(1, 0.5, { octave: 1 }), n(5, 0.5), n(3, 0.5),
+      n(1, 0.5), n(3, 0.5), n(5, 0.5), n(3, 0.5),
+      n(6, 0.5), n(1, 0.5, { octave: 1 }), n(6, 0.5), n(4, 0.5),
+      n(6, 0.5), n(4, 0.5), n(1, 0.5, { octave: 1 }), n(6, 0.5),
+      n(4, 0.5), n(6, 0.5), n(1, 0.5, { octave: 1 }), n(6, 0.5),
+      n(4, 0.5), n(6, 0.5), n(4, 0.5), n(1, 0.5),
+      n(2, 0.5), n(5, 0.5), n(7, 0.5), n(2, 0.5), n(1, 2),
+    ],
+  },
+];
+
+export const THEMES: readonly Theme[] = [
+  ...FIRST_BATCH,
+  ...HARDER,
+  ...VARIATIONS,
+  ...FIGURED,
+];
 
 export function themeById(id: string): Theme | undefined {
   return THEMES.find((theme) => theme.id === id);
