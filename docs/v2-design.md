@@ -504,6 +504,15 @@ What the format has to carry:
 abut without the join sounding like a mistake. That is a constraint on
 authoring rather than something to fix up at stitch time.
 
+Those three are the notes of the tonic chord, which is why any of them will do:
+a theme opening on one of them lands on the key rather than away from it, and
+the ear knows where it is at once. The tonic alone was considered and is not
+wanted — every theme opening on the same note would make the joins predictable
+and the corpus samey, and the thing a join must avoid is sounding *wrong*, not
+sounding varied. The consequence is register rather than harmony: a theme
+opening on the fifth begins a fifth higher up the stave, while its tonic still
+sits in the window where it was placed.
+
 **Range is checked, not assumed.** A theme is a fixed shape and an Eb bass in
 treble clef has a different compass from a cornet. The machinery exists: a
 pattern that will not fit the instrument is not a pattern and falls back to free
