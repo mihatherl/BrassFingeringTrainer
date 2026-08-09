@@ -170,6 +170,24 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       verdictFor: (index) => verdictsRef.current[heads[index]],
       hintFor: (index) => hints.get(index),
       /*
+       * The white's moving end: the bar the playhead is in turns white as it
+       * is entered, so the horizon keeps receding while the player keeps
+       * going. Absent when there is no grey, which is every exercise whose
+       * chosen length is the whole paper.
+       */
+      whiteUntil:
+        exercise.chosenBeats < exercise.totalBeats
+          ? () =>
+              Math.min(
+                exercise.totalBeats,
+                Math.max(
+                  exercise.chosenBeats,
+                  (barAt(exercise.metre, session.transport.visualBeat()) + 1) *
+                    exercise.metre.barBeats,
+                ),
+              )
+          : undefined,
+      /*
        * The notation's own scale, handed to the stylesheet so the conductor
        * and the recent-notes band can be measured in it too — see
        * `--stave-unit` in `index.css`. Without this they were sized by an
@@ -333,6 +351,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   }
 
   const accuracy = Math.round(progress.accuracy * 100);
+  const chosenNotes = exercise.notes.filter((n) => n.startBeat < exercise.chosenBeats - 1e-9).length;
 
   return (
     <div className="screen screen--play" ref={screenRef}>
@@ -341,8 +360,10 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
           Stop
         </button>
         <div className="play-stats">
+          {/* Progress through what was asked for; past it, the count stands
+              alone — bonus territory has no denominator. */}
           <span>
-            {progress.done} / {exercise.notes.length}
+            {progress.done <= chosenNotes ? `${progress.done} / ${chosenNotes}` : progress.done}
           </span>
           <span className="play-stats__accuracy">{accuracy}%</span>
         </div>

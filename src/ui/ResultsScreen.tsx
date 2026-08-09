@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
+import { barAt } from '../domain/metre';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
 import { keyAt } from '../domain/keys';
 import {
@@ -50,6 +51,46 @@ export function ResultsScreen({
       : summarise(exercise.notes, inWindow);
   }, [exercise, summary]);
   const accuracy = Math.round((windowed ?? summary).accuracy * 100);
+
+  /*
+   * How far the run reached, when there was grey to reach into. Counted from
+   * what was judged rather than from the clock, so the silent bar that ended
+   * the run does not count as having been played.
+   */
+  const beyondBars = useMemo(() => {
+    if (exercise.chosenBeats >= exercise.totalBeats || summary.judgements.length === 0) return 0;
+    const lastBeat = Math.max(
+      ...summary.judgements.map((j) => exercise.notes[j.noteIndex].startBeat),
+    );
+    const chosenBar = Math.ceil(exercise.chosenBeats / exercise.metre.barBeats);
+    return Math.max(0, barAt(exercise.metre, lastBeat) + 1 - chosenBar);
+  }, [exercise, summary]);
+
+  /*
+   * The review covers the run, not the paper. An exercise with a horizon
+   * holds two hundred bars of material; engraving the hundred and ninety
+   * nobody met would bury the bars that matter under a wall of unplayed ink.
+   * Notes are in beat order, so the slice is a prefix and the verdicts below
+   * line up with it unchanged.
+   */
+  const shown = useMemo(() => {
+    if (exercise.chosenBeats >= exercise.totalBeats) return exercise;
+    const { barBeats } = exercise.metre;
+    const lastBeat = summary.judgements.length
+      ? Math.max(...summary.judgements.map((j) => exercise.notes[j.noteIndex].startBeat))
+      : exercise.chosenBeats - 1e-9;
+    const end = Math.min(
+      exercise.totalBeats,
+      Math.max(exercise.chosenBeats, (barAt(exercise.metre, lastBeat) + 1) * barBeats),
+    );
+    return {
+      ...exercise,
+      notes: exercise.notes.filter((n) => n.startBeat < end - 1e-9),
+      rests: exercise.rests.filter((r) => r.startBeat < end - 1e-9),
+      totalBeats: end,
+      chosenBeats: end,
+    };
+  }, [exercise, summary]);
   // Memoised because its identity feeds the chart's draw callback, and a fresh
   // array every render would redraw the canvas every render.
   const weakest = useMemo(() => weakestNotes(stats, 5), [stats]);
@@ -90,6 +131,12 @@ export function ResultsScreen({
             ? `Over the last ${SCORE_WINDOW_BARS} bars — ${Math.round(summary.accuracy * 100)}% across the whole run, longest streak ${summary.longestStreak}`
             : `${summary.correct} of ${summary.total} notes, longest run ${summary.longestStreak}`}
         </p>
+        {beyondBars > 0 && (
+          <p className="muted">
+            {beyondBars} bar{beyondBars === 1 ? '' : 's'} beyond the length you chose — the music
+            kept going, and so did you.
+          </p>
+        )}
       </header>
 
       <section className="panel">
@@ -116,7 +163,7 @@ export function ResultsScreen({
 
       <section className="panel">
         <h2>What you played</h2>
-        <ReviewStave exercise={exercise} verdicts={verdicts} />
+        <ReviewStave exercise={shown} verdicts={verdicts} />
         <p className="field__note muted">
           {summary.correct === summary.total
             ? 'Every note in green — nothing to correct.'

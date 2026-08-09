@@ -94,6 +94,7 @@ function tiedExercise(): Exercise {
     metre: metreFor(2, 4),
     tempo: [],
     totalBeats: 4,
+    chosenBeats: 4,
     seed: 1,
     kind: 'random',
   };

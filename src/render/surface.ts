@@ -167,6 +167,12 @@ export interface StaveTheme {
   countIn: string;
   /** Fingering hints: present enough to read, quiet enough to read past. */
   hint: string;
+  /**
+   * Music past the white: real, readable, and visibly not yet part of the
+   * run. Grey rather than faded ink, so it reads as "beyond the horizon"
+   * rather than as notes that failed to draw.
+   */
+  horizon: string;
 }
 
 export const LIGHT_THEME: StaveTheme = {
@@ -181,6 +187,7 @@ export const LIGHT_THEME: StaveTheme = {
   strikeGlow: 'rgba(47, 111, 208, 0.10)',
   countIn: 'rgba(22, 21, 15, 0.35)',
   hint: '#6b6960',
+  horizon: '#b6b2a8',
 };
 
 export const DARK_THEME: StaveTheme = {
@@ -195,6 +202,7 @@ export const DARK_THEME: StaveTheme = {
   strikeGlow: 'rgba(99, 161, 255, 0.14)',
   countIn: 'rgba(242, 241, 236, 0.35)',
   hint: '#9a9ba3',
+  horizon: '#565962',
 };
 
 /** The theme matching the system colour scheme. */
@@ -265,6 +273,14 @@ export interface StaveRendererOptions {
   scrollSpeed: number;
   readingMode: ReadingMode;
   verdictFor: (noteIndex: number) => Verdict | undefined;
+  /**
+   * The beat the white currently ends at, when the exercise has a horizon.
+   *
+   * Read per frame because it moves: playing into the grey turns it white.
+   * Absent means everything is white, which is every exercise without a
+   * horizon and every static drawing.
+   */
+  whiteUntil?: () => number;
   /** Fingering to print above a note, for the ones the player struggles with. */
   hintFor?: (noteIndex: number) => string | undefined;
   /**
@@ -348,6 +364,20 @@ export class StaveRenderer {
 
   setTheme(theme: StaveTheme): void {
     this.options = { ...this.options, theme };
+  }
+
+  /**
+   * A note's colour: its verdict's, unless it lies beyond the white — grey
+   * overrides everything out there, because nothing beyond the horizon has
+   * been asked of the player yet, whatever the clock is doing.
+   */
+  private noteColour(index: number): string {
+    const { exercise, theme } = this.options;
+    const white = this.options.whiteUntil?.();
+    if (white !== undefined && exercise.notes[index].startBeat >= white - 1e-9) {
+      return theme.horizon;
+    }
+    return verdictColour(this.verdictFor(index), theme);
   }
 
   /** The current horizontal scale. Exposed for tests and for debugging layout. */
@@ -938,7 +968,7 @@ export class StaveRenderer {
         firstBar,
         lastBar,
         theme,
-        colourFor: (note) => verdictColour(this.verdictFor(note), theme),
+        colourFor: (note) => this.noteColour(note),
         hintFor: this.options.hintFor,
         final,
         clef,
@@ -963,7 +993,7 @@ export class StaveRenderer {
         pitch: note.pitch,
         duration: note.duration,
         showAccidental: note.showAccidental,
-        colour: verdictColour(this.verdictFor(index), theme),
+        colour: this.noteColour(index),
       };
 
       const hint = this.options.hintFor?.(index);
@@ -1000,7 +1030,7 @@ export class StaveRenderer {
    * curve is culled by its own extent rather than by its notes'.
    */
   private drawTies(xForBeat: (beat: number) => number): void {
-    const { exercise, theme } = this.options;
+    const { exercise } = this.options;
 
     exercise.notes.forEach((note, index) => {
       const next = exercise.notes[index + 1];
@@ -1014,7 +1044,7 @@ export class StaveRenderer {
         from: { x: from, headWidth: noteheadWidth(this.metrics, note.duration) },
         to: { x: to, headWidth: noteheadWidth(this.metrics, next.duration) },
         pitch: note.pitch,
-        colour: verdictColour(this.verdictFor(index), theme),
+        colour: this.noteColour(index),
       });
     });
   }

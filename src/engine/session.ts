@@ -78,6 +78,8 @@ export class Session {
   private resolveTimer: number | null = null;
   private nextNoteToSchedule = 0;
   private nextNoteToResolve = 0;
+  /** Bar the stop rule examines next; starts where the chosen length ends. */
+  private nextStopBar: number;
   /** Notes already confirmed as right, so each is announced only once. */
   private readonly noticed: boolean[];
   private finished = false;
@@ -97,6 +99,8 @@ export class Session {
     // A count-in of whole bars, so it must be measured in the crotchets a bar
     // actually holds rather than in the numerator on the stave.
     this.countInBeats = countInBars * exercise.metre.barBeats;
+    // With no horizon this sits past the paper and the rule never wakes.
+    this.nextStopBar = Math.ceil(exercise.chosenBeats / exercise.metre.barBeats - 1e-9);
   }
 
   /** Transport beat at which the exercise ends. */
@@ -254,11 +258,56 @@ export class Session {
     }
 
     if (this.finished) return;
+
+    /*
+     * Stopped, or resting? From the chosen end onwards, a whole bar that
+     * contains notes and saw no playing ends the run. "No playing" means no
+     * valve down at any instant of the bar and no note in it judged correct —
+     * the second clause because open is a real fingering, and a bar of open
+     * notes played perfectly involves touching nothing. Wrong notes are
+     * playing, so fluffing four bars and carrying on survives; bars of rests
+     * prove nothing either way and are passed over. The rule is the simplest
+     * one that works, written to be replaced by the microphone — which can
+     * simply hear that you have stopped — rather than refined.
+     */
+    if (this.stoppedPlaying(now)) {
+      this.finished = true;
+      this.stop();
+      this.options.onFinish?.(summarise(exercise.notes, this.judgements));
+      return;
+    }
+
     const endTime = this.transport.timeForBeat(this.endBeat + TAIL_BEATS);
     if (this.nextNoteToResolve >= exercise.notes.length && now >= endTime) {
       this.finished = true;
       this.stop();
       this.options.onFinish?.(summarise(exercise.notes, this.judgements));
+    }
+  }
+
+  private stoppedPlaying(now: number): boolean {
+    const { exercise } = this.options;
+    const { barBeats } = exercise.metre;
+
+    for (;;) {
+      const barStart = this.nextStopBar * barBeats;
+      const barEnd = barStart + barBeats;
+      // The paper's own end is the natural finish's business, not this rule's.
+      if (barEnd > exercise.totalBeats + 1e-9) return false;
+      if (now < this.transport.timeForBeat(barEnd)) return false;
+
+      const inBar = (beat: number) => beat >= barStart - 1e-9 && beat < barEnd - 1e-9;
+      if (exercise.notes.some((note) => inBar(note.startBeat))) {
+        const touched =
+          this.input
+            .statesDuring(this.transport.timeForBeat(barStart), this.transport.timeForBeat(barEnd))
+            .some((state) => state.mask !== 0) ||
+          this.judgements.some(
+            (j) => j.verdict === 'correct' && inBar(exercise.notes[j.noteIndex].startBeat),
+          );
+        if (!touched) return true;
+      }
+      this.nextStopBar++;
     }
   }
 }

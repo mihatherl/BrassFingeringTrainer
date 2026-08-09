@@ -68,6 +68,7 @@ function tiedExercise(): Exercise {
     metre: metreFor(2, 4),
     tempo: [],
     totalBeats: 4,
+    chosenBeats: 4,
     seed: 1,
     kind: 'random',
   };
@@ -201,6 +202,7 @@ describe('a session across a step change', () => {
       // Doubling at the second bar line, so every figure below is legible.
       tempo: [{ kind: 'tempo', atBeat: 2, bpm: 120 }],
       totalBeats: 4,
+      chosenBeats: 4,
       seed: 1,
       kind: 'themes',
     };
@@ -241,6 +243,115 @@ describe('a session across a step change', () => {
   });
 });
 
+describe('stopped, or resting — the rule beyond the chosen length', () => {
+  /** Six bars of 2/4 crotchets; the chosen length is the first two. */
+  function horizonExercise(chosenBeats = 4): Exercise {
+    return {
+      notes: Array.from({ length: 12 }, (_, i) => note(i, 1)),
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metre: metreFor(2, 4),
+      tempo: [],
+      totalBeats: 12,
+      chosenBeats,
+      seed: 1,
+      kind: 'random',
+    };
+  }
+
+  function run(from: number, to: number): void {
+    for (let elapsed = from; elapsed <= to; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+  }
+
+  it('ends the run after a whole silent bar, and not a moment sooner', () => {
+    let summary: SessionSummary | null = null;
+    let endedAt = 0;
+    const s = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: (result) => {
+        summary = result;
+        endedAt = audioTime;
+      },
+    });
+    // Wrong valves are still playing: hold a fingering nothing accepts.
+    s.input.pointerDown(1, 1);
+    s.start();
+    run(0, 6);
+    s.input.pointerUp(1);
+    run(6, 12);
+    s.stop();
+
+    // Bars one to three had input; the bar from beat 6 was silent, so the
+    // run ends at its bar line rather than at the end of the paper.
+    expect(summary).not.toBeNull();
+    expect(endedAt).toBeGreaterThanOrEqual(8);
+    expect(endedAt).toBeLessThan(10);
+    const finished = summary as unknown as SessionSummary;
+    expect(finished.total).toBeLessThan(12);
+  });
+
+  it('keeps running while valves are down, wrong or not', () => {
+    let summary: SessionSummary | null = null;
+    const s = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: (result) => {
+        summary = result;
+      },
+    });
+    s.input.pointerDown(1, 1);
+    s.start();
+    run(0, 14);
+    s.stop();
+
+    const finished = summary as unknown as SessionSummary;
+    expect(finished.total, 'fluffing to the end is still a whole run').toBe(12);
+  });
+
+  it('never ends a run inside the chosen length, however silent', () => {
+    let summary: SessionSummary | null = null;
+    let endedAt = 0;
+    const s = new Session({
+      context,
+      exercise: horizonExercise(12),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: (result) => {
+        summary = result;
+        endedAt = audioTime;
+      },
+    });
+    s.start();
+    run(0, 14);
+    s.stop();
+
+    // No horizon, no input at all: the session runs to the end as it always
+    // has, because the rule only wakes past the chosen length.
+    const finished = summary as unknown as SessionSummary;
+    expect(finished.total).toBe(12);
+    expect(endedAt).toBeGreaterThanOrEqual(12);
+  });
+});
+
 describe('the metronome in compound time', () => {
   /*
    * 6/8 is two clicks to a bar, on the dotted crotchets. Clicking every
@@ -261,6 +372,7 @@ describe('the metronome in compound time', () => {
       metre,
       tempo: [],
       totalBeats: bars * metre.barBeats,
+      chosenBeats: bars * metre.barBeats,
       seed: 1,
       kind: 'random',
     };

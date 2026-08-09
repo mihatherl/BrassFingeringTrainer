@@ -37,6 +37,16 @@ import { stitchThemes } from './phrases';
 import { planTempo } from './tempo-plan';
 import type { Exercise, ExerciseKind } from './types';
 
+/**
+ * How far the paper runs past the chosen length, in bars.
+ *
+ * Two hundred bars of free material is around eight minutes of continuous
+ * playing at ordinary tempi — long enough that reaching the cap is an
+ * achievement rather than an interruption, small enough to generate and lay
+ * out without noticing.
+ */
+export const HORIZON_BARS = 200;
+
 export interface GenerateOptions {
   instrument: Instrument;
   clef: Clef;
@@ -82,6 +92,16 @@ export interface GenerateOptions {
   tempo?: number;
   /** Whether the tempo moves at the material's boundaries; see `tempo-plan.ts`. */
   variableTempo?: boolean;
+  /**
+   * Bars to generate past the chosen length, as a cap on the whole.
+   *
+   * The horizon: the music carries on in grey past the length the player
+   * asked for, and playing into it turns it white. Only the app passes this —
+   * tools, figures and tests ask for exact lengths, which is what keeps every
+   * committed snapshot byte-identical. Free material only for now; patterns
+   * and themes fill to the cap in their own units in a later stage.
+   */
+  horizonBars?: number;
   /**
    * Per written-pitch weighting used to bias selection toward notes the player
    * gets wrong. Values above 1 make a note more likely. Ignored by the scale
@@ -280,6 +300,17 @@ export function generateExercise(options: GenerateOptions): Exercise {
       )
     : [];
 
+  /*
+   * The horizon applies to material measured in bars — including a pattern
+   * that failed to fit and fell back to free material, which at that point is
+   * free material like any other. The chosen length stays what the player
+   * asked for; the cap is how far the paper runs.
+   */
+  const horizonBars =
+    !patterned && options.horizonBars && options.horizonBars > options.bars
+      ? options.horizonBars
+      : undefined;
+
   const built = patterned
     ? patternSlots(
         rng,
@@ -288,11 +319,17 @@ export function generateExercise(options: GenerateOptions): Exercise {
         cycleKeys.map((fifths) => contourFor.get(fifths)!.length),
       )
     : {
-        slots: generateRhythm(rng, options, metre, isPattern(options.kind)),
-        totalBeats: options.bars * metre.barBeats,
+        slots: generateRhythm(
+          rng,
+          horizonBars ? { ...options, bars: horizonBars } : options,
+          metre,
+          isPattern(options.kind),
+        ),
+        totalBeats: (horizonBars ?? options.bars) * metre.barBeats,
         cycleStarts: [] as number[],
       };
   const { slots, totalBeats } = built;
+  const chosenBeats = horizonBars ? options.bars * metre.barBeats : totalBeats;
 
   /*
    * Where the key changes.
@@ -328,10 +365,21 @@ export function generateExercise(options: GenerateOptions): Exercise {
    * what a band does at an end is broaden into it. Drawn from the rng after
    * every note is settled, so the switch changes what is written over the
    * music and never the music itself.
+   *
+   * With a horizon, the chosen end is a boundary too — the double bar the
+   * player may or may not play through — so it takes the same treatment a
+   * theme join does: perhaps a rit into it, a new tempo beyond it. The
+   * closing rit moves to the cap, where the paper genuinely ends.
    */
   const tempo =
     options.variableTempo && options.tempo
-      ? planTempo({ starts: [0], totalBeats, metre, bpm: options.tempo, rng })
+      ? planTempo({
+          starts: horizonBars ? [0, chosenBeats] : [0],
+          totalBeats,
+          metre,
+          bpm: options.tempo,
+          rng,
+        })
       : [];
 
   return assembleExercise(slots, pitches, {
@@ -340,6 +388,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
     keys,
     metre,
     totalBeats,
+    chosenBeats,
     seed: options.seed,
     kind: options.kind,
     tempo,

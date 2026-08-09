@@ -39,6 +39,8 @@ export interface AssembleOptions {
   kind: ExerciseKind;
   /** Where the tempo moves. Absent means it does not, which is a list of none. */
   tempo?: TempoEvent[];
+  /** Where the chosen length ends. Absent means at `totalBeats`: no horizon. */
+  chosenBeats?: number;
 }
 
 /**
@@ -120,6 +122,7 @@ export function assembleExercise(
     metre,
     tempo: options.tempo ?? [],
     totalBeats: snapBeat(options.totalBeats),
+    chosenBeats: snapBeat(options.chosenBeats ?? options.totalBeats),
     seed: options.seed,
     kind: options.kind,
   };

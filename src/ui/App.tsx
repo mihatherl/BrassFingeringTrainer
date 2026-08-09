@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
 import { metreFor } from '../domain/metre';
-import { generateExercise } from '../exercise/generate';
+import { generateExercise, HORIZON_BARS } from '../exercise/generate';
 import { exerciseFromTheme } from '../exercise/theme';
 import { themeById } from '../exercise/themes';
 import { randomSeed } from '../exercise/rng';
@@ -100,6 +100,7 @@ export function App() {
         seed,
         tempo: settings.tempo,
         variableTempo: settings.variableTempo,
+        horizonBars: HORIZON_BARS,
         noteWeights: weights,
       });
     },

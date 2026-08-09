@@ -959,3 +959,38 @@ describe('variable tempo, at generation', () => {
     }
   });
 });
+
+describe('the horizon', () => {
+  it('runs the paper to the cap and keeps the chosen length', () => {
+    const exercise = generateExercise(options({ kind: 'random', bars: 4, horizonBars: 12 }));
+    expect(exercise.totalBeats).toBe(48);
+    expect(exercise.chosenBeats).toBe(16);
+    // The grey is real music, not padding: notes run into the final bars.
+    expect(exercise.notes[exercise.notes.length - 1].startBeat).toBeGreaterThanOrEqual(40);
+  });
+
+  it('treats the chosen end as a boundary the tempo plan may use', () => {
+    const exercise = generateExercise(
+      options({ kind: 'random', bars: 4, horizonBars: 12, tempo: 80, variableTempo: true }),
+    );
+    // A new tempo takes force where the white ends, the way a theme join
+    // does; the closing rit belongs to the cap, where the paper truly ends.
+    expect(
+      exercise.tempo.some((e) => e.kind === 'tempo' && e.atBeat === 16),
+    ).toBe(true);
+    const last = exercise.tempo[exercise.tempo.length - 1];
+    expect(last.kind === 'ramp' && last.toBeat).toBe(48);
+  });
+
+  it('leaves patterns at their exact length, for now', () => {
+    const scales = generateExercise(options({ kind: 'scales', cycles: 2, horizonBars: 12 }));
+    expect(scales.chosenBeats).toBe(scales.totalBeats);
+  });
+
+  it('changes nothing when the chosen length already reaches the cap', () => {
+    const capped = generateExercise(options({ kind: 'random', bars: 12, horizonBars: 12 }));
+    const plain = generateExercise(options({ kind: 'random', bars: 12 }));
+    expect(capped.chosenBeats).toBe(capped.totalBeats);
+    expect(capped.notes).toEqual(plain.notes);
+  });
+});

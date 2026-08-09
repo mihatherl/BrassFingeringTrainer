@@ -101,6 +101,15 @@ export interface Exercise {
   tempo: TempoEvent[];
   /** Length of the exercise in crotchets. */
   totalBeats: number;
+  /**
+   * Where the length the player chose ends, in crotchets.
+   *
+   * Equal to `totalBeats` for an exercise with no horizon, which is every
+   * exercise a tool or a test asks for by exact length. Less than it when the
+   * material carries on past the chosen length in grey: the music between the
+   * two is real and generated, and whether the player meets it is up to them.
+   */
+  chosenBeats: number;
   seed: number;
   /** How the material was generated, for the results screen. */
   kind: ExerciseKind;

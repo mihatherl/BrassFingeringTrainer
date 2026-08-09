@@ -70,6 +70,7 @@ function exerciseOf(bars: Array<Array<[number, Duration['value']]>>): Exercise {
     metre: metreFor(4, 4),
     tempo: [],
     totalBeats: bars.length * 4,
+    chosenBeats: bars.length * 4,
     seed: 1,
     kind: 'random',
   };

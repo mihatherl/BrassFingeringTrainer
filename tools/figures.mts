@@ -61,6 +61,7 @@ export function tiedFigure(): Exercise {
     metre: metreFor(4, 4),
     tempo: [],
     totalBeats: 12,
+    chosenBeats: 12,
     seed: 0,
     kind: 'random',
   };
@@ -120,6 +121,7 @@ export function tripletFigure(): Exercise {
       metre: metreFor(4, 4),
       tempo: [],
       totalBeats: beat,
+      chosenBeats: beat,
       seed: 0,
       kind: 'random',
     },

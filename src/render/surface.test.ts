@@ -175,6 +175,31 @@ describe('scrolling renderer', () => {
     expect(calls.some((c) => c.method === 'fillText' && c.args[0] === '= 96')).toBe(true);
   });
 
+  it('greys the music past the white, whatever its verdicts would be', () => {
+    const calls: RecordedCall[] = [];
+    const exercise = build('random', 'treble', -3, 11);
+
+    const renderer = new StaveRenderer({
+      canvas: mockCanvas(calls),
+      exercise,
+      transport: new Transport(fakeAudioContext(0), 100),
+      theme: LIGHT_THEME,
+      scrollSpeed: 110,
+      readingMode: 'scrolling',
+      verdictFor: () => undefined,
+      whiteUntil: () => 2,
+    });
+    renderer.draw();
+
+    // Notes beyond beat 2 paint in the horizon grey; notes before it in ink.
+    expect(calls.some((c) => c.method === 'fillStyle=' && c.args[0] === LIGHT_THEME.horizon)).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'fillStyle=' && c.args[0] === LIGHT_THEME.note)).toBe(
+      true,
+    );
+  });
+
   it('prints rit. where a ramp begins', () => {
     const calls: RecordedCall[] = [];
     const exercise = build('random', 'treble', -3, 11);
