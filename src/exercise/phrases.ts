@@ -21,6 +21,7 @@
 import type { Clef, Instrument } from '../domain/instruments';
 import type { KeyChange } from '../domain/keys';
 import type { Metre } from '../domain/metre';
+import { snapBeat } from '../domain/rhythm';
 import type { Slot } from './assemble';
 import type { Rng } from './rng';
 import { realiseTheme, type Theme } from './theme';
@@ -156,7 +157,9 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
       if (keys[keys.length - 1]?.fifths !== key.fifths) keys.push(key);
     }
     used.push(theme.id);
-    beat += realised.beats;
+    // Every theme's length is exact; the running total has to stay so, or the
+    // join after a theme of triplets is no longer a bar line.
+    beat = snapBeat(beat + realised.beats);
     last = theme.id;
   }
 

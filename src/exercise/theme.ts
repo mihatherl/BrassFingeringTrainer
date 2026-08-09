@@ -21,7 +21,7 @@
 import { writtenRange, type Clef, type Instrument } from '../domain/instruments';
 import { MAJOR_SCALE, tonicPitchClass, type KeyChange } from '../domain/keys';
 import { metreFor, type Metre } from '../domain/metre';
-import { durationBeats, durationFromBeats } from '../domain/rhythm';
+import { durationBeats, durationFromBeats, snapBeat } from '../domain/rhythm';
 import { assembleExercise, type Slot } from './assemble';
 import { DIFFICULTIES } from './difficulty';
 import type { Exercise } from './types';
@@ -404,7 +404,9 @@ export function realiseTheme(theme: Theme, options: RealiseOptions): RealisedThe
       if (!previousTied) sounded.push({ note: event, key: keyIndex });
       previousTied = event.tied === true;
     }
-    beat += event.beats;
+    // Snapped as it goes, not at the end: thirds drift, and every bar line
+    // after the first triplet is compared against this. See `snapBeat`.
+    beat = snapBeat(beat + event.beats);
   }
 
   /*
