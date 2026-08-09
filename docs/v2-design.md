@@ -72,6 +72,9 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/engine/clock.ts` | `timeForBeat`, `beatForTime`, `secondsBetween` — the three functions a tempo map replaces. |
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
+| `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
+| `src/exercise/themes.ts` | The corpus itself. Five so far, hand-written. |
+| `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
 | `src/render/stave.ts` | `layoutKeySignature` — one arithmetic shared by drawing and measuring, including the naturals that cancel an outgoing key. |
 | `src/render/surface.ts` | Both reading modes. `staveSpaceCeiling` is the unit the whole play screen is sized from. |
 | `src/render/conductor.ts` | Pattern geometry, ported from the spike. |
@@ -500,6 +503,45 @@ treble clef has a different compass from a cornet. The machinery exists: a
 pattern that will not fit the instrument is not a pattern and falls back to free
 material. A theme that will not fit is skipped for that instrument, and the
 corpus needs enough themes that skipping some still leaves a choice.
+
+### What the first five turned up
+
+**Built**: the format, the validator, five hand-written themes across the five
+difficulties, and `exerciseFromTheme`, which takes one from degrees to a drawn
+and playable stave. Not built: choosing themes and stitching them, which is the
+next piece.
+
+Two things were found by rendering them and looking, and neither would have been
+caught by a test written beforehand.
+
+**A key change has to rebuild the tune on the new tonic.** The first version
+kept every degree rooted on the key the theme opened in and merely changed the
+signature — which is precisely what this document already says a pattern must
+not do, and it showed up as a line full of accidentals cancelling a signature
+that was never true. Degrees are now read against the key in force where they
+fall, which is the same rule the rest of the app follows.
+
+**Where the new tonic goes is a separate question, and the obvious answer is
+wrong.** Honouring the direction the delta names — "up a fifth" really lifting
+by a fifth — moves a section bodily, which widens the whole theme's span by that
+interval. Since a theme is then placed to centre what it spans, everything
+*before* the change gets dragged down to make room: on an Eb bass the first six
+bars went two ledger lines below the stave to buy a lift in the last six. Each
+new tonic therefore goes as near the last as its pitch class allows, so the tune
+stays in the register the player is in and the key moves underneath it, which is
+what a modulating part actually does. A theme that wants a change of register
+can say so per note.
+
+`npm run svg -- --theme list` names them; `--theme <id> --fifths 2` draws one in
+any key. Two are pinned by the engraving snapshots: the plainest, and the
+modulating one, since that is where both faults were.
+
+**Still open, and worth deciding when stitching is built.** A theme is currently
+fitted to the instrument's whole compass rather than to the difficulty's range,
+so a beginner's theme may sit anywhere the instrument can reach. That is
+probably wrong, and it is not obviously right to fix it by narrowing to the
+difficulty either — a theme is a fixed shape, and a range that will not hold it
+means no theme rather than a squashed one.
 
 ### Where the themes come from
 

@@ -1,0 +1,355 @@
+/**
+ * Authored melodic material, written in scale degrees rather than in pitches.
+ *
+ * A random walk cannot produce the three things that make a line read as music
+ * — repetition, an answering phrase, and a cadence — so sight-reading material
+ * that is worth the name has to be written rather than generated. What is
+ * written down here is the *shape*: degrees of the scale, and a rhythm.
+ *
+ * Degrees rather than notes is what makes a theme reusable. The same eight bars
+ * are playable in any key on any instrument in either clef, transposed by the
+ * ordinary machinery, and a theme can still carry a change of key *relative to
+ * wherever it started* — "up a fifth at bar nine" survives being played in E
+ * flat or in D. It is also the only honest way to store material for an app
+ * whose whole point is that the player picks the key.
+ *
+ * A theme is generated the same way round as a scale — contour first, with the
+ * rhythm holding it — which is why it shares `assembleExercise` with the
+ * patterns rather than the free-material path.
+ */
+
+import { writtenRange, type Clef, type Instrument } from '../domain/instruments';
+import { MAJOR_SCALE, tonicPitchClass, type KeyChange } from '../domain/keys';
+import { metreFor, type Metre } from '../domain/metre';
+import { durationFromBeats } from '../domain/rhythm';
+import { assembleExercise, type Slot } from './assemble';
+import { DIFFICULTIES } from './difficulty';
+import type { Exercise } from './types';
+
+/** One sounded note of a theme, placed by degree rather than by pitch. */
+export interface ThemeNote {
+  /** Degree of the major scale of whatever key is in force, 1–7. */
+  degree: number;
+  /** Chromatic inflection of that degree: -1 flattened, +1 raised. */
+  alter?: number;
+  /** Octaves away from the theme's home octave. */
+  octave?: number;
+  /** Length in crotchets. Must be a value that can actually be written. */
+  beats: number;
+  /**
+   * Held into the note that follows, which must be the same degree.
+   *
+   * Only ever across a bar line, because that is the only reason this app
+   * writes a tie at all — a note that fits inside its bar is written as one
+   * note. See *Ties, as built*.
+   */
+  tied?: boolean;
+}
+
+export interface ThemeRest {
+  rest: true;
+  beats: number;
+}
+
+export type ThemeEvent = ThemeNote | ThemeRest;
+
+export function isRest(event: ThemeEvent): event is ThemeRest {
+  return 'rest' in event;
+}
+
+/**
+ * A change of key, relative to the key the theme is being played in.
+ *
+ * Stored as a delta so it survives transposition: a theme that lifts a fifth at
+ * bar nine does so whether it started in E flat or in D. It lands on a bar line
+ * because there is nowhere else a key change may land.
+ */
+export interface ThemeKeyChange {
+  /** Bar it lands on, counting the first bar of the theme as 1. */
+  atBar: number;
+  /** Steps around the circle of fifths from the key being left. */
+  fifths: number;
+}
+
+export interface Theme {
+  id: string;
+  /** Shown to nobody yet; it is for whoever is reading the corpus. */
+  name: string;
+  /** Which of the five levels this belongs to. */
+  difficulty: string;
+  /**
+   * Metres the theme is legal in, as numerator and denominator.
+   *
+   * A tune in three is not a tune in four, so this is declared rather than
+   * inferred. Most themes name one.
+   */
+  metres: ReadonlyArray<readonly [number, number]>;
+  bars: number;
+  events: readonly ThemeEvent[];
+  keyChanges?: readonly ThemeKeyChange[];
+}
+
+/** Degrees a phrase may begin and end on, so that any two themes can abut. */
+const STABLE_DEGREES = [1, 3, 5];
+
+/**
+ * Everything wrong with a theme, or an empty list.
+ *
+ * Written as a list rather than a throw because the point is to check a whole
+ * corpus and see all of it at once. A theme that fails is discarded rather than
+ * argued with — the corpus is cheap to write again, and a tune that does not
+ * add up is not a tune.
+ */
+export function validateTheme(theme: Theme): string[] {
+  const problems: string[] = [];
+  const at = (what: string) => `${theme.id}: ${what}`;
+
+  if (!DIFFICULTIES.some((d) => d.id === theme.difficulty)) {
+    problems.push(at(`unknown difficulty "${theme.difficulty}"`));
+  }
+  if (theme.metres.length === 0) problems.push(at('names no metre'));
+  if (theme.bars < 1) problems.push(at('has no bars'));
+  if (theme.events.length === 0) problems.push(at('has no events'));
+
+  for (const [index, event] of theme.events.entries()) {
+    if (!durationFromBeats(event.beats)) {
+      problems.push(at(`event ${index} is ${event.beats} beats, which cannot be written`));
+    }
+    if (isRest(event)) continue;
+    if (!Number.isInteger(event.degree) || event.degree < 1 || event.degree > 7) {
+      problems.push(at(`event ${index} is degree ${event.degree}, outside 1–7`));
+    }
+    if (event.alter !== undefined && Math.abs(event.alter) > 1) {
+      problems.push(at(`event ${index} is altered by ${event.alter}, beyond a semitone`));
+    }
+  }
+
+  const sounded = theme.events.filter((e): e is ThemeNote => !isRest(e));
+  const ends = [sounded[0], sounded[sounded.length - 1]];
+  for (const [which, note] of ['first', 'last'].map((w, i) => [w, ends[i]] as const)) {
+    if (note && !STABLE_DEGREES.includes(note.degree)) {
+      problems.push(
+        at(`${which} note is degree ${note.degree}; themes abut, so both ends must be stable`),
+      );
+    }
+  }
+
+  for (const [index, event] of theme.events.entries()) {
+    if (isRest(event) || !event.tied) continue;
+    const next = theme.events[index + 1];
+    if (!next || isRest(next)) {
+      problems.push(at(`event ${index} is tied into a rest or into nothing`));
+    } else if (next.degree !== event.degree || (next.alter ?? 0) !== (event.alter ?? 0) ||
+      (next.octave ?? 0) !== (event.octave ?? 0)) {
+      problems.push(at(`event ${index} is tied to a different note, which is a slur`));
+    }
+  }
+
+  // Bar arithmetic, per metre, since a theme may be legal in more than one.
+  for (const [numerator, denominator] of theme.metres) {
+    const metre = metreFor(numerator, denominator);
+    const total = theme.events.reduce((sum, e) => sum + e.beats, 0);
+    const expected = theme.bars * metre.barBeats;
+    if (Math.abs(total - expected) > 1e-9) {
+      problems.push(
+        at(`is ${total} beats but ${theme.bars} bars of ${numerator}/${denominator} is ${expected}`),
+      );
+    }
+
+    /*
+     * Nothing may cross a bar line. A note that wants to is written as two,
+     * joined by a tie — which is exactly what the rest of the app means by one,
+     * and the only construction its judging and drawing understand.
+     */
+    let beat = 0;
+    for (const [index, event] of theme.events.entries()) {
+      const bar = Math.floor(beat / metre.barBeats + 1e-9);
+      const endsIn = Math.floor((beat + event.beats - 1e-9) / metre.barBeats);
+      if (bar !== endsIn) {
+        problems.push(
+          at(`event ${index} crosses a bar line in ${numerator}/${denominator}; tie it instead`),
+        );
+      }
+      beat += event.beats;
+    }
+
+    for (const change of theme.keyChanges ?? []) {
+      if (!Number.isInteger(change.atBar) || change.atBar < 2 || change.atBar > theme.bars) {
+        problems.push(at(`changes key at bar ${change.atBar}, which is not inside the theme`));
+      }
+    }
+  }
+
+  return problems;
+}
+
+export interface RealiseOptions {
+  instrument: Instrument;
+  clef: Clef;
+  /** The key the theme opens in. Its own changes are relative to this. */
+  fifths: number;
+  metre: Metre;
+  /** Beat the theme starts at, so themes can be laid end to end. */
+  fromBeat?: number;
+}
+
+/** A theme placed in a key and an octave, ready to be assembled or appended. */
+export interface RealisedTheme {
+  slots: Slot[];
+  pitches: number[];
+  keys: KeyChange[];
+  beats: number;
+}
+
+/**
+ * Keeps a key inside the seven signatures anyone writes.
+ *
+ * A theme that lifts a fifth twice from B major would arrive at nine sharps,
+ * which is a real key and not one any part is printed in. Twelve steps round
+ * the circle is the same sound spelled the other way.
+ */
+function readableKey(fifths: number): number {
+  let k = fifths;
+  while (k > 7) k -= 12;
+  while (k < -7) k += 12;
+  return k;
+}
+
+/** Semitones above the tonic for a degree, with any chromatic inflection. */
+function semitonesAbove(note: ThemeNote): number {
+  return MAJOR_SCALE[note.degree - 1] + (note.alter ?? 0) + (note.octave ?? 0) * 12;
+}
+
+/**
+ * Places a theme in a key, choosing the octave that centres it in the compass.
+ *
+ * Returns null when it will not fit at any octave, which is not a failure: a
+ * theme with a two-octave leap is playable on a euphonium and nowhere near a
+ * beginner's range on an Eb bass. The caller picks a different theme, the way
+ * a pattern that will not fit falls back rather than being forced.
+ */
+export function realiseTheme(theme: Theme, options: RealiseOptions): RealisedTheme | null {
+  const { instrument, clef, metre } = options;
+  const fromBeat = options.fromBeat ?? 0;
+  const [lowest, highest] = writtenRange(instrument, clef);
+
+  const keys: KeyChange[] = [{ fromBeat, fifths: readableKey(options.fifths) }];
+  for (const change of theme.keyChanges ?? []) {
+    const previous = keys[keys.length - 1].fifths;
+    keys.push({
+      fromBeat: fromBeat + (change.atBar - 1) * metre.barBeats,
+      fifths: readableKey(previous + change.fifths),
+    });
+  }
+
+  // Which key each event falls under, so a degree is read against the key it is
+  // actually in. Walked once, since the events already run in beat order.
+  const slots: Slot[] = [];
+  const sounded: Array<{ note: ThemeNote; key: number }> = [];
+  let beat = fromBeat;
+  let previousTied = false;
+  let keyIndex = 0;
+
+  for (const event of theme.events) {
+    while (keyIndex + 1 < keys.length && keys[keyIndex + 1].fromBeat <= beat + 1e-9) keyIndex++;
+    const duration = durationFromBeats(event.beats)!;
+    if (isRest(event)) {
+      slots.push({ startBeat: beat, duration, isRest: true, tiedFromPrevious: false });
+      previousTied = false;
+    } else {
+      slots.push({ startBeat: beat, duration, isRest: false, tiedFromPrevious: previousTied });
+      // A tie continuation is the note before it held, not a pitch of its own.
+      if (!previousTied) sounded.push({ note: event, key: keyIndex });
+      previousTied = event.tied === true;
+    }
+    beat += event.beats;
+  }
+
+  /*
+   * A change of key rebuilds the tune on the new tonic; it does not reprint the
+   * old notes under a new signature. That would be a change of signature and
+   * nothing else, and every degree after it would be reckoned against a key it
+   * is not in — which shows up as a line full of accidentals cancelling a
+   * signature that was never true. The same rule the patterns follow: a scale
+   * in B flat is a different set of notes, not the same shape wearing a new
+   * key.
+   *
+   * Each new tonic goes as near the last as its pitch class allows, so the
+   * music stays in the register the player is already in and the key moves
+   * underneath it. That is what a modulating part actually does.
+   *
+   * The tempting alternative is to honour the direction the delta names — "up a
+   * fifth" really lifting by a fifth — and it was tried and is worse. Moving a
+   * section bodily widens the whole theme's span by that interval, and since
+   * the theme is then placed to centre what it spans, everything before the
+   * change is dragged down to make room: on an Eb bass the first six bars went
+   * two ledger lines under the stave to buy a lift in the last six. A theme
+   * that wants a register change can say so per note, which is what `octave`
+   * is for.
+   */
+  function tonicsFrom(base: number): number[] {
+    const placed = [base];
+    for (let i = 1; i < keys.length; i++) {
+      const from = ((tonicPitchClass(keys[i - 1].fifths) % 12) + 12) % 12;
+      const to = ((tonicPitchClass(keys[i].fifths) % 12) + 12) % 12;
+      placed.push(placed[i - 1] + ((((to - from + 6) % 12) + 12) % 12) - 6);
+    }
+    return placed;
+  }
+
+  function spanOf(base: number): [number, number] {
+    const tonics = tonicsFrom(base);
+    const pitched = sounded.map(({ note, key }) => tonics[key] + semitonesAbove(note));
+    return [Math.min(...pitched), Math.max(...pitched)];
+  }
+
+  /*
+   * The opening tonic may sit in any octave whose pitch class matches the key.
+   * Try each, nearest the middle of the compass first, and take the first that
+   * holds the whole theme — every section of it, since a theme that modulates
+   * upwards may fit at the start and run off the top later.
+   */
+  const tonicClass = ((tonicPitchClass(keys[0].fifths) % 12) + 12) % 12;
+  const middle = (lowest + highest) / 2;
+  const bases: number[] = [];
+  for (let midi = lowest - 24; midi <= highest + 24; midi++) {
+    if (((midi % 12) + 12) % 12 === tonicClass) bases.push(midi);
+  }
+  bases.sort((a, b) => {
+    const [aLow, aHigh] = spanOf(a);
+    const [bLow, bHigh] = spanOf(b);
+    return Math.abs((aLow + aHigh) / 2 - middle) - Math.abs((bLow + bHigh) / 2 - middle);
+  });
+
+  const base = bases.find((candidate) => {
+    const [low, high] = spanOf(candidate);
+    return low >= lowest && high <= highest;
+  });
+  if (base === undefined) return null;
+
+  const tonics = tonicsFrom(base);
+  const pitches = sounded.map(({ note, key }) => tonics[key] + semitonesAbove(note));
+
+  return { slots, pitches, keys, beats: beat - fromBeat };
+}
+
+/**
+ * One theme as a playable exercise, for looking at it and for testing.
+ *
+ * Stitching several together is the next piece of work; this is the one that
+ * proves a theme survives the whole path from degrees to a drawn stave.
+ */
+export function exerciseFromTheme(theme: Theme, options: RealiseOptions): Exercise | null {
+  const realised = realiseTheme(theme, options);
+  if (!realised) return null;
+
+  return assembleExercise(realised.slots, realised.pitches, {
+    instrument: options.instrument,
+    clef: options.clef,
+    keys: realised.keys,
+    metre: options.metre,
+    totalBeats: realised.beats,
+    seed: 0,
+    kind: 'phrases',
+  });
+}

@@ -207,6 +207,15 @@ export function spellInKey(midi: number, fifths: number): SpelledPitch {
 }
 
 /** The seven pitch classes of the key's major scale. */
+/**
+ * Semitones above the tonic for each degree of the major scale.
+ *
+ * Here rather than in the generator because two things now read it: the scale
+ * patterns, and authored themes, which are written in degrees precisely so they
+ * can be played in any key.
+ */
+export const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+
 export function scalePitchClasses(fifths: number): Set<number> {
   const alters = keyAlterations(fifths);
   return new Set(LETTERS.map((l) => pitchClass(LETTER_SEMITONES[l] + alters[l])));

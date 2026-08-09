@@ -7,11 +7,7 @@
  * kind gets dotted rhythms, rests and beaming for free.
  */
 
-import {
-  isPlayable,
-  acceptedMasks as fingeringMasks,
-  primaryFingering,
-} from '../domain/fingering';
+import { isPlayable, primaryFingering } from '../domain/fingering';
 import {
   soundingFromWritten,
   writtenRange,
@@ -20,26 +16,24 @@ import {
 } from '../domain/instruments';
 import {
   keyAt,
-  needsAccidental,
+  MAJOR_SCALE,
   orderByCloseness,
   scalePitchClasses,
-  spellInKey,
   tonicPitchClass,
   type KeyChange,
 } from '../domain/keys';
 import {
   durationBeats,
   durationFromBeats,
-  isBeamable,
   NOTE_VALUES,
   type Duration,
 } from '../domain/rhythm';
-import { pitchClass, type Letter } from '../domain/pitch';
+import { pitchClass } from '../domain/pitch';
 import type { Difficulty } from './difficulty';
-import { barAt, type Metre } from '../domain/metre';
+import type { Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
-import { isTieContinuation } from './ties';
-import type { Exercise, ExerciseKind, NoteEvent, RestEvent } from './types';
+import { assembleExercise, type Slot } from './assemble';
+import type { Exercise, ExerciseKind } from './types';
 
 export interface GenerateOptions {
   instrument: Instrument;
@@ -115,14 +109,6 @@ function diatonicIn(midi: number, fifths: number): boolean {
 function prefer(pool: Candidate[], wanted: (candidate: Candidate) => boolean): Candidate[] {
   const kept = pool.filter(wanted);
   return kept.length > 0 ? kept : pool;
-}
-
-interface Slot {
-  startBeat: number;
-  duration: Duration;
-  isRest: boolean;
-  /** The far end of a tie: same pitch as the slot before, and never a rest. */
-  tiedFromPrevious: boolean;
 }
 
 /** Every writable duration, longest first, for filling a gap. */
@@ -260,65 +246,15 @@ export function generateExercise(options: GenerateOptions): Exercise {
         keyForNote,
       );
 
-  const notes: NoteEvent[] = [];
-  const rests: RestEvent[] = [];
-  let pitchIndex = 0;
-
-  for (const slot of slots) {
-    if (slot.isRest) {
-      rests.push({ startBeat: slot.startBeat, duration: slot.duration });
-      continue;
-    }
-    if (slot.tiedFromPrevious) {
-      const head = notes[notes.length - 1];
-      head.tiedToNext = true;
-      notes.push({
-        ...head,
-        startBeat: slot.startBeat,
-        duration: slot.duration,
-        acceptedMasks: [...head.acceptedMasks],
-        beamGroup: -1,
-        tiedToNext: false,
-        showAccidental: false,
-      });
-      continue;
-    }
-    const writtenMidi = pitches[pitchIndex++];
-    const soundingMidi = soundingFromWritten(writtenMidi, options.instrument, options.clef);
-    const primary = primaryFingering(soundingMidi, options.instrument);
-    notes.push({
-      writtenMidi,
-      soundingMidi,
-      // Spelled in the key in force where it falls: F sharp and G flat are one
-      // sound and two different things to read, and which one is right moves
-      // with the key.
-      pitch: spellInKey(writtenMidi, keyAt(keys, slot.startBeat)),
-      startBeat: slot.startBeat,
-      duration: slot.duration,
-      acceptedMasks: [...fingeringMasks(soundingMidi, options.instrument)],
-      primaryMask: primary?.mask ?? 0,
-      beamGroup: -1,
-      tiedToNext: false,
-      showAccidental: false,
-    });
-  }
-
-  assignBeamGroups(notes, rests, metre);
-  assignAccidentals(notes, metre, keys);
-
-  return {
-    notes,
-    rests,
-    instrumentId: options.instrument.id,
+  return assembleExercise(slots, pitches, {
+    instrument: options.instrument,
     clef: options.clef,
-    // One key for the whole exercise, for now. The shape is a list because a
-    // part changes key; nothing generates a second entry yet.
     keys,
     metre,
     totalBeats,
     seed: options.seed,
     kind: options.kind,
-  };
+  });
 }
 
 /**
@@ -845,7 +781,6 @@ function phrasePitches(
  * The dominant seventh is diatonic precisely because it is built on the fifth
  * degree, not the first: in Eb that is Bb D F Ab, all in key.
  */
-const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 
 interface Pattern {
   /** Semitones from the key's tonic to this pattern's root. */
@@ -978,99 +913,4 @@ function nearestCandidate(candidates: Candidate[], target: number): Candidate {
   return candidates.reduce((best, c) =>
     Math.abs(c.midi - target) < Math.abs(best.midi - target) ? c : best,
   );
-}
-
-/**
- * Beams runs of quavers and shorter within a beat.
- *
- * Grouping by beat is what makes a bar of semiquavers readable at a glance;
- * anything crossing a beat, or interrupted by a rest or a longer note, starts a
- * new group.
- */
-function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre): void {
-  // Grouped by pulse rather than by crotchet, which is the same thing in simple
-  // time and the difference between beaming in twos and in threes once it is
-  // not: 6/8 beams three quavers to a dotted crotchet.
-  const pulseOf = (beat: number) => Math.floor(beat / metre.pulseBeats + 1e-9);
-  const restBeats = new Set(rests.map((r) => pulseOf(r.startBeat)));
-  let group = 0;
-  let index = 0;
-
-  while (index < notes.length) {
-    const note = notes[index];
-    if (!isBeamable(note.duration)) {
-      index++;
-      continue;
-    }
-
-    const beat = pulseOf(note.startBeat);
-    const bar = barAt(metre, note.startBeat);
-    let end = index;
-    while (
-      end + 1 < notes.length &&
-      isBeamable(notes[end + 1].duration) &&
-      pulseOf(notes[end + 1].startBeat) === beat &&
-      barAt(metre, notes[end + 1].startBeat) === bar &&
-      !restBeats.has(beat)
-    ) {
-      end++;
-    }
-
-    if (end > index) {
-      for (let i = index; i <= end; i++) notes[i].beamGroup = group;
-      group++;
-    }
-    index = end + 1;
-  }
-}
-
-/**
- * Decides which notes need an accidental drawn.
- *
- * An accidental holds for the rest of the bar at that letter and octave, so a
- * repeated F# is marked once. Conversely a note that reverts to the key
- * signature after an accidental needs a natural to cancel it.
- *
- * A tie continuation never takes one. It is not a new note, so there is nothing
- * to alter; the accidental on the head of the tie carries across the bar line
- * with the sound. Nor does it establish anything in the bar it lands in, which
- * means a later note of that pitch in that bar gets an accidental of its own —
- * the cautionary an engraver would write there anyway.
- */
-function assignAccidentals(notes: NoteEvent[], metre: Metre, keys: readonly KeyChange[]): void {
-  let currentBar = -1;
-  let altered = new Map<string, number>();
-
-  for (const [index, note] of notes.entries()) {
-    const bar = barAt(metre, note.startBeat);
-    if (bar !== currentBar) {
-      currentBar = bar;
-      altered = new Map();
-    }
-
-    if (isTieContinuation(notes, index)) {
-      note.showAccidental = false;
-      continue;
-    }
-
-    // Spelling is already settled; this only decides what has to be drawn.
-    const spelled = note.pitch;
-    const key = `${spelled.letter as Letter}${spelled.octave}`;
-    const established = altered.get(key);
-
-    if (established === spelled.alter) {
-      note.showAccidental = false;
-      continue;
-    }
-
-    // Against the key in force here. A change always lands on a bar line, so
-    // the per-bar reset above already clears what the old key established —
-    // there is nothing left over for the new one to argue with.
-    const differsFromKey = needsAccidental(spelled, keyAt(keys, note.startBeat));
-    // Needed either because it departs from the signature, or because it must
-    // cancel an accidental earlier in the bar.
-    note.showAccidental = differsFromKey || established !== undefined;
-
-    if (note.showAccidental) altered.set(key, spelled.alter);
-  }
 }
