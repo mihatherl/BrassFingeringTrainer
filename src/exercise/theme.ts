@@ -219,14 +219,71 @@ export function validateTheme(theme: Theme): string[] {
         at(`spans ${span} semitones; ${theme.difficulty} reads ${difficulty.rangeSemitones}`),
       );
     }
+    let widestLeap = 0;
     for (let i = 1; i < sounded.length; i++) {
       if (sounded[i - 1].tied) continue;
       const leap = Math.abs(offsets[i] - offsets[i - 1]);
+      widestLeap = Math.max(widestLeap, leap);
       if (leap > difficulty.maxInterval) {
         problems.push(
           at(`leaps ${leap} semitones at note ${i}; ${theme.difficulty} leaps ${difficulty.maxInterval}`),
         );
       }
+    }
+
+    /*
+     * And the floor, which is the half that was missing.
+     *
+     * Every check above is a ceiling, so a theme of plain crotchets passed at
+     * Expert — which is exactly what shipped, and what a player reading it said
+     * about it: the hardest material in the corpus read like the middle of the
+     * range. A tag has to mean something in both directions or it means very
+     * little in either.
+     *
+     * The rule: a theme must be harder than the level below it in at least one
+     * respect, or it belongs on that level. Which respect is deliberately left
+     * open — a tune earns Hard by leaping, or by moving faster, or by its
+     * range, and insisting on all three would describe one tune rather than a
+     * level.
+     */
+    const below = DIFFICULTIES[DIFFICULTIES.indexOf(difficulty) - 1];
+    if (below) {
+      const shortest = Math.min(...theme.events.map((e) => e.beats));
+      const belowShortest = Math.min(...below.rhythms.map((r) => durationBeats(r.duration)));
+      const harder =
+        shortest < belowShortest - 1e-9 ||
+        widestLeap > below.maxInterval ||
+        span > below.rangeSemitones ||
+        (below.accidentalChance === 0 && sounded.some((n) => (n.alter ?? 0) !== 0)) ||
+        (below.restChance === 0 && theme.events.some(isRest)) ||
+        (below.tieChance === 0 && sounded.some((n) => n.tied));
+      if (!harder) {
+        problems.push(
+          at(
+            `is no harder than ${below.id}: nothing shorter than ${belowShortest} beats, ` +
+              `no leap past ${below.maxInterval}, span ${span} within ${below.rangeSemitones}`,
+          ),
+        );
+      }
+    }
+
+    /*
+     * And it has to move at the pace of its level.
+     *
+     * The rhythm pool says what the generator draws from, and its *longest*
+     * value says how fast the level goes: Expert holds nothing longer than a
+     * quaver, which is what "relentless semiquavers" in its own blurb means. A
+     * median rather than a maximum, so a theme may still end on a long note —
+     * a cadence needs one, and a level is set by how the tune moves rather than
+     * by how it stops.
+     */
+    const lengths = theme.events.map((e) => e.beats).sort((a, b) => a - b);
+    const median = lengths[Math.floor(lengths.length / 2)];
+    const slowest = Math.max(...difficulty.rhythms.map((r) => durationBeats(r.duration)));
+    if (lengths.length > 0 && median > slowest + 1e-9) {
+      problems.push(
+        at(`moves in ${median}-beat notes; ${theme.difficulty} moves in ${slowest} at the slowest`),
+      );
     }
   }
 

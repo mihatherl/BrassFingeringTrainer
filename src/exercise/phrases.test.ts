@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { instrumentById } from '../domain/instruments';
+import { instrumentById, writtenRange } from '../domain/instruments';
 import { metreFor } from '../domain/metre';
 import { durationBeats } from '../domain/rhythm';
 import { difficultyById } from './difficulty';
 import { generateExercise } from './generate';
 import { createRng } from './rng';
 import { stitchThemes, themesFor, type StitchOptions } from './phrases';
-import { tonicWindow } from './theme';
-import { THEMES } from './themes';
+import { exerciseFromTheme, tonicWindow } from './theme';
+import { themeById, THEMES } from './themes';
 
 function stitchOptions(overrides: Partial<StitchOptions> = {}): StitchOptions {
   return {
@@ -155,19 +155,49 @@ describe('themes through the generator', () => {
     });
   }
 
-  it('opens on the tonic, in the register the instrument reads it in', () => {
+  it('puts the tonic in the register the instrument reads it in', () => {
     /*
      * A ruling from playing: the same tune should sit in the same part of the
      * instrument whichever key it is played in, and the tonic is what a player
      * feels the music sitting on. On a treble-clef tuba part that window is
      * low G up to the G the clef curls around.
+     *
+     * It is the *tonic* that is placed, not the first note. A theme may open on
+     * the third or the fifth — those are stable enough to abut — so its opening
+     * note can sit a fifth above the window and be correctly placed. Checked
+     * against a theme that does open on the tonic, where the two coincide and
+     * the assertion means what it says.
      */
-    const [low, high] = tonicWindow(instrumentById('eb-bass'), 'treble');
+    const instrument = instrumentById('eb-bass');
+    const [low, high] = tonicWindow(instrument, 'treble');
+    const opensOnTheTonic = themeById('plain-answer')!;
+
     for (const fifths of [-5, -3, -1, 0, 2, 4]) {
-      const exercise = themed({ fifths });
-      const opening = exercise.notes[0].writtenMidi;
-      expect(opening, `opening note in ${fifths} fifths`).toBeGreaterThanOrEqual(low);
-      expect(opening, `opening note in ${fifths} fifths`).toBeLessThanOrEqual(high);
+      const exercise = exerciseFromTheme(opensOnTheTonic, {
+        instrument,
+        clef: 'treble',
+        fifths,
+        metre: metreFor(4, 4),
+      })!;
+      const tonic = exercise.notes[0].writtenMidi;
+      expect(tonic, `tonic in ${fifths} fifths`).toBeGreaterThanOrEqual(low);
+      expect(tonic, `tonic in ${fifths} fifths`).toBeLessThanOrEqual(high);
+    }
+  });
+
+  it('keeps every stitched note inside the compass, whatever it opens on', () => {
+    // The window places the tonic; the compass is the hard limit, and a theme
+    // that opens on the fifth still has to be playable end to end.
+    const instrument = instrumentById('eb-bass');
+    const [lowest, highest] = writtenRange(instrument, 'treble');
+    for (const difficulty of ['beginner', 'easy', 'medium', 'hard', 'expert']) {
+      for (const fifths of [-5, -3, 0, 2, 4]) {
+        const exercise = themed({ fifths, difficulty: difficultyById(difficulty), themeCount: 3 });
+        for (const note of exercise.notes) {
+          expect(note.writtenMidi, `${difficulty} in ${fifths}`).toBeGreaterThanOrEqual(lowest);
+          expect(note.writtenMidi, `${difficulty} in ${fifths}`).toBeLessThanOrEqual(highest);
+        }
+      }
     }
   });
 

@@ -32,7 +32,7 @@ function r(beats: number) {
   return { rest: true as const, beats };
 }
 
-export const THEMES: readonly Theme[] = [
+const FIRST_BATCH: readonly Theme[] = [
   {
     id: 'plain-answer',
     name: 'Plain answer',
@@ -104,7 +104,7 @@ export const THEMES: readonly Theme[] = [
   {
     id: 'step-and-sequence',
     name: 'Step and sequence',
-    difficulty: 'medium',
+    difficulty: 'easy',
     metres: [[4, 4]],
     bars: 8,
     /*
@@ -150,7 +150,7 @@ export const THEMES: readonly Theme[] = [
   {
     id: 'turning-figure',
     name: 'Turning figure',
-    difficulty: 'medium',
+    difficulty: 'easy',
     metres: [[4, 4]],
     bars: 8,
     /*
@@ -203,7 +203,7 @@ export const THEMES: readonly Theme[] = [
   {
     id: 'six-eight-lilt',
     name: 'Six-eight lilt',
-    difficulty: 'hard',
+    difficulty: 'easy',
     metres: [[6, 8]],
     bars: 8,
     /*
@@ -226,7 +226,7 @@ export const THEMES: readonly Theme[] = [
   {
     id: 'lift-a-fifth',
     name: 'Lift a fifth',
-    difficulty: 'expert',
+    difficulty: 'medium',
     metres: [[4, 4]],
     bars: 12,
     /*
@@ -255,6 +255,238 @@ export const THEMES: readonly Theme[] = [
     ],
   },
 ];
+
+/*
+ * Everything below was written after a player read the first batch and said the
+ * hardest of it felt like the middle of the range. He was right, and the reason
+ * was mechanical: every check was a ceiling, so plain crotchets passed at
+ * Expert. `validateTheme` now checks floors too — a theme must be harder than
+ * the level below it in at least one respect, and must move at the pace its own
+ * rhythm pool moves at. Four themes were re-tagged downwards on the strength of
+ * it, and these were written to fill what that left empty.
+ */
+const HARDER: readonly Theme[] = [
+  {
+    id: 'bell-tune',
+    name: 'Bell tune',
+    difficulty: 'beginner',
+    metres: [[4, 4]],
+    bars: 8,
+    /* Steps and thirds, crotchets and minims, and nothing else at all. */
+    events: [
+      n(1, 1), n(3, 1), n(2, 1), n(1, 1),
+      n(2, 1), n(3, 1), n(4, 2),
+      n(3, 1), n(2, 1), n(3, 1), n(4, 1),
+      n(5, 2), n(4, 2),
+      n(3, 1), n(4, 1), n(5, 1), n(4, 1),
+      n(3, 1), n(2, 1), n(3, 2),
+      n(4, 1), n(3, 1), n(2, 1), n(1, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'two-by-two',
+    name: 'Two by two',
+    difficulty: 'beginner',
+    metres: [[4, 4]],
+    bars: 8,
+    /* Minims in pairs, so the beat is felt in twos before it is felt in fours. */
+    events: [
+      n(5, 2), n(3, 2),
+      n(4, 2), n(2, 2),
+      n(3, 1), n(4, 1), n(5, 1), n(3, 1),
+      n(2, 2), n(1, 2),
+      n(1, 1), n(2, 1), n(3, 1), n(4, 1),
+      n(5, 2), n(3, 2),
+      n(2, 1), n(3, 1), n(2, 1), n(1, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'running-steps',
+    name: 'Running steps',
+    difficulty: 'easy',
+    metres: [[4, 4]],
+    bars: 8,
+    /* Quavers in pairs against crotchets, and one bar that stops to be counted. */
+    events: [
+      n(1, 0.5), n(2, 0.5), n(3, 1), n(4, 1), n(3, 1),
+      n(2, 0.5), n(3, 0.5), n(4, 1), n(5, 2),
+      n(5, 1), n(4, 0.5), n(3, 0.5), n(2, 1), n(1, 1),
+      n(2, 2), r(2),
+      n(3, 0.5), n(4, 0.5), n(5, 1), n(4, 1), n(3, 1),
+      n(4, 1), n(5, 1), n(6, 2),
+      n(5, 0.5), n(4, 0.5), n(3, 1), n(2, 1), n(1, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'semiquaver-drill',
+    name: 'Semiquaver drill',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Semiquavers in fours, which is where Hard starts: the eye has to take a
+     * beat at a time rather than a note at a time, and the octave in bar three
+     * is there to break the habit of reading everything as a step.
+     */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 1), n(4, 0.5), n(3, 0.5), n(2, 1),
+      n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25), n(5, 1), n(3, 1), n(1, 1),
+      n(1, 0.5), n(1, 0.5, { octave: 1 }), n(7, 0.5), n(6, 0.5), n(5, 1), n(4, 1),
+      n(3, 1), n(4, 0.5, { alter: 1 }), n(5, 1.5), r(1),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }),
+      n(7, 0.5), n(6, 0.5), n(5, 1), n(3, 1),
+      n(4, 0.5), n(3, 0.5), n(2, 0.5), n(1, 0.5), n(2, 1), n(3, 1),
+      n(1, 0.25), n(3, 0.25), n(5, 0.25), n(3, 0.25), n(1, 1), n(2, 1), n(3, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'wide-steps',
+    name: 'Wide steps',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Dotted quavers against semiquavers — the rhythm most often read as an
+     * even pair — and a scale that runs the whole octave in bar three so the
+     * hand has somewhere to arrive.
+     */
+    events: [
+      n(5, 0.75), n(4, 0.25), n(3, 0.5), n(2, 0.5), n(1, 1), n(5, 1),
+      n(5, 0.75), n(6, 0.25), n(5, 0.5), n(4, 0.5), n(3, 1), n(2, 1),
+      n(1, 0.5), n(2, 0.5), n(3, 0.5), n(4, 0.5),
+      n(5, 0.5), n(6, 0.5), n(7, 0.5), n(1, 0.5, { octave: 1 }),
+      n(1, 2, { octave: 1 }), n(5, 2),
+      n(5, 0.75), n(4, 0.25), n(3, 0.5), n(4, 0.5), n(5, 1), n(3, 1),
+      n(2, 0.5), n(3, 0.5), n(4, 0.5), n(5, 0.5), n(6, 1), n(5, 1),
+      n(4, 0.75), n(3, 0.25), n(2, 0.5), n(1, 0.5), n(2, 1), n(3, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'chromatic-climb',
+    name: 'Chromatic climb',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Accidentals in earnest, and every one of them a passing note going
+     * somewhere: sharpened degrees leaning upwards, a flattened sixth leaning
+     * down. Chromatic notes that lead nowhere are just wrong notes to read.
+     */
+    events: [
+      n(1, 0.5), n(1, 0.5, { alter: 1 }), n(2, 0.5), n(3, 0.5), n(3, 1), n(2, 1),
+      n(3, 0.5), n(4, 0.5), n(4, 0.5, { alter: 1 }), n(5, 0.5), n(5, 1), n(4, 1),
+      n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25), n(6, 1, { alter: -1 }), n(5, 1), n(4, 1),
+      n(3, 2), n(5, 2),
+      n(5, 0.5), n(6, 0.5, { alter: -1 }), n(5, 0.5), n(4, 0.5), n(3, 1), n(2, 1),
+      n(2, 0.5), n(2, 0.5, { alter: 1 }), n(3, 0.5), n(4, 0.5), n(5, 1), n(3, 1),
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 1), n(4, 1), n(2, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'ninth-leaps',
+    name: 'Ninth leaps',
+    difficulty: 'expert',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * What Expert is for: the leap in bar two is a tenth, which is past
+     * anything Hard asks for, and the line never settles into crotchets. A
+     * player who has been reading intervals by shape has to start reading them
+     * by name.
+     */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25),
+      n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25),
+      n(3, 0.5), n(2, 0.5), n(1, 1),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(2, 0.5, { octave: 1 }),
+      n(1, 0.5, { octave: 1 }), n(7, 0.5), n(6, 0.5), n(5, 1),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }),
+      n(7, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 1), n(2, 1),
+      n(3, 0.5), n(4, 0.5, { alter: 1 }), n(5, 0.5), n(6, 0.5), n(5, 2),
+      n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25),
+      n(1, 0.5), n(2, 0.5), n(3, 0.5), n(4, 0.5), n(5, 1),
+      n(6, 0.5, { alter: -1 }), n(5, 0.5), n(4, 0.5), n(3, 0.5),
+      n(2, 0.5), n(1, 0.5), n(2, 1),
+      n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25),
+      n(7, 0.25), n(1, 0.25, { octave: 1 }), n(7, 0.25), n(5, 0.25), n(3, 1), n(1, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'chromatic-descent',
+    name: 'Chromatic descent',
+    difficulty: 'expert',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Heavily chromatic and mostly downward, which is the harder direction to
+     * read: a rising chromatic line is spelled with sharps and looks like it is
+     * going somewhere, while a falling one is a row of flats that all look
+     * alike. The ninth in bar four is the one thing that jumps.
+     */
+    events: [
+      n(5, 0.5), n(4, 0.5, { alter: 1 }), n(4, 0.5), n(3, 0.5),
+      n(2, 0.5), n(1, 0.5), n(2, 1),
+      n(3, 0.5), n(4, 0.5), n(5, 0.5), n(6, 0.5, { alter: -1 }),
+      n(5, 0.5), n(4, 0.5), n(3, 1),
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }), n(5, 1), n(3, 1),
+      n(1, 0.5), n(2, 0.5, { octave: 1 }), n(1, 0.5, { octave: 1 }), n(7, 0.5),
+      n(6, 1), n(5, 1),
+      n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25),
+      n(3, 0.5), n(4, 0.5), n(5, 0.5), n(6, 0.5), n(5, 1),
+      n(4, 0.5, { alter: 1 }), n(5, 0.5), n(4, 0.5), n(3, 0.5),
+      n(2, 0.5), n(1, 0.5), n(3, 1),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }),
+      n(7, 0.5), n(5, 0.5), n(3, 0.5), n(2, 0.5), n(1, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'toccata',
+    name: 'Toccata',
+    difficulty: 'expert',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * Twelve bars of near-continuous movement, built on a broken-third figure
+     * that shifts up a step each time — the pattern is there to be found, and
+     * finding it is the only way to read this at speed. Long enough that a
+     * reader has to keep their place rather than remember it.
+     */
+    events: [
+      n(1, 0.25), n(3, 0.25), n(2, 0.25), n(4, 0.25),
+      n(3, 0.25), n(5, 0.25), n(4, 0.25), n(6, 0.25), n(5, 1), n(3, 1),
+      n(2, 0.25), n(4, 0.25), n(3, 0.25), n(5, 0.25),
+      n(4, 0.25), n(6, 0.25), n(5, 0.25), n(7, 0.25), n(6, 1), n(4, 1),
+      n(5, 0.5), n(1, 0.5, { octave: 1 }), n(7, 0.5), n(5, 0.5),
+      n(6, 0.5), n(4, 0.5), n(5, 1),
+      n(3, 0.25), n(2, 0.25), n(1, 0.25), n(2, 0.25),
+      n(3, 0.5), n(4, 0.5), n(5, 1), n(3, 1),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(2, 0.5, { octave: 1 }),
+      n(1, 0.5, { octave: 1 }), n(6, 0.5), n(5, 0.5), n(4, 1),
+      n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25),
+      n(7, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 1), n(1, 1),
+      n(1, 0.5), n(2, 0.5, { alter: -1 }), n(2, 0.5), n(3, 0.5),
+      n(4, 0.5), n(4, 0.5, { alter: 1 }), n(5, 1),
+      n(5, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 0.5), n(2, 0.5), n(1, 2),
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }), n(7, 1), n(5, 1),
+      n(3, 0.5), n(5, 0.5), n(4, 0.5), n(6, 0.5), n(5, 0.5), n(3, 0.5), n(2, 1),
+      n(1, 0.25), n(3, 0.25), n(5, 0.25), n(3, 0.25),
+      n(1, 0.25), n(3, 0.25), n(5, 0.25), n(3, 0.25), n(2, 1), n(1, 1),
+      n(1, 4),
+    ],
+  },
+];
+
+export const THEMES: readonly Theme[] = [...FIRST_BATCH, ...HARDER];
 
 export function themeById(id: string): Theme | undefined {
   return THEMES.find((theme) => theme.id === id);

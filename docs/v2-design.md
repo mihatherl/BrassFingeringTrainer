@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.6.0 is deployed** to GitHub Pages, 471 tests. Since v1:
+**v1.7.0 is deployed** to GitHub Pages, 472 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Nine so far, hand-written; five of them Medium in 4/4. |
+| `src/exercise/themes.ts` | The corpus itself. Eighteen, hand-written; every difficulty covered in 4/4. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -588,6 +588,10 @@ is taken up and a set too large simply uses fewer of its keys. Changing key
 inside a tune that was not written to do so is a signature laid over somebody
 else's phrase.
 
+**Every difficulty now has themes in 4/4** — three or four apiece, eighteen in
+the corpus — so the fallback below no longer fires for the metre almost
+everything is played in. 3/4 and 6/8 have one theme each and still fall back.
+
 **It falls back to generated material** where the corpus has nothing for a
 difficulty or metre — the same shape as a pattern that will not fit an
 instrument, and the ordinary case while the corpus is small. That fallback is
@@ -616,7 +620,29 @@ nothing else, which is the only way to find out whether it is any *good*. The
 same shape of hook as `?tier=free`, and as forgiving — an id naming nothing
 falls through to the ordinary exercise.
 
-**A difficulty tag is a claim, so it is checked.** `difficulty.ts` already
+**A difficulty tag is a claim, and checking only its ceilings was half a
+check.** The first corpus passed every test and a player read it and said the
+hardest of it felt like the middle of the range — correctly, because every rule
+was an upper bound, so a theme of plain crotchets sailed through at Expert. The
+validator now checks floors as well:
+
+- **A theme must be harder than the level below it** in at least one respect —
+  a shorter note, a wider leap, a bigger span, or an accidental, rest or tie
+  that level forbids. Which respect is left open on purpose: a tune earns Hard
+  by leaping, or by moving faster, or by its range, and demanding all three
+  would describe one tune rather than a level.
+- **And it must move at the pace of its level.** The rhythm pool's *longest*
+  value says how fast a level goes — Expert holds nothing longer than a quaver,
+  which is what "relentless semiquavers" in its own blurb means. Measured as a
+  median rather than a maximum, so a theme may still end on a long note; a
+  cadence needs one, and a level is set by how a tune moves rather than by how
+  it stops.
+
+Four themes failed the moment those went in and were re-tagged downwards. The
+lesson is worth keeping: **an unchecked tag drifts in whichever direction is
+easiest to write**, and easy is easier to write than hard.
+
+**A difficulty tag is also a ceiling.** `difficulty.ts` already
 states the numbers for generated material, and a theme is now held to the same
 ones: nothing shorter than that difficulty's shortest note, no accidental where
 the chance is zero, no rest, no tie, no leap beyond its `maxInterval`, no span
