@@ -21,7 +21,7 @@ be replaced by the microphone rather than refined.
 
 ## The stages
 
-**Stage A — windowed scoring.** The score becomes the last `SCORE_WINDOW`
+**Stage A — windowed scoring. Built, v1.18.0.** The score becomes the last `SCORE_WINDOW`
 bars (16 to start, settled by playing). The play screen's live percentage
 reads the window, so a bad patch stops haunting the rest of a session; the
 results screen keeps the whole-run review stave and streak, adds the
@@ -29,7 +29,16 @@ windowed figure as the headline where the run is longer than the window,
 and keeps feeding whole-session stats to weak-note drilling exactly as
 today. A pure helper beside `summarise`, tests beside it, no engine change.
 
-**Stage B — the horizon.** Generation takes a `horizonBars` cap (the app
+**Stage B — the horizon. Built, v1.19.0** — free material only, per the
+stage; two finds from driving it are worth keeping. The play screen's
+denominator became the *chosen* length's notes, with the count standing
+alone beyond it, because "10 of 910" was the cap talking. And the results
+review engraves only as far as the run reached — two hundred bars of
+unplayed ink was burying the bars that mattered. The stop rule's
+open-fingering clause proved itself in the first headless run: a ghost that
+touches nothing still gets bars containing open notes credited as played,
+which for a real player is exactly what stops a bar of open notes ending
+their run. Original stage text follows.** Generation takes a `horizonBars` cap (the app
 asks for it; tools, figures and tests keep asking for exact lengths, so
 every committed snapshot stays byte-identical). Past the chosen length the
 music draws grey; playing into it turns it white a bar at a time. The
