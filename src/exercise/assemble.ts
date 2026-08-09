@@ -16,6 +16,7 @@ import { keyAt, needsAccidental, spellInKey, type KeyChange } from '../domain/ke
 import { isBeamable, snapBeat, type Duration } from '../domain/rhythm';
 import { barAt, type Metre } from '../domain/metre';
 import type { Letter } from '../domain/pitch';
+import type { TempoEvent } from '../domain/tempo';
 import { isTieContinuation } from './ties';
 import type { Exercise, ExerciseKind, NoteEvent, RestEvent } from './types';
 
@@ -36,6 +37,8 @@ export interface AssembleOptions {
   totalBeats: number;
   seed: number;
   kind: ExerciseKind;
+  /** Where the tempo moves. Absent means it does not, which is a list of none. */
+  tempo?: TempoEvent[];
 }
 
 /**
@@ -115,6 +118,7 @@ export function assembleExercise(
     clef,
     keys,
     metre,
+    tempo: options.tempo ?? [],
     totalBeats: snapBeat(options.totalBeats),
     seed: options.seed,
     kind: options.kind,

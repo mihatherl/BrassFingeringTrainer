@@ -120,7 +120,11 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
       patternKind ? difficulty.patterns.label : difficulty.name,
     ),
     reading: summarise(reading?.name),
-    playback: summarise(`${settings.tempo} bpm`, sound?.name),
+    playback: summarise(
+      `${settings.tempo} bpm`,
+      settings.variableTempo ? 'variable' : undefined,
+      sound?.name,
+    ),
   };
 
   const [openPanels, setOpenPanels] = useState(() => loadOpenPanels(DEFAULT_OPEN_PANELS));
@@ -401,6 +405,21 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             onChange={(event) => update('tempo', Number(event.target.value))}
           />
         </label>
+
+        <label className="field field--inline">
+          <input
+            type="checkbox"
+            checked={settings.variableTempo}
+            onChange={(event) => update('variableTempo', event.target.checked)}
+          />
+          <span>Variable tempo</span>
+        </label>
+        <p className="field__note muted">
+          The tempo you set is where the music starts. Themes change speed where one ends and the
+          next begins — a metronome mark over the bar line says the new speed, the beat moves to
+          it, and you go with it. This is what following a conductor into a new tempo feels like,
+          and no steady metronome can teach it.
+        </p>
 
         <label className="field">
           <span className="field__label">

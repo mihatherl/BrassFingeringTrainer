@@ -45,7 +45,7 @@ import {
   type LayoutNote,
 } from './notes';
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
-import { BAR_LINE_SETBACK, drawSystem, justifiedX, keyChangeRoom, MUSIC_MARGIN } from './system';
+import { BAR_LINE_SETBACK, drawSystem, drawTempoMark, justifiedX, keyChangeRoom, MUSIC_MARGIN } from './system';
 import {
   drawBarLine,
   drawClef,
@@ -822,6 +822,21 @@ export class StaveRenderer {
       const x = xForBeat(rest.startBeat);
       if (x < -60 || x > this.width + 60) continue;
       drawRest(ctx, this.metrics, x, rest.duration, theme.stave);
+    }
+
+    // Tempo marks travel with the music they govern, culled like the bar
+    // lines they sit over.
+    for (const event of exercise.tempo) {
+      if (event.kind !== 'tempo') continue;
+      const x = xForBeat(event.atBeat);
+      if (x < this.headerWidth - 60 || x > this.width + 60) continue;
+      drawTempoMark(
+        ctx,
+        this.metrics,
+        x - BAR_LINE_SETBACK * this.metrics.staveSpace,
+        event.bpm,
+        theme.note,
+      );
     }
 
     this.drawNotes(xForBeat);

@@ -92,6 +92,7 @@ function tiedExercise(): Exercise {
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: 0 }],
     metre: metreFor(2, 4),
+    tempo: [],
     totalBeats: 4,
     seed: 1,
     kind: 'random',

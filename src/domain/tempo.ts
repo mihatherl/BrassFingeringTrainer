@@ -35,6 +35,16 @@
  *    scheduling pauses by itself.
  */
 
+/**
+ * The tempi this app will schedule, in crotchets per minute.
+ *
+ * A domain fact rather than a settings one, though the settings slider is its
+ * oldest customer: the tempo plan clamps its steps to the same range, so a
+ * factor applied near either end can never ask the clock for a speed the
+ * slider itself would refuse.
+ */
+export const TEMPO_RANGE = { min: 40, max: 220 } as const;
+
 /** A change of tempo, a rit./accel., or a fermata's dwell. Beats > 0 only. */
 export type TempoEvent =
   /** A step: this many crotchets per minute from this beat on. */

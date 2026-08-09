@@ -909,3 +909,39 @@ describe('key changes', () => {
     }
   });
 });
+
+describe('variable tempo, at generation', () => {
+  const themed = (overrides: Partial<GenerateOptions> = {}) =>
+    generateExercise(
+      options({ kind: 'themes', themeCount: 3, tempo: 80, variableTempo: true, ...overrides }),
+    );
+
+  it('writes a step on a theme join and nowhere else', () => {
+    const exercise = themed();
+    expect(exercise.tempo.length).toBeGreaterThan(0);
+    for (const event of exercise.tempo) {
+      expect(event.kind).toBe('tempo');
+      const atBeat = 'atBeat' in event ? event.atBeat : NaN;
+      expect(atBeat).toBeGreaterThan(0);
+      expect(atBeat % exercise.metre.barBeats).toBe(0);
+    }
+  });
+
+  it('writes nothing with the setting off, and nothing changes but the marks', () => {
+    const on = themed({ seed: 9 });
+    const off = themed({ seed: 9, variableTempo: false });
+    expect(off.tempo).toEqual([]);
+    // The plan draws from the rng after stitching is done with it, so the
+    // music itself is identical either way.
+    expect(off.notes).toEqual(on.notes);
+  });
+
+  it('leaves material without joins alone, for now', () => {
+    // Stage 2 gives everything a closing rit; until then only themes have a
+    // boundary for the plan to use.
+    const scales = generateExercise(
+      options({ kind: 'scales', cycles: 2, tempo: 80, variableTempo: true }),
+    );
+    expect(scales.tempo).toEqual([]);
+  });
+});

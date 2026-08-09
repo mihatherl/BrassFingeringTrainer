@@ -153,6 +153,28 @@ describe('scrolling renderer', () => {
     expect(calls.some((c) => c.method === 'clip')).toBe(true);
   });
 
+  it('prints the metronome mark where the tempo steps', () => {
+    const calls: RecordedCall[] = [];
+    const exercise = build('random', 'treble', -3, 11);
+    // A step early enough to be inside the opening frame's view.
+    exercise.tempo = [{ kind: 'tempo', atBeat: 4, bpm: 96 }];
+
+    const renderer = new StaveRenderer({
+      canvas: mockCanvas(calls),
+      exercise,
+      transport: new Transport(fakeAudioContext(0), 100),
+      theme: LIGHT_THEME,
+      scrollSpeed: 110,
+      readingMode: 'scrolling',
+      verdictFor: () => undefined,
+    });
+    renderer.draw();
+
+    // The cue-note is glyph and rectangle, which the smoke assertions cover;
+    // the figure itself is text, and it is the part a player reads.
+    expect(calls.some((c) => c.method === 'fillText' && c.args[0] === '= 96')).toBe(true);
+  });
+
   it('draws every clef, key and verdict combination across a whole exercise', () => {
     // An unstarted transport has its origin at time zero, so the audio clock's
     // current time *is* the position in seconds — winding it forward scrubs

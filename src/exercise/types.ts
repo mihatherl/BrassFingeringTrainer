@@ -3,6 +3,7 @@ import type { KeyChange } from '../domain/keys';
 import type { Metre } from '../domain/metre';
 import type { SpelledPitch } from '../domain/pitch';
 import type { Duration } from '../domain/rhythm';
+import type { TempoEvent } from '../domain/tempo';
 
 /**
  * One note in a generated exercise.
@@ -88,6 +89,16 @@ export interface Exercise {
    * denominator is 4. See `metre.ts`.
    */
   metre: Metre;
+  /**
+   * Where the tempo moves, in beat order, with absolute bpm values.
+   *
+   * The same shape of addition as `keys`: settled at generation time, empty
+   * for an exercise that holds its speed — which costs nothing, exactly as a
+   * single-key exercise is a key list of one. The transport compiles it; the
+   * renderers print it; neither may invent one, because a tempo change with
+   * nothing printed would be the page lying about the music.
+   */
+  tempo: TempoEvent[];
   /** Length of the exercise in crotchets. */
   totalBeats: number;
   seed: number;

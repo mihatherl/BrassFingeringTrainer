@@ -74,6 +74,20 @@ function generated(overrides: Partial<GenerateOptions> = {}): Exercise {
  */
 const KEY_CHANGE_MID_SYSTEM: Partial<GenerateOptions> = { keySet: [-3, -1], bars: 8, seed: 6 };
 
+/**
+ * Two themes with the tempo moving at their join. The join must actually
+ * step — the plan skips a join only when clamping silences it, which cannot
+ * happen at 80bpm — and `keeps a step in the tempo figure` below pins that
+ * this stays true if the corpus or the stitching ever changes under the seed.
+ */
+const TEMPO_STEP_AT_JOIN: Partial<GenerateOptions> = {
+  kind: 'themes',
+  themeCount: 2,
+  tempo: 80,
+  variableTempo: true,
+  seed: 3,
+};
+
 const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exercise }> = [
   {
     name: 'free-material',
@@ -133,6 +147,11 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
     exercise: tripletFigure,
   },
   {
+    name: 'tempo-mark',
+    why: 'A metronome mark over the join where the tempo steps — the page saying what the clock will do.',
+    exercise: () => generated(TEMPO_STEP_AT_JOIN),
+  },
+  {
     name: 'bass-clef',
     why: 'The other clef, and the only figure here that draws an F clef at all.',
     exercise: () =>
@@ -172,6 +191,11 @@ describe('engraving', () => {
    * own test rather than being left to show up as an intermittent diff on an
    * unrelated branch.
    */
+  it('keeps a step in the tempo figure', () => {
+    const exercise = generated(TEMPO_STEP_AT_JOIN);
+    expect(exercise.tempo.filter((e) => e.kind === 'tempo').length).toBeGreaterThan(0);
+  });
+
   it('renders the same exercise identically twice', () => {
     for (const { name, exercise } of FIGURES) {
       const once = exerciseToSvg(exercise());

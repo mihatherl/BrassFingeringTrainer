@@ -34,6 +34,7 @@ import type { Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
 import { assembleExercise, type Slot } from './assemble';
 import { stitchThemes } from './phrases';
+import { planTempoSteps } from './tempo-plan';
 import type { Exercise, ExerciseKind } from './types';
 
 export interface GenerateOptions {
@@ -71,6 +72,16 @@ export interface GenerateOptions {
   /** The time signature and what follows from it; see `metre.ts`. */
   metre: Metre;
   seed: number;
+  /**
+   * Crotchets per minute the session will run at.
+   *
+   * The generator has no use for a speed — nothing about the notes depends on
+   * it — except when `variableTempo` asks it to write tempo marks, which are
+   * stored absolute so the page says what the player will actually hear.
+   */
+  tempo?: number;
+  /** Whether the tempo moves at the material's boundaries; see `tempo-plan.ts`. */
+  variableTempo?: boolean;
   /**
    * Per written-pitch weighting used to bias selection toward notes the player
    * gets wrong. Values above 1 make a note more likely. Ignored by the scale
@@ -195,6 +206,16 @@ export function generateExercise(options: GenerateOptions): Exercise {
       rng,
     });
     if (stitched) {
+      /*
+       * The joins are the boundaries the tempo plan is allowed to use, and
+       * the plan draws from the same rng *after* stitching has finished with
+       * it — so turning variable tempo on or off cannot change which themes
+       * were chosen, only what is written over the joins.
+       */
+      const tempo =
+        options.variableTempo && options.tempo
+          ? planTempoSteps({ starts: stitched.starts, bpm: options.tempo, rng })
+          : [];
       return assembleExercise(stitched.slots, stitched.pitches, {
         instrument: options.instrument,
         clef: options.clef,
@@ -203,6 +224,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
         totalBeats: stitched.totalBeats,
         seed: options.seed,
         kind: options.kind,
+        tempo,
       });
     }
   }

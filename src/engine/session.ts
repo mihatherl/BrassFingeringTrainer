@@ -88,7 +88,9 @@ export class Session {
     this.options = options;
     this.noticed = new Array(options.exercise.notes.length).fill(false);
     const { context, exercise, tempo, countInBars } = options;
-    this.transport = new Transport(context, tempo);
+    // The exercise's own tempo events, so a step written on the page is a
+    // step the clock actually takes; an empty list is the constant tempo.
+    this.transport = new Transport(context, tempo, exercise.tempo);
     this.input = new ValveInput(() => context.currentTime);
     this.synth = options.brassVoice ?? new BrassSynth(context);
     this.metronome = new Metronome(context);

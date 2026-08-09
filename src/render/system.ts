@@ -23,6 +23,7 @@ import {
   noteheadWidth,
   type LayoutNote,
 } from './notes';
+import { drawGlyph, glyphWidth } from './glyphs';
 import type { Spacing } from './spacing';
 import {
   drawBarLine,
@@ -141,6 +142,52 @@ export function justifiedX(
 /** Where an annotation sits, in stave spaces below the bottom line. */
 const ANNOTATION_OFFSET = 4.6;
 
+/**
+ * The metronome mark's note against a full-sized one, and where the mark sits
+ * above the stave. Cue-sized, as printed parts set it: the mark is an
+ * instruction about the music, not a note of it.
+ */
+const MARK_SCALE = 0.75;
+const MARK_RISE = 2.5;
+
+/**
+ * A metronome mark — a cue-sized crotchet, "= 96" after it — above the stave.
+ *
+ * Drawn from the exercise's own tempo events and nowhere else: the mark is
+ * the page stating what the clock will actually do, and both read the same
+ * data so neither can lie about the other. The crotchet is the notehead glyph
+ * with a stem, not font text, because the music fonts are embedded as paths
+ * and a ♩ from the system font would render differently on every device.
+ *
+ * Exported for the scrolling surface, which draws its own endless line rather
+ * than systems and needs the same mark at the same beat.
+ */
+export function drawTempoMark(
+  ctx: CanvasRenderingContext2D,
+  metrics: StaveMetrics,
+  x: number,
+  bpm: number,
+  colour: string,
+): void {
+  const { staveSpace } = metrics;
+  const y = metrics.topLineY - staveSpace * MARK_RISE;
+  const headWidth = glyphWidth('noteheadBlack') * staveSpace * MARK_SCALE;
+  const stemWidth = Math.max(1, staveSpace * 0.12 * MARK_SCALE);
+  const stemRise = staveSpace * 2.6 * MARK_SCALE;
+
+  ctx.save();
+  ctx.fillStyle = colour;
+  drawGlyph(ctx, 'noteheadBlack', x, y, staveSpace * MARK_SCALE);
+  // Up on the right of the head, as every stem this size is.
+  ctx.fillRect(x + headWidth - stemWidth, y - stemRise, stemWidth, stemRise);
+
+  ctx.font = `600 ${Math.round(staveSpace * 1.25)}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(`= ${bpm}`, x + headWidth + staveSpace * 0.5, y + staveSpace * 0.4);
+  ctx.restore();
+}
+
 export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions): void {
   const { exercise, metrics, xForBeat, theme, firstBar, lastBar } = options;
   const { staveSpace } = metrics;
@@ -209,6 +256,24 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   for (const rest of exercise.rests) {
     if (rest.startBeat < firstBeat || rest.startBeat >= lastBeat) continue;
     drawRest(ctx, metrics, xForBeat(rest.startBeat), rest.duration, theme.stave);
+  }
+
+  /*
+   * Tempo marks falling on this system — including at its head, unlike a key
+   * change there: the signature restates a key on every line, but nothing
+   * restates a tempo, so a mark landing where the page turned must still be
+   * seen.
+   */
+  for (const event of exercise.tempo) {
+    if (event.kind !== 'tempo') continue;
+    if (event.atBeat < firstBeat || event.atBeat >= lastBeat) continue;
+    drawTempoMark(
+      ctx,
+      metrics,
+      xForBeat(event.atBeat) - BAR_LINE_SETBACK * staveSpace,
+      event.bpm,
+      theme.note,
+    );
   }
 
   const loose: LayoutNote[] = [];

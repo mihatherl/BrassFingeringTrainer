@@ -66,6 +66,7 @@ function tiedExercise(): Exercise {
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: 0 }],
     metre: metreFor(2, 4),
+    tempo: [],
     totalBeats: 4,
     seed: 1,
     kind: 'random',
@@ -182,6 +183,64 @@ describe('a session with a tie in it', () => {
   });
 });
 
+describe('a session across a step change', () => {
+  /*
+   * The one assertion that matters end to end: an exercise carrying a tempo
+   * event is *scheduled* to it. Everything else about the map is proven in
+   * domain tests; this drives a real session and reads back where the sounds
+   * and clicks actually landed.
+   */
+  function steppedExercise(): Exercise {
+    return {
+      notes: [note(0, 1), note(1, 1), note(2, 1), note(3, 1)],
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metre: metreFor(2, 4),
+      // Doubling at the second bar line, so every figure below is legible.
+      tempo: [{ kind: 'tempo', atBeat: 2, bpm: 120 }],
+      totalBeats: 4,
+      seed: 1,
+      kind: 'themes',
+    };
+  }
+
+  it('sounds the notes where the map puts them, not where the slider points', () => {
+    const s = session(steppedExercise());
+    runTo(s, 4);
+
+    const openingTime = s.transport.timeForBeat(0);
+    const onsets = played.map((p) => Math.round((p.startTime - openingTime) * 100) / 100);
+    // Crotchets at 60 then at 120: a second apart, then half a second.
+    expect(onsets).toEqual([0, 1, 2, 2.5]);
+    // And each note's sounding length follows the tempo it falls under.
+    expect(played.map((p) => Math.round(p.duration * 100) / 100)).toEqual([
+      0.92, 0.92, 0.46, 0.46,
+    ]);
+  });
+
+  it('moves the metronome with the music, which is what makes it followable', () => {
+    const at: number[] = [];
+    const s = new Session({
+      context,
+      exercise: steppedExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: true,
+      playbackMode: 'off',
+      brassVoice: voice,
+    });
+    const clickSpy = s as unknown as { metronome: { click: (t: number, a: boolean) => void } };
+    clickSpy.metronome.click = (time: number) => {
+      at.push(Math.round((time - s.transport.timeForBeat(0)) * 1000) / 1000);
+    };
+
+    runTo(s, 4);
+    expect(at.filter((t) => t >= 0 && t <= 2.5)).toEqual([0, 1, 2, 2.5]);
+  });
+});
+
 describe('the metronome in compound time', () => {
   /*
    * 6/8 is two clicks to a bar, on the dotted crotchets. Clicking every
@@ -200,6 +259,7 @@ describe('the metronome in compound time', () => {
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
       metre,
+      tempo: [],
       totalBeats: bars * metre.barBeats,
       seed: 1,
       kind: 'random',

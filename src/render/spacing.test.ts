@@ -60,6 +60,7 @@ function exerciseOf(bars: Array<Array<Duration['value']>>, beatsPerBar = 4): Exe
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: -3 }],
     metre: metreFor(beatsPerBar, 4),
+    tempo: [],
     totalBeats: bars.length * beatsPerBar,
     seed: 1,
     kind: 'random',

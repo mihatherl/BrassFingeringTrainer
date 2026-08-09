@@ -79,6 +79,20 @@ describe('stitchThemes', () => {
     },
   ];
 
+  it('reports where each theme begins, which is where a tempo may step', () => {
+    const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', count: 3 }))!;
+    expect(stitched.starts).toHaveLength(stitched.used.length);
+    expect(stitched.starts[0]).toBe(0);
+
+    // Each start is the sum of the lengths before it, and lands on a bar line.
+    let expected = 0;
+    stitched.used.forEach((id, index) => {
+      expect(stitched.starts[index], id).toBe(expected);
+      expect(expected % 4, `${id} on a bar line`).toBe(0);
+      expected += THEMES.find((t) => t.id === id)!.bars * 4;
+    });
+  });
+
   it('does not play the same theme twice running where there is a choice', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const stitched = stitchThemes(

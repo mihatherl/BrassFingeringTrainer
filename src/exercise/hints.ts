@@ -68,6 +68,13 @@ export function fingeringHints(options: HintOptions): Map<number, string> {
   const { notes, metre } = exercise;
   const hints = new Map<number, string>();
 
+  // The space over a note at a tempo change belongs to the metronome mark.
+  // Two things printed in the same air read as neither, and of the two the
+  // mark is the one the player cannot do without.
+  const marked = new Set(
+    exercise.tempo.filter((e) => e.kind === 'tempo').map((e) => ('atBeat' in e ? e.atBeat : 0)),
+  );
+
   // Worst first within each bar, so a bar containing two weak notes hints the
   // one that needs it more rather than whichever came first.
   const candidates: Array<{ index: number; bar: number; accuracy: number }> = [];
@@ -75,6 +82,7 @@ export function fingeringHints(options: HintOptions): Map<number, string> {
   notes.forEach((note, index) => {
     // Nothing to finger at the far end of a tie, so nothing to prompt.
     if (isTieContinuation(notes, index)) return;
+    if (marked.has(note.startBeat)) return;
 
     const stat = stats.get(note.writtenMidi);
     if (!stat || stat.attempts < MIN_ATTEMPTS_TO_JUDGE) return;

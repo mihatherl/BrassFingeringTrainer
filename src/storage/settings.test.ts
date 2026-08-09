@@ -44,6 +44,23 @@ describe('loading settings', () => {
   });
 });
 
+describe('variable tempo, arriving in old settings files', () => {
+  it('lands on off for anyone whose stored settings predate it', () => {
+    store({ tempo: 96 });
+    expect(loadSettings().variableTempo).toBe(false);
+  });
+
+  it('keeps an explicit choice', () => {
+    store({ variableTempo: true });
+    expect(loadSettings().variableTempo).toBe(true);
+  });
+
+  it('coerces anything that is not a real boolean to off', () => {
+    store({ variableTempo: 'yes' });
+    expect(loadSettings().variableTempo).toBe(false);
+  });
+});
+
 describe('migrating the old playback switch', () => {
   it('keeps playback off for anyone who had turned it off', () => {
     // Playback used to be a boolean. Turning sound back on unasked would be a

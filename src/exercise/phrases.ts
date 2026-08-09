@@ -64,6 +64,16 @@ export interface StitchedPhrases {
   totalBeats: number;
   /** Which themes were used, in order. For tests and for the results screen. */
   used: string[];
+  /**
+   * The beat each used theme begins at, aligned with `used`; the first is 0.
+   *
+   * The joins are where the exercise has boundaries, and a boundary is where
+   * a tempo may change — a theme is a whole thought, and changing speed inside
+   * one that was not written for it would be the same trespass as changing its
+   * key. Every entry lands on a bar line by construction, since each theme is
+   * a whole number of bars.
+   */
+  starts: number[];
 }
 
 /** Themes this instrument, difficulty and metre can actually take. */
@@ -93,6 +103,7 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
   const pitches: number[] = [];
   const keys: KeyChange[] = [];
   const used: string[] = [];
+  const starts: number[] = [];
 
   const set = options.keys?.length ? options.keys : [options.fifths];
 
@@ -157,6 +168,7 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
       if (keys[keys.length - 1]?.fifths !== key.fifths) keys.push(key);
     }
     used.push(theme.id);
+    starts.push(beat);
     // Every theme's length is exact; the running total has to stay so, or the
     // join after a theme of triplets is no longer a bar line.
     beat = snapBeat(beat + realised.beats);
@@ -164,5 +176,5 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
   }
 
   if (slots.length === 0) return null;
-  return { slots, pitches, keys, totalBeats: beat, used };
+  return { slots, pitches, keys, totalBeats: beat, used, starts };
 }

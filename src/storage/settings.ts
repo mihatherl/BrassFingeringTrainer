@@ -13,7 +13,12 @@ import type { PlaybackMode } from '../engine/session';
 import { FREE_TIER, type Entitlements } from '../licensing/entitlements';
 import { DIFFICULTIES } from '../exercise/difficulty';
 import { MAJOR_KEYS } from '../domain/keys';
+import { TEMPO_RANGE } from '../domain/tempo';
 import type { ExerciseKind } from '../exercise/types';
+
+// Re-exported from the domain, where the tempo plan clamps against the same
+// figures; the settings screen was this range's first customer, not its owner.
+export { TEMPO_RANGE };
 
 export interface Settings {
   instrumentId: string;
@@ -30,6 +35,14 @@ export interface Settings {
    */
   keySet: number[];
   tempo: number;
+  /**
+   * Whether the tempo moves at the material's boundaries: a new speed where
+   * one theme ends and the next begins, and eventually rits and holds.
+   *
+   * Off by default for the same reason the conductor is — an installed app
+   * should not start taking liberties with the beat because it updated.
+   */
+  variableTempo: boolean;
   difficultyId: string;
   kind: ExerciseKind;
   /** Themes played end to end, for the Themes kind. Ignored by everything else. */
@@ -120,6 +133,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Just the one, so nothing changes key until it is asked to.
   keySet: [-3],
   tempo: 80,
+  variableTempo: false,
   difficultyId: 'easy',
   kind: 'random',
   themeCount: 2,
@@ -140,7 +154,6 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const STORAGE_KEY = 'brass-trainer:settings';
 
-export const TEMPO_RANGE = { min: 40, max: 220 } as const;
 export const BARS_OPTIONS = [4, 8, 12, 16, 24] as const;
 /**
  * Times through a scale or arpeggio.
@@ -284,6 +297,9 @@ export function sanitise(settings: Settings): Settings {
     beatsPerBar: timeSignature.beatsPerBar,
     beatUnit: timeSignature.beatUnit,
     tempo: clamp(settings.tempo, TEMPO_RANGE.min, TEMPO_RANGE.max),
+    // Coerced to a real boolean: a settings file written by an older version
+    // has nothing here, and the merge above must land on "off".
+    variableTempo: settings.variableTempo === true,
     bars: clamp(settings.bars, 1, 64),
     cycles: clamp(settings.cycles, 1, 16),
     themeCount: clamp(settings.themeCount, 1, 8),

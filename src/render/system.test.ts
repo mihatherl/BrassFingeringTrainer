@@ -99,6 +99,7 @@ function exerciseOf(): Exercise {
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: -3 }],
     metre: metreFor(4, 4),
+    tempo: [],
     totalBeats: 4,
     seed: 1,
     kind: 'random',

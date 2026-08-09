@@ -98,6 +98,8 @@ export function App() {
         cycles: settings.cycles,
         metre: metreFor(settings.beatsPerBar, settings.beatUnit),
         seed,
+        tempo: settings.tempo,
+        variableTempo: settings.variableTempo,
         noteWeights: weights,
       });
     },
