@@ -376,3 +376,65 @@ export function dotRoom(m: StaveMetrics, duration: Duration): number {
   if (!duration.dotted) return 0;
   return (DOT_GAP + glyphWidth('augmentationDot')) * m.staveSpace;
 }
+
+/** How far above or below the notes a tuplet bracket sits, in stave spaces. */
+const TUPLET_CLEARANCE = 1.2;
+/** How far the bracket's ends turn towards the notes. */
+const TUPLET_HOOK = 0.45;
+
+/**
+ * The bracket and numeral over a triplet.
+ *
+ * Drawn on the side the stems are on, which is where an engraver puts it and
+ * why: on the notehead side it collides with ledger lines and the numeral ends
+ * up inside the stave. With one direction for the group, taken the same way a
+ * beam takes it — whichever extreme is further from the middle line.
+ *
+ * The bracket is broken for the numeral rather than drawn under it, so the
+ * figure reads as part of the mark rather than as something printed on top of
+ * it.
+ */
+export function drawTuplet(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  notes: LayoutNote[],
+  numeral: number,
+  colour: string,
+): void {
+  if (notes.length < 2) return;
+
+  const steps = notes.map((n) => diatonicStep(n.pitch));
+  const middleStep = m.bottomLineStep + 4;
+  const up = Math.max(...steps) - middleStep <= middleStep - Math.min(...steps);
+  const direction = up ? -1 : 1;
+
+  // Clear of the furthest note in that direction, and of the stems if the
+  // stems are on this side.
+  const reach = up ? Math.max(...steps) : Math.min(...steps);
+  const stem = STEM_LENGTH * m.staveSpace * direction;
+  const y = yForStep(m, reach) + stem + TUPLET_CLEARANCE * m.staveSpace * direction;
+
+  const headWidth = noteheadWidth(m, notes[0].duration);
+  const left = notes[0].x;
+  const right = notes[notes.length - 1].x + headWidth;
+  const middle = (left + right) / 2;
+  const gap = m.staveSpace * 0.75;
+  const hook = TUPLET_HOOK * m.staveSpace * direction;
+
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = Math.max(1, m.staveSpace * 0.09);
+  ctx.beginPath();
+  ctx.moveTo(left, y - hook);
+  ctx.lineTo(left, y);
+  ctx.lineTo(middle - gap, y);
+  ctx.moveTo(middle + gap, y);
+  ctx.lineTo(right, y);
+  ctx.lineTo(right, y - hook);
+  ctx.stroke();
+
+  ctx.fillStyle = colour;
+  ctx.font = `italic ${(m.staveSpace * 1.6).toFixed(2)}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(numeral), middle, y);
+}

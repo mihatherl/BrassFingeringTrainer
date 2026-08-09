@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.12.0 is deployed** to GitHub Pages, 472 tests. Since v1:
+**v1.13.0 is deployed** to GitHub Pages, 481 tests. Since v1:
 
 | | |
 |---|---|
@@ -173,10 +173,7 @@ while the tool drew something else.
 In order. Each step is useful on its own, so this need not be delivered as one
 release.
 
-1. ~~**Ties**~~ — built. Tuplets are not, and are still worth having: timing
-   already works in floating-point beats, so a triplet crotchet at ⅔ of a beat
-   schedules, judges and spaces correctly today. What is missing is purely
-   notational — bracket, numeral, beaming.
+1. ~~**Ties**~~ — built. ~~Tuplets~~ — built too; see *Triplets, as built*.
 2. ~~**Key changes**~~ — built. See *Key changes, in detail*.
 3. ~~**Themes**~~ — built, as a material kind of its own rather than as a better
    sight-reading. Written tunes stored as scale degrees, agnostic of key and
@@ -285,6 +282,40 @@ at without a browser. It found the one thing the tests could not: the first
 ties drawn were specks, because clearing half a notehead at each end ate most of
 a crotchet's column. A tie's tip sits a stave space off the head's centre, where
 the ellipse has already narrowed, so it need not clear the full width.
+
+### Triplets, as built
+
+The estimate held: purely notational, and nothing about timing changed, because
+everything was already in floating-point beats.
+
+**A triplet is a flag on an ordinary value, not a sixth note value.** A triplet
+quaver is a quaver that lasts two thirds of one, drawn with the same notehead,
+stem and beam — what marks it is the bracket and the numeral over the group. So
+`Duration` gained `tuplet?: 3` and `durationBeats` multiplies by two thirds.
+Plain and dotted spellings are still tried first, so nothing writable the
+ordinary way sprouts a bracket.
+
+**The bracket is its own grouping, not the beam's.** They look the same in the
+easy case and are different questions: a beam asks how notes group, a bracket
+asks how the beat divides. Three triplet crotchets are bracketed and never
+beamed, and two triplet beats in a row want a numeral each — a run-length rule
+swallows both into one bracket over six, which reads as a sextuplet, a different
+rhythm. So exactly three to a bracket, and the beams carry on breaking at the
+pulse as they always did.
+
+**Thirds are not exact in binary, and that is the only thing here with teeth.**
+Three triplet quavers came to 0.9999999999999999 and sixteen bars of them ended
+at 15.999999999999995. Nothing sounds different — the error is far below a
+millisecond — but every *comparison* is wrong at the boundary, and the
+boundaries are bar lines: a note at 11.999999999999998 was drawn in the bar
+before its own, and the system it belonged to lost it. `snapBeat` puts every
+accumulated position on a twenty-fourth of a crotchet, which every writable
+duration sits on exactly — a semiquaver is six, a triplet quaver eight, a dotted
+semiquaver nine. Applied once in `assembleExercise`, where every producer meets,
+rather than in three generators and hoping.
+
+The engraving snapshots said the change was inert on everything that has no
+triplets in it, which is exactly what they are for.
 
 ### Groundwork, laid before the dynamic work
 
@@ -658,13 +689,8 @@ often than a wide leap is, and no amount of stepwise practice prepares anyone
 for it. Worth writing several bars of it in a row — one bar of syncopation
 reads as a misprint.
 
-**Triplets cannot be written yet, and that is not a corpus problem.** A triplet
-crotchet is two thirds of a beat, and `durationFromBeats` refuses it because
-there is no such note value: the app knows whole, half, quarter, eighth and
-sixteenth. The timing would work today — everything is in floating-point beats —
-but nothing would draw. This is the notational half of tuplets that step one of
-*The direction* has always listed: bracket, numeral, beaming. Until that is
-built, a theme asking for a triplet fails validation, which is the right answer.
+**Triplets are built** — see *Triplets, as built*. A theme may write a third of
+a beat and get a bracket and a numeral. Nothing in the corpus uses them yet.
 
 **There is one theme the app cannot select.** `six-eight-lilt` is in 6/8, and
 `TIME_SIGNATURES` offers 4/4, 3/4 and 2/4 only — compound time is a future step,

@@ -39,7 +39,7 @@ import { exerciseFromTheme } from '../exercise/theme';
 import { themeById } from '../exercise/themes';
 import type { Exercise } from '../exercise/types';
 import { planReview } from './review';
-import { tiedFigure } from '../../tools/figures.mts';
+import { tiedFigure, tripletFigure } from '../../tools/figures.mts';
 import { DEFAULT_WIDTH, exerciseToSvg } from '../../tools/render-svg.mts';
 
 /**
@@ -126,6 +126,11 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
         fifths: -3,
         metre: metreFor(4, 4),
       })!,
+  },
+  {
+    name: 'triplets',
+    why: 'Bracket and numeral per three — beamed quaver triplets, two beats running together, and crotchet triplets which are bracketed and never beamed.',
+    exercise: tripletFigure,
   },
   {
     name: 'bass-clef',

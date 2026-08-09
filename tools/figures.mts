@@ -10,6 +10,8 @@
 import { spellInKey } from '../src/domain/keys.ts';
 import { metreFor } from '../src/domain/metre.ts';
 import { durationFromBeats } from '../src/domain/rhythm.ts';
+import { instrumentById } from '../src/domain/instruments.ts';
+import { assembleExercise, type Slot } from '../src/exercise/assemble.ts';
 import type { Exercise, NoteEvent } from '../src/exercise/types.ts';
 
 function note(startBeat: number, beats: number, midi: number, tiedToNext = false): NoteEvent {
@@ -23,6 +25,7 @@ function note(startBeat: number, beats: number, midi: number, tiedToNext = false
     acceptedMasks: [0],
     primaryMask: 0,
     beamGroup: -1,
+    tupletGroup: -1,
     tiedToNext,
     showAccidental: false,
   };
@@ -60,4 +63,63 @@ export function tiedFigure(): Exercise {
     seed: 0,
     kind: 'random',
   };
+}
+
+/**
+ * Triplets, in the three shapes that have to look right.
+ *
+ * Quaver triplets beamed in threes, where the bracket and the beam say the same
+ * thing; crotchet triplets, which are bracketed and *not* beamed, and are the
+ * case a beam-shaped implementation gets wrong; and two triplet beats running
+ * together, which want a numeral each rather than one over six.
+ *
+ * Built through `assembleExercise` rather than as a literal, so the beaming and
+ * the bracketing are the ones the app works out rather than ones written here
+ * to look right. The first version of this figure was a literal and drew
+ * nothing at all, because nothing had grouped it.
+ */
+export function tripletFigure(): Exercise {
+  const third = 1 / 3;
+  const twoThirds = 2 / 3;
+
+  const shape: Array<[number, number]> = [
+    // A beat of quaver triplets, then plain crotchets.
+    [third, 60], [third, 64], [third, 67],
+    [1, 65], [1, 64], [1, 62],
+    // Two triplet beats running together: two brackets, not one.
+    [third, 60], [third, 62], [third, 64],
+    [third, 65], [third, 67], [third, 69],
+    [1, 71], [1, 72],
+    // Crotchet triplets — bracketed, and not beamed at all.
+    [twoThirds, 76], [twoThirds, 74], [twoThirds, 72],
+    [twoThirds, 71], [twoThirds, 69], [twoThirds, 67],
+    // A plain close.
+    [4, 60],
+  ];
+
+  const slots: Slot[] = [];
+  let beat = 0;
+  for (const [beats] of shape) {
+    slots.push({
+      startBeat: beat,
+      duration: durationFromBeats(beats)!,
+      isRest: false,
+      tiedFromPrevious: false,
+    });
+    beat += beats;
+  }
+
+  return assembleExercise(
+    slots,
+    shape.map(([, midi]) => midi),
+    {
+      instrument: instrumentById('eb-bass'),
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metre: metreFor(4, 4),
+      totalBeats: beat,
+      seed: 0,
+      kind: 'random',
+    },
+  );
 }

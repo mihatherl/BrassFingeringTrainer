@@ -36,6 +36,17 @@ export interface NoteEvent {
   /** Index of the beam group, or -1 when the note stands alone. */
   beamGroup: number;
   /**
+   * Which triplet this note belongs to, or -1.
+   *
+   * Its own grouping rather than a reuse of `beamGroup`, because the two are
+   * not the same span and only look it in easy cases: a triplet of quavers is
+   * beamed and bracketed identically, but three triplet crotchets are bracketed
+   * and not beamed at all, and a beam can run across two triplets in a row that
+   * want a numeral each. The bracket answers "how does this divide", the beam
+   * answers "how does this group" — different questions with different answers.
+   */
+  tupletGroup: number;
+  /**
    * Joined to the note that follows: same pitch, one sound, no second attack.
    *
    * Held on the first note of the pair rather than the second because that is

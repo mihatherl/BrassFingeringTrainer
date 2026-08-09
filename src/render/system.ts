@@ -15,6 +15,7 @@ import { keyAt } from '../domain/keys';
 import type { Exercise } from '../exercise/types';
 import {
   drawBeamGroup,
+  drawTuplet,
   drawFingeringHint,
   drawNote,
   drawRest,
@@ -212,6 +213,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
 
   const loose: LayoutNote[] = [];
   const beamed = new Map<number, LayoutNote[]>();
+  const tuplets = new Map<number, LayoutNote[]>();
   const hints: Array<{ note: LayoutNote; text: string; room: number }> = [];
 
   exercise.notes.forEach((note, index) => {
@@ -226,6 +228,12 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
       showAccidental: note.showAccidental,
       colour: options.colourFor(index),
     };
+
+    if (note.tupletGroup >= 0) {
+      const group = tuplets.get(note.tupletGroup) ?? [];
+      group.push(item);
+      tuplets.set(note.tupletGroup, group);
+    }
 
     if (note.beamGroup >= 0) {
       const group = beamed.get(note.beamGroup) ?? [];
@@ -249,6 +257,18 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
 
   for (const note of loose) drawNote(ctx, metrics, note);
   for (const group of beamed.values()) drawBeamGroup(ctx, metrics, group);
+  /*
+   * After the notes, because the bracket is placed against where their stems
+   * actually ended up, and before the ties, which arch over everything.
+   *
+   * A group cut in half by a system break draws the part that is on this
+   * system: the same treatment a beam gets, and the same reasoning — half a
+   * bracket at the margin says "this continues" where nothing at all would say
+   * the rhythm changed.
+   */
+  for (const group of tuplets.values()) {
+    drawTuplet(ctx, metrics, group, 3, theme.note);
+  }
 
   /*
    * Ties, drawn over the notes rather than with them.

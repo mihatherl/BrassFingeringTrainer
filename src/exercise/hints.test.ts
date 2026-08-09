@@ -53,6 +53,7 @@ function exerciseOf(bars: Array<Array<[number, Duration['value']]>>): Exercise {
         acceptedMasks: [maskOf([1, 2])],
         primaryMask: maskOf([1, 2]),
         beamGroup: -1,
+        tupletGroup: -1,
         tiedToNext: false,
         showAccidental: false,
       });

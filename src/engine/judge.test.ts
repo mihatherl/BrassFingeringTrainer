@@ -27,6 +27,7 @@ function noteExpecting(masks: number[], startBeat = 0): NoteEvent {
     acceptedMasks: masks,
     primaryMask: masks[0],
     beamGroup: -1,
+    tupletGroup: -1,
     tiedToNext: false,
     showAccidental: false,
   };

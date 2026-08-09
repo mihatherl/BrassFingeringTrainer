@@ -48,6 +48,7 @@ function note(startBeat: number, beats: number, tiedToNext = false): NoteEvent {
     acceptedMasks: [0b011],
     primaryMask: 0b011,
     beamGroup: -1,
+    tupletGroup: -1,
     tiedToNext,
     showAccidental: false,
   };

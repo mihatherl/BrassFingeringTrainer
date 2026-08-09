@@ -21,7 +21,7 @@ import { difficultyById } from '../src/exercise/difficulty.ts';
 import { generateExercise } from '../src/exercise/generate.ts';
 import { exerciseFromTheme } from '../src/exercise/theme.ts';
 import { themeById, THEMES } from '../src/exercise/themes.ts';
-import { tiedFigure } from './figures.mts';
+import { tiedFigure, tripletFigure } from './figures.mts';
 import { DEFAULT_WIDTH, exerciseToSvg } from './render-svg.mts';
 
 function arg(name: string, fallback: string): string {
@@ -59,6 +59,7 @@ function themeExercise(id: string) {
 
 const exercise = arg('theme', '')
   ? themeExercise(arg('theme', ''))
+  : arg('demo', '') === 'triplets' ? tripletFigure()
   : arg('demo', '') === 'on' ? tiedFigure() : generateExercise({
   instrument: instrumentById(arg('instrument', 'eb-bass')),
   clef: 'treble',

@@ -13,7 +13,7 @@
 import { acceptedMasks as fingeringMasks, primaryFingering } from '../domain/fingering';
 import { soundingFromWritten, type Clef, type Instrument } from '../domain/instruments';
 import { keyAt, needsAccidental, spellInKey, type KeyChange } from '../domain/keys';
-import { isBeamable, type Duration } from '../domain/rhythm';
+import { isBeamable, snapBeat, type Duration } from '../domain/rhythm';
 import { barAt, type Metre } from '../domain/metre';
 import type { Letter } from '../domain/pitch';
 import { isTieContinuation } from './ties';
@@ -51,6 +51,14 @@ export function assembleExercise(
   options: AssembleOptions,
 ): Exercise {
   const { instrument, clef, keys, metre } = options;
+
+  /*
+   * Every position snapped once, here, because this is where every producer
+   * meets. Triplets do not divide exactly in binary and the error accumulates
+   * into the bar lines — see `snapBeat`. Doing it at the one place they all
+   * pass through beats doing it in three generators and hoping.
+   */
+  slots = slots.map((slot) => ({ ...slot, startBeat: snapBeat(slot.startBeat) }));
   const notes: NoteEvent[] = [];
   const rests: RestEvent[] = [];
   let pitchIndex = 0;
@@ -69,6 +77,7 @@ export function assembleExercise(
         duration: slot.duration,
         acceptedMasks: [...head.acceptedMasks],
         beamGroup: -1,
+        tupletGroup: -1,
         tiedToNext: false,
         showAccidental: false,
       });
@@ -89,11 +98,13 @@ export function assembleExercise(
       acceptedMasks: [...fingeringMasks(soundingMidi, instrument)],
       primaryMask: primary?.mask ?? 0,
       beamGroup: -1,
+      tupletGroup: -1,
       tiedToNext: false,
       showAccidental: false,
     });
   }
 
+  assignTupletGroups(notes);
   assignBeamGroups(notes, rests, metre);
   assignAccidentals(notes, metre, keys);
 
@@ -104,12 +115,61 @@ export function assembleExercise(
     clef,
     keys,
     metre,
-    totalBeats: options.totalBeats,
+    totalBeats: snapBeat(options.totalBeats),
     seed: options.seed,
     kind: options.kind,
   };
 }
 
+
+/**
+ * Marks which notes belong to which triplet.
+ *
+ * A run of triplet notes of the same value is one bracket. The run ends where
+ * the value changes or an ordinary note interrupts, which is what a reader
+ * expects: three, then three again, is two brackets and two numerals rather
+ * than one over six.
+ *
+ * A lone triplet note cannot happen — three of them are what fills the time of
+ * two — but a run that is not a multiple of three would mean the generator has
+ * produced something unwritable, so it is bracketed as it stands rather than
+ * silently dropped. Better a wrong-looking bracket than a rhythm that does not
+ * add up and says nothing.
+ */
+function assignTupletGroups(notes: NoteEvent[]): void {
+  let group = 0;
+  let index = 0;
+
+  while (index < notes.length) {
+    const { duration } = notes[index];
+    if (!duration.tuplet) {
+      index++;
+      continue;
+    }
+
+    /*
+     * Exactly three to a bracket, not however many happen to be adjacent.
+     *
+     * Two triplet beats in a row are the same value and the same tuplet, so a
+     * run-length rule swallows both into one bracket over six — which reads as
+     * a sextuplet, a different rhythm. The beams get this right on their own
+     * because they break at the pulse; the bracket has to be told.
+     */
+    let end = index;
+    while (
+      end + 1 < notes.length &&
+      end + 1 - index < duration.tuplet &&
+      notes[end + 1].duration.tuplet === duration.tuplet &&
+      notes[end + 1].duration.value === duration.value
+    ) {
+      end++;
+    }
+
+    for (let i = index; i <= end; i++) notes[i].tupletGroup = group;
+    group++;
+    index = end + 1;
+  }
+}
 
 /**
  * Beams runs of quavers and shorter within a beat.
