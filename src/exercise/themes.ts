@@ -932,6 +932,94 @@ const THREE_FOUR: readonly Theme[] = [
   },
 ];
 
+
+/*
+ * Triplets, now that the notation exists to draw them.
+ *
+ * Where they are legal falls out of the rhythm ladder rather than being decided
+ * separately: a difficulty may not go shorter than its own shortest note, so a
+ * triplet crotchet at two thirds of a beat is legal from Easy up, and a triplet
+ * quaver at one third only from Hard, where semiquavers already are. That
+ * gradient happens to be about right — the crotchet triplet is the one a player
+ * meets first, in hymn tunes, and the quaver triplet is a different animal at
+ * speed.
+ */
+const TRIPLETS: readonly Theme[] = [
+  {
+    id: 'three-for-two',
+    name: 'Three for two',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Crotchet triplets against plain crotchets, which is the whole lesson:
+     * three notes where two would go, and the two that follow proving it. Every
+     * bar does it so a reader stops treating the first one as a misprint.
+     */
+    events: [
+      n(1, 2 / 3), n(2, 2 / 3), n(3, 2 / 3), n(2, 1), n(1, 1),
+      n(3, 2 / 3), n(4, 2 / 3), n(5, 2 / 3), n(4, 1), n(3, 1),
+      n(5, 2 / 3), n(4, 2 / 3), n(3, 2 / 3), n(2, 1), n(3, 1),
+      n(2, 2), n(1, 2),
+      n(5, 2 / 3), n(3, 2 / 3), n(1, 2 / 3), n(2, 1), n(3, 1),
+      n(4, 2 / 3), n(5, 2 / 3), n(6, 2 / 3), n(5, 1), n(4, 1),
+      n(3, 2 / 3), n(2, 2 / 3), n(1, 2 / 3), n(2, 1), n(3, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'triplet-run',
+    name: 'Triplet run',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 8,
+    /* Quaver triplets by the beat, beamed and bracketed in threes. */
+    events: [
+      n(1, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(3, 1 / 3), n(2, 1 / 3),
+      n(3, 1), n(5, 1),
+      n(4, 1 / 3), n(3, 1 / 3), n(2, 1 / 3), n(1, 1), n(3, 1), n(5, 1),
+      n(5, 1 / 3), n(6, 1 / 3), n(7, 1 / 3), n(1, 1 / 3, { octave: 1 }),
+      n(7, 1 / 3), n(6, 1 / 3), n(5, 1), n(3, 1),
+      n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(3, 1), n(2, 1), n(1, 1),
+      n(1, 1 / 3), n(3, 1 / 3), n(5, 1 / 3), n(3, 1 / 3), n(1, 1 / 3), n(2, 1 / 3),
+      n(3, 1), n(4, 1),
+      n(5, 1 / 3), n(4, 1 / 3), n(3, 1 / 3), n(2, 1), n(3, 1), n(1, 1),
+      n(1, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3), n(4, 1 / 3),
+      n(3, 1), n(2, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'twos-and-threes',
+    name: 'Twos and threes',
+    difficulty: 'expert',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * The hard part is not the triplet but the change: a beat of semiquavers
+     * against a beat of triplets, so the division of the beat moves under the
+     * reader from four to three and back.
+     */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25),
+      n(5, 1 / 3), n(4, 1 / 3), n(3, 1 / 3), n(2, 1), n(1, 1),
+      n(1, 1 / 3), n(3, 1 / 3), n(5, 1 / 3), n(1, 1 / 3, { octave: 1 }),
+      n(7, 1 / 3), n(5, 1 / 3), n(4, 0.5), n(3, 0.5), n(2, 1),
+      n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3), n(6, 1 / 3), n(5, 1 / 3), n(4, 1 / 3),
+      n(3, 1), n(1, 1),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(2, 1 / 3, { octave: 1 }),
+      n(1, 1 / 3, { octave: 1 }), n(7, 1 / 3), n(6, 0.5), n(5, 0.5), n(4, 1),
+      n(3, 1 / 3), n(2, 1 / 3), n(1, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3),
+      n(5, 1), n(3, 1),
+      n(4, 0.25), n(3, 0.25), n(2, 0.25), n(1, 0.25),
+      n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(5, 1), n(4, 1),
+      n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3), n(4, 1 / 3), n(3, 1 / 3), n(2, 1 / 3),
+      n(3, 1), n(2, 1),
+      n(1, 4),
+    ],
+  },
+];
+
 export const THEMES: readonly Theme[] = [
   ...FIRST_BATCH,
   ...HARDER,
@@ -940,6 +1028,7 @@ export const THEMES: readonly Theme[] = [
   ...TWO_FOUR,
   ...SYNCOPATED,
   ...THREE_FOUR,
+  ...TRIPLETS,
 ];
 
 export function themeById(id: string): Theme | undefined {

@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.13.0 is deployed** to GitHub Pages, 481 tests. Since v1:
+**v1.14.0 is deployed** to GitHub Pages, 481 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Thirty-five, hand-written, covering every difficulty in every metre the app offers. |
+| `src/exercise/themes.ts` | The corpus itself. Thirty-eight, hand-written, covering every difficulty in every metre the app offers. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -689,8 +689,25 @@ often than a wide leap is, and no amount of stepwise practice prepares anyone
 for it. Worth writing several bars of it in a row — one bar of syncopation
 reads as a misprint.
 
-**Triplets are built** — see *Triplets, as built*. A theme may write a third of
-a beat and get a bracket and a numeral. Nothing in the corpus uses them yet.
+**Triplets are built** — see *Triplets, as built* — and three themes use them:
+crotchet triplets at Medium, quaver triplets at Hard, and both against
+semiquavers at Expert.
+
+**Where a triplet is legal falls out of the rhythm ladder** rather than being
+decided separately. A difficulty may not go shorter than its own shortest note,
+so a triplet crotchet at two thirds of a beat is legal from Easy up and a
+triplet quaver at one third only from Hard, where semiquavers already are. That
+gradient is about right by accident: the crotchet triplet is the one a player
+meets first, in hymn tunes, and the quaver triplet at speed is a different
+animal.
+
+**Generated material still has none, and cannot yet.** The rhythm pools in
+`difficulty.ts` hold plain and dotted values, and a triplet cannot simply be
+added to one: they come in threes, and a generator that picks a single triplet
+quaver leaves a third of a beat that nothing writable can fill. Emitting them in
+complete groups is a change to `generateRhythm` and its own piece of work — so
+sight-reading, which is the random walk, will not show a triplet however long
+anyone looks.
 
 **There is one theme the app cannot select.** `six-eight-lilt` is in 6/8, and
 `TIME_SIGNATURES` offers 4/4, 3/4 and 2/4 only — compound time is a future step,
