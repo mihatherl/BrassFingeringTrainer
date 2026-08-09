@@ -3,7 +3,15 @@ import { maskOf } from '../domain/fingering';
 import { spellInKey } from '../domain/keys';
 import type { NoteEvent } from '../exercise/types';
 import { ValveInput } from './input';
-import { isAlreadyCorrect, judgeNote, summarise, toleranceFor } from './judge';
+import {
+  isAlreadyCorrect,
+  judgeNote,
+  summarise,
+  toleranceFor,
+  windowJudgements,
+  type NoteJudgement,
+} from './judge';
+import { metreFor } from '../domain/metre';
 
 /**
  * The clock is driven by hand so these tests exercise real timing behaviour
@@ -331,5 +339,49 @@ describe('summarising a run', () => {
     ];
 
     expect(summarise(notes, judgements).judgements).toEqual(judgements);
+  });
+});
+
+describe('the scoring window', () => {
+  const metre = metreFor(4, 4);
+
+  /** One crotchet per bar, which keeps bar arithmetic legible. */
+  const noteInBar = (bar: number) => noteExpecting([0b001], bar * 4);
+  const judged = (noteIndex: number, verdict: 'correct' | 'wrong'): NoteJudgement => ({
+    noteIndex,
+    verdict,
+    heldMask: 0b001,
+    timingOffset: 0,
+  });
+
+  it('returns a short run whole, so nothing about small exercises changes', () => {
+    const notes = [0, 1, 2, 3].map(noteInBar);
+    const judgements = notes.map((_, i) => judged(i, 'correct'));
+    expect(windowJudgements(notes, judgements, metre)).toEqual(judgements);
+  });
+
+  it('rolls: only the last window of bars is scored', () => {
+    const notes = Array.from({ length: 40 }, (_, bar) => noteInBar(bar));
+    const judgements = notes.map((_, i) => judged(i, i < 24 ? 'wrong' : 'correct'));
+
+    const inWindow = windowJudgements(notes, judgements, metre);
+    // Bars 24–39: the sixteen ending at the last judged bar.
+    expect(inWindow).toHaveLength(16);
+    expect(inWindow.every((j) => j.verdict === 'correct')).toBe(true);
+    // And the figure the player sees recovers, though the run's early half
+    // was all wrong — which is the point of a window.
+    expect(summarise(notes, inWindow).accuracy).toBe(1);
+  });
+
+  it('anchors to what was played, not to the length of the page', () => {
+    // A forty-bar exercise stopped after bar 19: the window is bars 4–19,
+    // not the empty sixteen at the end of the paper.
+    const notes = Array.from({ length: 40 }, (_, bar) => noteInBar(bar));
+    const judgements = notes.slice(0, 20).map((_, i) => judged(i, 'correct'));
+
+    const inWindow = windowJudgements(notes, judgements, metre);
+    expect(inWindow).toHaveLength(16);
+    expect(inWindow[0].noteIndex).toBe(4);
+    expect(inWindow[inWindow.length - 1].noteIndex).toBe(19);
   });
 });

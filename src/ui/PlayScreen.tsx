@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
 import { formatMask } from '../domain/fingering';
+import { barAt } from '../domain/metre';
 import { instrumentById } from '../domain/instruments';
 import { formatPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
@@ -19,7 +20,7 @@ import { Session } from '../engine/session';
 import { fingeringHints } from '../exercise/hints';
 import { soundingHeads } from '../exercise/ties';
 import { loadStats } from '../storage/stats';
-import type { NoteJudgement, SessionSummary, Verdict } from '../engine/judge';
+import { SCORE_WINDOW_BARS, type NoteJudgement, type SessionSummary, type Verdict } from '../engine/judge';
 import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
@@ -68,7 +69,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   const [loading, setLoading] = useState(false);
   const [stalled, setStalled] = useState(false);
   const [mask, setMask] = useState(0);
-  const [progress, setProgress] = useState({ done: 0, correct: 0 });
+  const [progress, setProgress] = useState({ done: 0, accuracy: 0 });
   const [recent, setRecent] = useState<RecentNote[]>([]);
   /*
    * State rather than a ref, unlike the session and renderer beside it.
@@ -112,10 +113,29 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       onCorrect: () => rendererRef.current?.flashCorrect(),
       onJudgement: (judgement: NoteJudgement) => {
         verdictsRef.current[judgement.noteIndex] = judgement.verdict;
-        setProgress((current) => ({
-          done: current.done + 1,
-          correct: current.correct + (judgement.verdict === 'correct' ? 1 : 0),
-        }));
+        /*
+         * The live percentage reads the scoring window, not the whole run: a
+         * bad patch scrolls out of it, which is what makes the figure worth
+         * glancing at late in a long session. Recomputed from the verdicts
+         * on each judgement — one pass per note judged, nowhere near a frame.
+         */
+        const { metre, notes } = exercise;
+        let done = 0;
+        let lastBar = 0;
+        verdictsRef.current.forEach((verdict, index) => {
+          if (!verdict) return;
+          done++;
+          lastBar = Math.max(lastBar, barAt(metre, notes[index].startBeat));
+        });
+        let inWindow = 0;
+        let correct = 0;
+        verdictsRef.current.forEach((verdict, index) => {
+          if (!verdict) return;
+          if (barAt(metre, notes[index].startBeat) <= lastBar - SCORE_WINDOW_BARS) return;
+          inWindow++;
+          if (verdict === 'correct') correct++;
+        });
+        setProgress({ done, accuracy: inWindow === 0 ? 0 : correct / inWindow });
         setRecent((current) => [describeNote(exercise, judgement), ...current].slice(0, RECENT_NOTES));
       },
       onFinish: (summary) => finishRef.current(summary),
@@ -312,7 +332,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     );
   }
 
-  const accuracy = progress.done === 0 ? 0 : Math.round((progress.correct / progress.done) * 100);
+  const accuracy = Math.round(progress.accuracy * 100);
 
   return (
     <div className="screen screen--play" ref={screenRef}>

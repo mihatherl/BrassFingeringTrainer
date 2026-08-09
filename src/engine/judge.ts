@@ -16,6 +16,7 @@
  * since that is how long the note it stands for actually sounds.
  */
 
+import { barAt, type Metre } from '../domain/metre';
 import type { NoteEvent } from '../exercise/types';
 import type { ValveInput } from './input';
 
@@ -123,6 +124,43 @@ export function judgeNote(
     heldMask,
     timingOffset: null,
   };
+}
+
+/**
+ * How many bars the score covers.
+ *
+ * The score reports the last so many bars rather than everything played,
+ * which is what will make an endless session meaningful and already makes a
+ * long one kinder: a bad patch stops haunting the rest of the run. Sixteen
+ * to start with, settled by playing. Weak-note stats deliberately ignore
+ * this and record whole sessions — drilling improves with every attempt it
+ * remembers, and a window would work against the one thing that gets better
+ * with time.
+ */
+export const SCORE_WINDOW_BARS = 16;
+
+/**
+ * The judgements inside the scoring window: the last `bars` bars, ending at
+ * the latest bar anything was judged in.
+ *
+ * Anchored to what was *played* rather than to the exercise's end, so a run
+ * that stops early is scored on its own last stretch. A run shorter than the
+ * window comes back whole, which is why short exercises read exactly as they
+ * always did. `summarise` takes whatever this returns — the window is a
+ * filter in front of it, not a second scorer.
+ */
+export function windowJudgements(
+  notes: readonly NoteEvent[],
+  judgements: readonly NoteJudgement[],
+  metre: Metre,
+  bars = SCORE_WINDOW_BARS,
+): NoteJudgement[] {
+  let lastBar = -1;
+  for (const judgement of judgements) {
+    lastBar = Math.max(lastBar, barAt(metre, notes[judgement.noteIndex].startBeat));
+  }
+  const fromBar = lastBar - bars + 1;
+  return judgements.filter((j) => barAt(metre, notes[j.noteIndex].startBeat) >= fromBar);
 }
 
 export interface SessionSummary {

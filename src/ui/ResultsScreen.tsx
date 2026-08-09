@@ -2,7 +2,13 @@ import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
 import { keyAt } from '../domain/keys';
-import type { SessionSummary, Verdict } from '../engine/judge';
+import {
+  SCORE_WINDOW_BARS,
+  summarise,
+  windowJudgements,
+  type SessionSummary,
+  type Verdict,
+} from '../engine/judge';
 import { soundingHeads } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
 import { weakestNotes, type NoteStats } from '../storage/stats';
@@ -28,7 +34,22 @@ export function ResultsScreen({
   onSettings,
 }: ResultsScreenProps) {
   const instrument = instrumentById(exercise.instrumentId);
-  const accuracy = Math.round(summary.accuracy * 100);
+
+  /*
+   * The headline is the scoring window — the last so many bars of what was
+   * actually played. On a run no longer than the window the two are the same
+   * judgements and the same figure, which is why a short exercise reads
+   * exactly as it always did. The tally, the streak and the review stave
+   * stay whole-run: where a note went wrong is worth seeing however long ago
+   * it was, and weak-note drilling has already been fed the whole session.
+   */
+  const windowed = useMemo(() => {
+    const inWindow = windowJudgements(exercise.notes, summary.judgements, exercise.metre);
+    return inWindow.length === summary.judgements.length
+      ? null
+      : summarise(exercise.notes, inWindow);
+  }, [exercise, summary]);
+  const accuracy = Math.round((windowed ?? summary).accuracy * 100);
   // Memoised because its identity feeds the chart's draw callback, and a fresh
   // array every render would redraw the canvas every render.
   const weakest = useMemo(() => weakestNotes(stats, 5), [stats]);
@@ -65,7 +86,9 @@ export function ResultsScreen({
       <header className="masthead">
         <h1>{accuracy}%</h1>
         <p className="muted">
-          {summary.correct} of {summary.total} notes, longest run {summary.longestStreak}
+          {windowed
+            ? `Over the last ${SCORE_WINDOW_BARS} bars — ${Math.round(summary.accuracy * 100)}% across the whole run, longest streak ${summary.longestStreak}`
+            : `${summary.correct} of ${summary.total} notes, longest run ${summary.longestStreak}`}
         </p>
       </header>
 
