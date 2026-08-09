@@ -29,9 +29,13 @@ describe('themesFor', () => {
   });
 
   it('offers nothing where the corpus has nothing, rather than the wrong thing', () => {
-    // No theme is written in 3/4 at beginner. Silence is the honest answer, and
-    // the caller falls back to generated material.
-    expect(themesFor(stitchOptions({ difficulty: 'beginner', metre: metreFor(3, 4) }))).toEqual([]);
+    /*
+     * Five-four, because nothing is written in it and nothing will be while the
+     * app does not offer it. This used to name beginner in 3/4, which was a real
+     * gap at the time and has since been filled — a test that encodes a gap
+     * fails the day the gap closes, which is the wrong thing to be told.
+     */
+    expect(themesFor(stitchOptions({ difficulty: 'beginner', metre: metreFor(5, 4) }))).toEqual([]);
   });
 });
 

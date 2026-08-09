@@ -640,11 +640,306 @@ const FIGURED: readonly Theme[] = [
   },
 ];
 
+
+/*
+ * Two-four, which the app offers and the corpus had nothing in at all — so
+ * every difficulty in it fell back to a random walk.
+ *
+ * A bar of two crotchets is the march, which is most of what a brass band
+ * plays, and it reads differently from four-four rather than being half of it:
+ * the downbeat comes round twice as often, so a figure that pushes against the
+ * beat has half the room to resolve in. From Medium up that is the drill — the
+ * middle note of a bar straddling beat two, which is the commonest syncopation
+ * in band music and the one most often read as a plain crotchet.
+ */
+const TWO_FOUR: readonly Theme[] = [
+  {
+    id: 'quickstep',
+    name: 'Quickstep',
+    difficulty: 'beginner',
+    metres: [[2, 4]],
+    bars: 8,
+    /* Steps and thirds on the beat, so the metre is the only new thing. */
+    events: [
+      n(1, 1), n(3, 1),
+      n(2, 1), n(1, 1),
+      n(2, 1), n(3, 1),
+      n(4, 2),
+      n(3, 1), n(5, 1),
+      n(4, 1), n(3, 1),
+      n(2, 1), n(3, 1),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'parade-step',
+    name: 'Parade step',
+    difficulty: 'beginner',
+    metres: [[2, 4]],
+    bars: 8,
+    /* Falling thirds down, stepping back up — the shape of a march trio. */
+    events: [
+      n(5, 1), n(3, 1),
+      n(4, 1), n(2, 1),
+      n(3, 1), n(1, 1),
+      n(2, 2),
+      n(3, 1), n(4, 1),
+      n(5, 1), n(3, 1),
+      n(2, 1), n(3, 1),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'two-four-run',
+    name: 'Two-four run',
+    difficulty: 'easy',
+    metres: [[2, 4]],
+    bars: 8,
+    /* Quavers in pairs, and one bar that stops so the metre can be counted. */
+    events: [
+      n(1, 0.5), n(2, 0.5), n(3, 1),
+      n(4, 0.5), n(3, 0.5), n(2, 1),
+      n(3, 0.5), n(4, 0.5), n(5, 1),
+      n(4, 1), r(1),
+      n(3, 0.5), n(4, 0.5), n(5, 1),
+      n(6, 0.5), n(5, 0.5), n(4, 1),
+      n(3, 0.5), n(2, 0.5), n(3, 1),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'held-over',
+    name: 'Held over',
+    difficulty: 'easy',
+    metres: [[2, 4]],
+    bars: 8,
+    /* A whole bar held across the bar line, which in two-four is a long wait. */
+    events: [
+      n(3, 1), n(2, 1),
+      n(1, 0.5), n(2, 0.5), n(3, 1),
+      n(4, 0.5), n(5, 0.5), n(4, 1),
+      n(3, 2, { tied: true }),
+      n(3, 1), n(4, 1),
+      n(5, 0.5), n(4, 0.5), n(3, 1),
+      n(2, 0.5), n(1, 0.5), n(2, 1),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'off-the-beat',
+    name: 'Off the beat',
+    difficulty: 'medium',
+    metres: [[2, 4]],
+    bars: 8,
+    /*
+     * The syncopation this metre is for: quaver, crotchet, quaver, so the
+     * middle note starts off the beat and holds across beat two. Every bar but
+     * the cadence does it, which is the only way to stop a reader treating the
+     * first one as a misprint.
+     */
+    events: [
+      n(1, 0.5), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(5, 1), n(4, 0.5),
+      n(3, 0.5), n(5, 1), n(4, 0.5),
+      n(3, 1.5), n(2, 0.5),
+      n(5, 0.5), n(4, 1), n(3, 0.5),
+      n(2, 0.5), n(4, 1), n(3, 0.5),
+      n(1, 0.5), n(3, 1), n(2, 0.5),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'march-trio',
+    name: 'March trio',
+    difficulty: 'medium',
+    metres: [[2, 4]],
+    bars: 8,
+    /* Syncopation again, and a whole bar held over into the answering phrase. */
+    events: [
+      n(5, 0.5), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(3, 1), n(5, 0.5),
+      n(4, 0.5), n(6, 1), n(5, 0.5),
+      n(4, 2, { tied: true }),
+      n(4, 0.5), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(5, 1), n(4, 0.5),
+      n(3, 0.5), n(2, 1), n(3, 0.5),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'street-corner',
+    name: 'Street corner',
+    difficulty: 'hard',
+    metres: [[2, 4]],
+    bars: 8,
+    /* Semiquavers into the syncopation, and an octave where the bar turns. */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.5), n(5, 1),
+      n(4, 0.5), n(3, 0.25), n(2, 0.25), n(1, 1),
+      n(1, 0.5), n(1, 0.5, { octave: 1 }), n(7, 1),
+      n(6, 0.25), n(5, 0.25), n(4, 0.5), n(3, 1),
+      n(3, 0.5), n(4, 0.5, { alter: 1 }), n(5, 1),
+      n(5, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 1),
+      n(2, 0.5), n(4, 1), n(3, 0.5),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'double-quick',
+    name: 'Double quick',
+    difficulty: 'expert',
+    metres: [[2, 4]],
+    bars: 8,
+    /* Two-four at speed: a tenth in bar two, and nowhere to breathe. */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.5), n(3, 0.5),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(2, 0.5, { octave: 1 }),
+      n(1, 0.5, { octave: 1 }),
+      n(7, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 0.5), n(2, 0.5),
+      n(3, 0.5), n(4, 0.5, { alter: 1 }), n(5, 1),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }),
+      n(7, 0.5), n(5, 0.5),
+      n(6, 0.5, { alter: -1 }), n(5, 0.5), n(4, 0.5), n(3, 0.5),
+      n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.25), n(3, 0.5), n(2, 0.5),
+      n(1, 2),
+    ],
+  },
+];
+
+/*
+ * Syncopation in four-four, which the corpus was short of from Medium up.
+ *
+ * A note that starts off the beat and holds through the next one is read wrong
+ * far more often than a wide leap is, and no amount of stepwise practice
+ * prepares anyone for it.
+ */
+const SYNCOPATED: readonly Theme[] = [
+  {
+    id: 'against-the-beat',
+    name: 'Against the beat',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 8,
+    events: [
+      n(1, 0.5), n(5, 1), n(4, 1), n(3, 1), n(2, 0.5),
+      n(3, 0.5), n(5, 1), n(4, 1), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(3, 1), n(5, 1), n(4, 1), n(3, 0.5),
+      n(2, 1.5), n(1, 0.5), n(2, 2),
+      n(3, 0.5), n(5, 1), n(4, 1), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(2, 1), n(3, 1), n(4, 1), n(5, 0.5),
+      n(4, 0.5), n(3, 1), n(2, 1), n(3, 1), n(2, 0.5),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'pushed-along',
+    name: 'Pushed along',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 8,
+    events: [
+      n(5, 0.5), n(4, 1), n(3, 1), n(2, 1), n(1, 0.5),
+      n(1, 0.25), n(2, 0.25), n(3, 0.5), n(5, 1), n(4, 1), n(3, 1),
+      n(2, 0.5), n(4, 1), n(3, 1), n(5, 1), n(4, 0.5),
+      n(3, 0.5), n(1, 1, { octave: 1 }), n(7, 1), n(6, 1), n(5, 0.5),
+      n(4, 0.25), n(3, 0.25), n(2, 0.5), n(3, 1), n(4, 1), n(5, 1),
+      n(6, 0.5), n(5, 1), n(4, 1), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(3, 1), n(2, 1), n(3, 1), n(2, 0.5),
+      n(1, 4),
+    ],
+  },
+];
+
+
+/*
+ * Three-four, which had one theme in it and four difficulties falling back.
+ *
+ * A bar of three has no half to divide at, so a syncopation in it leans
+ * differently from one in two or four: the off-beat note has two beats to run
+ * through rather than one, and there is no midpoint for the ear to check
+ * itself against.
+ */
+const THREE_FOUR: readonly Theme[] = [
+  {
+    id: 'slow-waltz',
+    name: 'Slow waltz',
+    difficulty: 'beginner',
+    metres: [[3, 4]],
+    bars: 8,
+    events: [
+      n(1, 1), n(2, 1), n(3, 1),
+      n(2, 1), n(3, 1), n(4, 1),
+      n(3, 1), n(4, 1), n(5, 1),
+      n(4, 2), n(3, 1),
+      n(5, 1), n(4, 1), n(3, 1),
+      n(2, 1), n(3, 1), n(4, 1),
+      n(3, 1), n(2, 1), n(1, 1),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'three-against',
+    name: 'Three against',
+    difficulty: 'medium',
+    metres: [[3, 4]],
+    bars: 8,
+    /* The off-beat note runs through two beats, which is the whole difference. */
+    events: [
+      n(1, 0.5), n(5, 1), n(4, 1), n(3, 0.5),
+      n(2, 0.5), n(4, 1), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(3, 1), n(5, 1), n(4, 0.5),
+      n(3, 1.5), n(2, 0.5), n(1, 1),
+      n(5, 0.5), n(4, 1), n(3, 1), n(2, 0.5),
+      n(1, 0.5), n(3, 1), n(2, 1), n(3, 0.5),
+      n(4, 0.5), n(3, 1), n(2, 1), n(1, 0.5),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'waltz-run',
+    name: 'Waltz run',
+    difficulty: 'hard',
+    metres: [[3, 4]],
+    bars: 8,
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.5), n(5, 1), n(4, 1),
+      n(3, 0.25), n(4, 0.25), n(5, 0.5), n(4, 1), n(3, 1),
+      n(1, 0.5), n(1, 0.5, { octave: 1 }), n(7, 1), n(6, 1),
+      n(5, 0.5), n(4, 0.5), n(3, 1), n(2, 1),
+      n(3, 0.5), n(4, 0.5, { alter: 1 }), n(5, 1), n(3, 1),
+      n(2, 0.25), n(3, 0.25), n(4, 0.5), n(5, 1), n(4, 1),
+      n(3, 0.5), n(2, 1), n(3, 1), n(2, 0.5),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'perpetual-three',
+    name: 'Perpetual three',
+    difficulty: 'expert',
+    metres: [[3, 4]],
+    bars: 8,
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.5), n(3, 0.5), n(2, 1),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(2, 0.5, { octave: 1 }),
+      n(1, 0.5, { octave: 1 }), n(7, 1),
+      n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.5), n(3, 0.5), n(4, 1),
+      n(5, 0.5), n(4, 0.5, { alter: 1 }), n(5, 0.5), n(6, 0.5), n(5, 1),
+      n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25), n(3, 0.5), n(4, 0.5), n(5, 1),
+      n(6, 0.5, { alter: -1 }), n(5, 0.5), n(4, 0.5), n(3, 0.5), n(2, 1),
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.5), n(3, 0.5), n(2, 1),
+      n(1, 3),
+    ],
+  },
+];
+
 export const THEMES: readonly Theme[] = [
   ...FIRST_BATCH,
   ...HARDER,
   ...VARIATIONS,
   ...FIGURED,
+  ...TWO_FOUR,
+  ...SYNCOPATED,
+  ...THREE_FOUR,
 ];
 
 export function themeById(id: string): Theme | undefined {

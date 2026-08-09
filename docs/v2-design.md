@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.11.0 is deployed** to GitHub Pages, 472 tests. Since v1:
+**v1.12.0 is deployed** to GitHub Pages, 472 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Twenty-one, hand-written: eighteen phrases and three treatments of one tune. |
+| `src/exercise/themes.ts` | The corpus itself. Thirty-five, hand-written, covering every difficulty in every metre the app offers. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -646,6 +646,31 @@ lands on is not always the chord the bar is in. On the melody's fifth it gives
 the mediant where the tune wants the tonic. Arpeggiating the bar's actual
 harmony is less tidy as a rule and is what the music is doing anyway. Both are
 kept so the difference can be heard rather than argued.
+
+**Every difficulty now has themes in every metre the app offers** — 2/4, 3/4 and
+4/4 — so the fallback below no longer fires for anything a player can actually
+choose. 2/4 had nothing at all before this and is the metre most brass band
+music is in.
+
+**Syncopation is the drill from Medium up**, and in 2/4 especially: a quaver,
+then a crotchet straddling beat two, then a quaver. It is read wrong far more
+often than a wide leap is, and no amount of stepwise practice prepares anyone
+for it. Worth writing several bars of it in a row — one bar of syncopation
+reads as a misprint.
+
+**Triplets cannot be written yet, and that is not a corpus problem.** A triplet
+crotchet is two thirds of a beat, and `durationFromBeats` refuses it because
+there is no such note value: the app knows whole, half, quarter, eighth and
+sixteenth. The timing would work today — everything is in floating-point beats —
+but nothing would draw. This is the notational half of tuplets that step one of
+*The direction* has always listed: bracket, numeral, beaming. Until that is
+built, a theme asking for a triplet fails validation, which is the right answer.
+
+**There is one theme the app cannot select.** `six-eight-lilt` is in 6/8, and
+`TIME_SIGNATURES` offers 4/4, 3/4 and 2/4 only — compound time is a future step,
+noted under *How the patterns are built*, and the conductor already has the
+patterns for it. The theme is written ahead of the app rather than orphaned, but
+it is worth knowing it sits there unreachable.
 
 **Every difficulty now has themes in 4/4** — three or four apiece, eighteen in
 the corpus — so the fallback below no longer fires for the metre almost
