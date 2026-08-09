@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Fermata spike — Brass Fingering Trainer</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf7; --surface: #fff; --text: #16150f;
+        --muted: #6b6960; --border: #ddd9d0; --accent: #2f6fd0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16171b; --surface: #1e2026; --text: #f2f1ec;
+          --muted: #9a9ba3; --border: #333640; --accent: #63a1ff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem
+          max(0.75rem, env(safe-area-inset-bottom));
+        background: var(--bg); color: var(--text);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      h1 { font-size: 1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--muted); }
+      .panel {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; padding: 0.75rem; margin-bottom: 0.75rem;
+      }
+      .controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+      button, select {
+        font: inherit; padding: 0.5rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      }
+      button.primary {
+        background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+      }
+      label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+      input[type='range'] { flex: 1 1 8rem; min-width: 6rem; }
+      .stage { position: relative; touch-action: manipulation; }
+      canvas { display: block; width: 100%; height: 52vh; min-height: 240px; }
+      .beat-number {
+        position: absolute; right: 0.5rem; top: 0.25rem;
+        font-size: 2.5rem; font-weight: 600; color: var(--muted); opacity: 0.5;
+      }
+      .hint { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+      strong { font-weight: 600; }
+      .headline { font-size: 1.4rem; font-weight: 600; }
+      table { border-collapse: collapse; font-size: 0.85rem; }
+      td, th { padding: 0.15rem 0.7rem 0.15rem 0; text-align: right; color: var(--muted); }
+      th { font-weight: 600; }
+      #level { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+      #level-fill { height: 100%; width: 0; background: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <h1>Fermata spike — can you come in together off the drawn release?</h1>
+
+    <div class="panel">
+      <div class="controls">
+        <button id="start" class="primary" type="button">Start</button>
+        <select id="beats" aria-label="Time signature">
+          <option value="4" selected>4/4</option>
+          <option value="3">3/4</option>
+          <option value="2">2/4</option>
+        </select>
+        <select id="bars" aria-label="Bars between holds">
+          <option value="1">1 bar</option>
+          <option value="2" selected>2 bars</option>
+          <option value="4">4 bars</option>
+        </select>
+        <label><input id="newTempo" type="checkbox" checked /> New tempo after the hold</label>
+        <label><input id="click" type="checkbox" checked /> Metronome</label>
+        <label><input id="sound" type="checkbox" checked /> Sound the held note</label>
+        <label><input id="reveal" type="checkbox" /> Beat number</label>
+        <label><input id="mic" type="checkbox" /> Microphone</label>
+      </div>
+      <div class="controls" style="margin-top: 0.6rem">
+        <input id="tempo" type="range" min="50" max="160" step="1" value="90" aria-label="Tempo" />
+        <span><strong id="tempo-value">90 bpm</strong></span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <input id="holdMin" type="range" min="10" max="40" step="1" value="15" aria-label="Shortest hold" />
+        <input id="holdMax" type="range" min="15" max="50" step="1" value="30" aria-label="Longest hold" />
+        <span id="hold-range">holds 1.5–3.0s</span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <input id="lift" type="range" min="4" max="30" step="1" value="12" aria-label="Lift height" />
+        <span id="lift-value">lift 12%</span>
+        <input id="rebound" type="range" min="20" max="90" step="5" value="55" aria-label="Style" />
+        <span id="style-value">lively</span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <input id="build" type="range" min="5" max="30" step="1" value="16" aria-label="Orb build curve" />
+        <span id="build-value">build curve 1.6</span>
+        <input id="throb" type="range" min="4" max="20" step="1" value="9" aria-label="Throb rate" />
+        <span id="throb-value">throb 0.9 Hz</span>
+      </div>
+      <p class="hint" id="status">Needs a tap to start, for the audio clock.</p>
+      <div id="level" hidden><div id="level-fill"></div></div>
+    </div>
+
+    <div class="panel stage" id="stage">
+      <canvas id="canvas"></canvas>
+      <div class="beat-number" id="beat-number"></div>
+    </div>
+
+    <div class="panel">
+      <div class="controls">
+        <span class="headline" id="spread">no re-entries yet</span>
+        <button id="reset" type="button">Reset trials</button>
+      </div>
+      <table id="trials" style="margin-top: 0.5rem"></table>
+    </div>
+
+    <div class="panel">
+      <p class="hint" style="margin-top: 0">
+        <strong>The cycle.</strong> A short phrase, and a fermata on the last beat of its last
+        bar. The hand beats normally, gives the held note its ictus, and stops beating — the
+        sustain is a meld, drifting toward where the release will fall from, with the orb building
+        violet through it. Then the release: a tiny lift — the breath — and the drop to the
+        contact line. Your job is to come in on the drop. Play the downbeat (or tap the stage) and
+        the page measures how far off the ictus you landed.
+      </p>
+      <p class="hint">
+        <strong>The prep is in the new tempo, by rule, and it is not a slider.</strong> One pulse
+        of the resumed tempo; two when the tempo changes at the hold — the extra beat that
+        establishes the new speed, per Robertson. With "new tempo" ticked, each hold releases into
+        a different speed drawn from the same palette the app uses, so the drop also tells you
+        how fast.
+      </p>
+      <p class="hint">
+        <strong>Hold lengths are random inside the range</strong>, so counting cannot substitute
+        for watching. The metronome falls silent through the hold — no beats pass, so there is
+        nothing to click — and its next click lands exactly on the re-entry, which is how you
+        check the drop with your ears after trusting it with your eyes.
+      </p>
+      <p class="hint">
+        <strong>The sound stops at the lift.</strong> The held note sustains through the meld and
+        comes off as the breath begins — that silence is itself a cue, and it is the rule the app
+        will follow. With the microphone on, use headphones or turn the metronome and held note
+        off, or the speaker will trigger the onset detector before your instrument does.
+      </p>
+      <p class="hint">
+        <strong>The figure that decides.</strong> The headline is the spread of your re-entries in
+        milliseconds. If it lands tight — comparable to your spread against a plain click — the
+        gesture works and the app builds it. If it will not come down whatever the sliders say,
+        fermatas stay drawn and unscheduled until the gesture is right.
+      </p>
+    </div>
+
+    <script type="module" src="./fermata.js"></script>
+  </body>
+</html>
