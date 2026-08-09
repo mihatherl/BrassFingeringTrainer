@@ -38,4 +38,8 @@ input/
 shots/
 
 # Review page from `npm run themes`, regenerated on demand.
-themes.html
+#
+# Anchored to the root on purpose. Unanchored, this matches at any depth and
+# silently swallowed `public/spike/themes.html`, which is published and must be
+# committed — `git add -A` skipped it without a word and CI found it instead.
+/themes.html
