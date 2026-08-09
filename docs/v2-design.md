@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.9.0 is deployed** to GitHub Pages, 472 tests. Since v1:
+**v1.10.0 is deployed** to GitHub Pages, 472 tests. Since v1:
 
 | | |
 |---|---|
@@ -251,12 +251,22 @@ one liberty is letting a note overrun, with the remainder written again on the
 downbeat. Both halves have to be real note values, so a tie is never a way of
 writing an arbitrary length.
 
-**They arrive at Medium**, alongside dotted rhythms, and never in a scale or
-arpeggio — that drill is the shape and the fingering, and a tie there is a
-reading problem laid on top of a different exercise. `tieChance` is conditional:
-how often a bar end that *could* be tied over is, rather than a rate diluted by
-every position that could never have produced one. Measured at roughly one tie
-every three bars.
+**They arrive at Easy**, and never in a scale or arpeggio — that drill is the
+shape and the fingering, and a tie there is a reading problem laid on top of a
+different exercise.
+
+They arrived at Medium originally, and were moved down by ruling rather than by
+argument: a note held over a bar line is ordinary notation that a player meets
+in the second thing they ever read, not a technique to be earned. `tieChance` is
+conditional — how often a bar end that *could* be tied over is, rather than a
+rate diluted by every position that could never have produced one. Measured
+across two hundred sixteen-bar exercises: **one tie every 4.6 bars at Easy,
+every 3.0 at Medium, every 2.6 at Hard**, which is the gradient wanted.
+
+The generator needed nothing for the move. `tieChance` was always a number
+rather than a level, and the tie test already asked the difficulty what its
+chance was instead of naming the levels that had one — so the machinery
+followed the ruling without being touched.
 
 **The far end of a tie is not judged, and that is the whole rule.** It is not
 sounded either — the synth plays the chain's full length as one note — and it
@@ -661,8 +671,10 @@ beginner". **The suggestion is recorded either way.** The rules describe
 difficulty as a random walk meets it, and a player is the better authority — an
 objection is information rather than a veto, and the answer is sometimes to
 change the tune rather than the tag. `dotted-conversation` is the case that
-proved it: it reads as Easy and is pinned to Medium by one tie, because Easy is
-defined as having none.
+proved it: a player said it read as Easy, the page answered that one tie pinned
+it to Medium, and the answer turned out to be that ties belong at Easy. Two
+themes moved down as a result — that tie was the only thing either of them had
+that Easy did not.
 
 Playback is a few lines of WebAudio rather than the app's sampled instruments,
 which are two megabytes and belong to the app. It sounds the **written** pitch:

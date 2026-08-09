@@ -99,7 +99,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
   {
     id: 'easy',
     name: 'Easy',
-    blurb: 'An octave and a half, quavers, the occasional accidental.',
+    blurb: 'An octave and a half, quavers, the occasional accidental and tie.',
     patterns: {
       spanSemitones: 12,
       label: '1 octave',
@@ -111,7 +111,14 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     maxInterval: 5,
     accidentalChance: 0.05,
     restChance: 0.05,
-    tieChance: 0,
+    /*
+     * Ties arrive here rather than at Medium, by convention rather than by
+     * argument: a note held over a bar line is ordinary notation that a player
+     * meets in the second thing they ever read, not a technique. Sparingly —
+     * this is the chance that a bar end which *could* be tied over is, so a
+     * reader meets one every few lines rather than every few bars.
+     */
+    tieChance: 0.15,
     rhythms: [
       { duration: q('half'), weight: 1 },
       { duration: q('quarter'), weight: 5 },

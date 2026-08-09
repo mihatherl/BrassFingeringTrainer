@@ -82,13 +82,16 @@ const FIRST_BATCH: readonly Theme[] = [
   {
     id: 'dotted-conversation',
     name: 'Dotted conversation',
-    difficulty: 'medium',
+    difficulty: 'easy',
     metres: [[4, 4]],
     bars: 8,
     /*
      * Dotted rhythms, and a tie over the bar line into bar six — which is the
      * one thing in this theme that cannot be read note by note. A tie is where
      * a sight-reader either keeps their place or loses it.
+     *
+     * At Easy since ties moved there: nothing else in it reaches past that
+     * level, which a player said before the rules did.
      */
     events: [
       n(1, 1.5), n(2, 0.5), n(3, 1), n(4, 1),
@@ -174,7 +177,7 @@ const FIRST_BATCH: readonly Theme[] = [
   {
     id: 'falling-thirds',
     name: 'Falling thirds',
-    difficulty: 'medium',
+    difficulty: 'easy',
     metres: [[4, 4]],
     bars: 12,
     /*
