@@ -194,7 +194,8 @@ release.
 7. **The microphone as input**, instead of the buttons. Proven in a spike and
    parked; see *The microphone, parked*. It also answers the one hard question
    in 5 — it can hear that you have stopped.
-8. **MusicXML import from a local file.**
+8. **My Music** — a mode of its own for the player's own parts, imported from a
+   local MusicXML file. Gated. See *My Music, and why it is not a material*.
 9. **A server**, only if step 8 shows people want a library rather than their
    own files.
 
@@ -1306,6 +1307,56 @@ combinations more than any absolute number. A cold instrument is a flat one, so
 it has to insist on warming up. And valve combinations are systematically sharp
 by construction — finding exactly that pattern is a sign the measurement is
 real rather than noise.
+
+## My Music, and why it is not a material
+
+Agreed in discussion, deferred deliberately, and written down because the shape
+of it is settled even though none of it is built.
+
+**A player's own band parts get their own mode, not another card beside Themes.**
+The reason is countable: of the twenty-one things the settings screen controls,
+**nine are fixed the moment a piece is chosen** — the key, the key set, the
+difficulty, the material, the theme count, the bars, the cycles, and both halves
+of the time signature. That is the entire Exercise panel. A mode that accepted
+those choices and then ignored them would be the gated settings fault again,
+which this document already calls a blocker rather than a feature: silently
+overriding a choice is worse than refusing it.
+
+The twelve that survive are the ones about *how* you play rather than *what*:
+instrument and clef, tempo, count-in, metronome, conductor, reading mode,
+playback, hints, tolerance, scroll speed, weak-note drilling.
+
+**It is gated**, which gives the gated settings screen a second customer. That
+work was already the one thing standing between here and being sellable; it is
+now also the thing standing between here and this.
+
+### The seam already exists, and it is `Exercise`
+
+A piece is **not** a kind of theme. Themes go through the stitcher to become an
+`Exercise`; a piece goes through a parser to become one; after that they play,
+judge, engrave and score identically, and nothing downstream needs to know which
+it was. That is the whole architecture of it — a second producer, not a new
+category.
+
+Forcing both into one type would leave it half empty in both directions. A theme
+is degrees, a difficulty, legal metres, and **no identity** — nobody asks for
+theme fourteen, and on its own it is not a piece of music. A part has a title, a
+composer, an absolute key, real pitches, a hundred and sixty-five bars, and it
+is the only one of the two anybody asks for by name.
+
+There is a transposition asymmetry too, and it is not retrofittable. A theme is
+stored in degrees *precisely* so it plays in any key the player picks. A band
+part is in a key, and moving it is a different feature with different rules.
+
+### What a category would be good for, and it is not this
+
+The grouping actually missing is smaller and nearer: **the five Twinkle
+variations belong together and nothing says so**. A `set` on a theme would let
+the app offer them in order, beginner through expert, which is a real practice
+exercise and reads as one piece of music rather than five strangers. Character
+tags — scalic, chromatic, lyrical, leaping — would be the other useful axis,
+letting a player drill a shape rather than a level. Both are cheap now and
+awkward at eighty themes.
 
 ## What imported music will actually contain
 
