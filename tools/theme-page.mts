@@ -86,6 +86,20 @@ export function themePageHtml(options: ThemePageOptions): string {
           ])
       : [];
 
+    /*
+     * What every other difficulty would say about this theme, worked out here
+     * so the page can answer instantly when a level is suggested. A suggestion
+     * is still recorded when the rules object — the ear outranks them, and the
+     * answer may be to change the tune rather than the tag — but saying *why*
+     * on the spot turns a guess into a decision.
+     */
+    const wouldSay: Record<string, string[]> = {};
+    for (const level of DIFFICULTIES) {
+      wouldSay[level.id] = validateTheme({ ...theme, difficulty: level.id }).map((p) =>
+        p.replace(`${theme.id}: `, ''),
+      );
+    }
+
     return {
       theme,
       exercise,
@@ -99,6 +113,7 @@ export function themePageHtml(options: ThemePageOptions): string {
         metre: `${beatsPerBar}/${beatUnit}`,
         bars: theme.bars,
         beatsPerBar: metreFor(beatsPerBar, beatUnit).barBeats,
+        wouldSay,
         notes,
       },
     };
@@ -130,6 +145,11 @@ export function themePageHtml(options: ThemePageOptions): string {
       `<td class="features">${features.map((f) => `<span>${f}</span>`).join('')}</td>` +
       `<td class="verdict"><button type="button" data-verdict="keep">keep</button>` +
       `<button type="button" data-verdict="bin">bin</button></td>` +
+      `<td class="move"><select aria-label="move to"><option value="">level ok</option>` +
+      DIFFICULTIES.filter((d) => d.id !== theme.difficulty)
+        .map((d) => `<option value="${d.id}">&rarr; ${escape(d.name)}</option>`)
+        .join('') +
+      `</select><span class="objection"></span></td>` +
       `<td class="note">${problems.length ? '<span class="problem">invalid</span>' : exercise ? '' : '<span class="problem">will not fit</span>'}</td>` +
       `</tr>`,
   );
@@ -187,6 +207,12 @@ export function themePageHtml(options: ThemePageOptions): string {
                         color: var(--text); border-radius: 4px; margin-right: .25rem; }
       tr.keep .verdict button[data-verdict="keep"] { border-color: var(--good); color: var(--good); }
       tr.bin { opacity: .55; }
+      tr.moved .move select { border-color: var(--accent); color: var(--accent); }
+      .move select { font: inherit; font-size: .8rem; background: var(--surface);
+                     color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+                     padding: .1rem .25rem; }
+      .objection { display: block; margin-top: .15rem; font-size: .72rem; color: var(--bad);
+                   max-width: 15rem; }
       tr.bin .verdict button[data-verdict="bin"] { border-color: var(--bad); color: var(--bad); }
       .problem { color: var(--bad); }
       /*
@@ -241,7 +267,7 @@ export function themePageHtml(options: ThemePageOptions): string {
     <h2>Index</h2>
     <table>
       <thead><tr><th>Theme</th><th>Level</th><th>Metre</th><th>Bars</th><th>Features</th>
-        <th>Verdict</th><th></th></tr></thead>
+        <th>Verdict</th><th>Move to</th><th></th></tr></thead>
       <tbody id="index">${indexRows.join('')}</tbody>
     </table>
 
@@ -323,8 +349,14 @@ export function themePageHtml(options: ThemePageOptions): string {
 
       var VERDICT_KEY = 'theme-verdicts';
       function verdicts() {
-        try { return JSON.parse(localStorage.getItem(VERDICT_KEY) || '{}'); }
+        var raw;
+        try { raw = JSON.parse(localStorage.getItem(VERDICT_KEY) || '{}'); }
         catch (e) { return {}; }
+        // Earlier versions stored a bare verdict string against each id.
+        Object.keys(raw).forEach(function (id) {
+          if (typeof raw[id] === 'string') raw[id] = { verdict: raw[id] };
+        });
+        return raw;
       }
       function writeVerdicts(map) {
         localStorage.setItem(VERDICT_KEY, JSON.stringify(map));
@@ -332,16 +364,43 @@ export function themePageHtml(options: ThemePageOptions): string {
       }
       function paint(map) {
         Array.prototype.forEach.call(document.querySelectorAll('#index tr'), function (row) {
-          row.classList.remove('keep', 'bin');
-          var v = map[row.dataset.id];
-          if (v) row.classList.add(v);
+          var mark = map[row.dataset.id] || {};
+          row.classList.remove('keep', 'bin', 'moved');
+          if (mark.verdict) row.classList.add(mark.verdict);
+          if (mark.level) row.classList.add('moved');
+
+          var select = row.querySelector('.move select');
+          var objection = row.querySelector('.objection');
+          if (!select) return;
+          select.value = mark.level || '';
+
+          /*
+           * Why a move is refused, said at the moment it is suggested. The
+           * suggestion is kept either way: the rules describe difficulty as a
+           * random walk meets it, and a player's ear is the better authority —
+           * so an objection is information, not a veto.
+           */
+          var says = mark.level ? (byId[row.dataset.id].wouldSay[mark.level] || []) : [];
+          objection.textContent = says.length ? says[0] : '';
         });
-        var binned = [], kept = [];
+
+        var binned = [], kept = [], moved = [];
         Object.keys(map).forEach(function (id) {
-          (map[id] === 'bin' ? binned : kept).push(id);
+          var mark = map[id] || {};
+          if (mark.verdict === 'bin') binned.push(id);
+          else if (mark.verdict === 'keep') kept.push(id);
+          if (mark.level) {
+            var says = byId[id].wouldSay[mark.level] || [];
+            moved.push(
+              id + ' ' + byId[id].difficulty + ' -> ' + mark.level +
+              (says.length ? ' (' + says[0] + ')' : '')
+            );
+          }
         });
+
         var lines = [];
         if (binned.length) lines.push('bin: ' + binned.join(', '));
+        if (moved.length) lines.push('move:\\n  ' + moved.join('\\n  '));
         if (kept.length) lines.push('keep: ' + kept.join(', '));
         document.getElementById('verdicts').value =
           lines.length ? lines.join('\\n') : 'Nothing marked yet.';
@@ -354,8 +413,23 @@ export function themePageHtml(options: ThemePageOptions): string {
         var verdict = event.target.dataset.verdict;
         if (!verdict) return;
         var map = verdicts();
-        if (map[row.dataset.id] === verdict) delete map[row.dataset.id];
-        else map[row.dataset.id] = verdict;
+        var mark = map[row.dataset.id] || {};
+        if (mark.verdict === verdict) delete mark.verdict;
+        else mark.verdict = verdict;
+        if (mark.verdict || mark.level) map[row.dataset.id] = mark;
+        else delete map[row.dataset.id];
+        writeVerdicts(map);
+      });
+
+      document.getElementById('index').addEventListener('change', function (event) {
+        var row = event.target.closest('tr');
+        if (!row || event.target.tagName !== 'SELECT') return;
+        var map = verdicts();
+        var mark = map[row.dataset.id] || {};
+        if (event.target.value) mark.level = event.target.value;
+        else delete mark.level;
+        if (mark.verdict || mark.level) map[row.dataset.id] = mark;
+        else delete map[row.dataset.id];
         writeVerdicts(map);
       });
 

@@ -650,10 +650,19 @@ click to see one engraved and *hear* it. From a phone, with nothing to run.
 Three things it is for. The summary says where the gaps are, since a dash is a
 difficulty and metre the app silently falls back to a random walk in. The index
 says what each theme contains — rests, ties, accidentals, semiquavers, a key
-change — so a reader can go to what they want to judge. And each theme can be
-marked *keep* or *bin*, remembered in the browser and copied out as a list,
-because a corpus is edited by a player's ear and there has to be a way to say
-so.
+change — so a reader can go to what they want to judge. And each theme can be marked *keep* or *bin*, or moved to another
+difficulty, remembered in the browser and copied out as a list — because a
+corpus is edited by a player's ear and there has to be a way to say so.
+
+The move is answered on the spot. Every theme is validated against *every*
+difficulty when the page is built, so suggesting a level says at once whether
+the rules allow it and why not: "easy takes no ties", "is no harder than
+beginner". **The suggestion is recorded either way.** The rules describe
+difficulty as a random walk meets it, and a player is the better authority — an
+objection is information rather than a veto, and the answer is sometimes to
+change the tune rather than the tag. `dotted-conversation` is the case that
+proved it: it reads as Easy and is pinned to Medium by one tie, because Easy is
+defined as having none.
 
 Playback is a few lines of WebAudio rather than the app's sampled instruments,
 which are two megabytes and belong to the app. It sounds the **written** pitch:
