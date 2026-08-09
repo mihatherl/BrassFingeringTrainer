@@ -21,10 +21,16 @@ describe('the published theme page', () => {
     ).toBe(true);
   });
 
-  it('needs nothing off the network to draw itself', () => {
-    // It ships inside an app that makes no requests at all, and a review page
-    // that cannot draw without one is no use on a bandstand.
+  it('makes no request of any kind to draw or to sound itself', () => {
+    /*
+     * It ships inside an app that makes none, and a review page that cannot
+     * draw or play without the network is no use where music is played. The
+     * script is inline and the tones are synthesised, so what is forbidden is
+     * anything *fetched*: a remote URL, a stylesheet, a font, a src.
+     */
     const published = readFileSync(PUBLISHED_PATH, 'utf8');
-    expect(published).not.toMatch(/<script|https?:\/\/(?!www\.w3\.org)|<link|@import/);
+    expect(published, 'a remote URL').not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
+    expect(published, 'an external stylesheet or font').not.toMatch(/<link|@import|@font-face/);
+    expect(published, 'a fetched resource').not.toMatch(/\bsrc=|fetch\(|XMLHttpRequest/);
   });
 });

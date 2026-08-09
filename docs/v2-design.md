@@ -642,8 +642,23 @@ there rather than substituting quietly.
 **Themes are a paid kind.** `FREE_TIER.kinds` is random and scales, so nothing
 new leaks into the free tier by having been added.
 
-**The corpus is published**, at `spike/themes.html` on the deployed site — every
-theme engraved, from a phone, with nothing to run. It is generated rather than
+**The corpus is published**, at `spike/themes.html` on the deployed site — a
+summary of what exists by difficulty and metre, an index of every theme, and a
+click to see one engraved and *hear* it. From a phone, with nothing to run.
+
+Three things it is for. The summary says where the gaps are, since a dash is a
+difficulty and metre the app silently falls back to a random walk in. The index
+says what each theme contains — rests, ties, accidentals, semiquavers, a key
+change — so a reader can go to what they want to judge. And each theme can be
+marked *keep* or *bin*, remembered in the browser and copied out as a list,
+because a corpus is edited by a player's ear and there has to be a way to say
+so.
+
+Playback is a few lines of WebAudio rather than the app's sampled instruments,
+which are two megabytes and belong to the app. It sounds the **written** pitch:
+an Eb bass part sounds two octaves and a sixth below where it is written, which
+on a laptop is felt rather than heard, and the written pitch is what a reader
+hums off the page. It is generated rather than
 written, committed rather than built, and a test holds it to what the generator
 produces right now: a static page of a moving corpus is exactly the thing that
 goes stale, which `tools/` did for four releases while every test passed. If
