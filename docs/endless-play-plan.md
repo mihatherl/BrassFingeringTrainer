@@ -1,0 +1,53 @@
+# Windowed scoring and endless play — the plan
+
+**Status: agreed direction.** Chosen by the player on 2026-08-10 as the next
+work after fermatas were parked, from the order `v2-design.md` already
+lists. That document carries the design rulings (*Playing for as long as you
+like*, *The hard part: stopped, or resting?*, *What the score covers*); this
+one only sequences the build and records what got settled on the way. The
+rolling window — recommended there, with blocks as the alternative — is
+taken as ratified by the player choosing this pair with that recommendation
+attached.
+
+## What v2-design already rules, restated in one breath
+
+Do not let `Exercise` grow: pre-generate to a generous cap and make white
+against grey a matter of drawing and scoring alone. Grey is one more state
+in `colourFor`, which already exists. Score the *window*; record weak-note
+stats for the *whole* session — `summarise` takes the judgements it is
+given, so the window is a filter at the call site rather than surgery. The
+stopped-or-resting rule should be the simplest thing that works, written to
+be replaced by the microphone rather than refined.
+
+## The stages
+
+**Stage A — windowed scoring.** The score becomes the last `SCORE_WINDOW`
+bars (16 to start, settled by playing). The play screen's live percentage
+reads the window, so a bad patch stops haunting the rest of a session; the
+results screen keeps the whole-run review stave and streak, adds the
+windowed figure as the headline where the run is longer than the window,
+and keeps feeding whole-session stats to weak-note drilling exactly as
+today. A pure helper beside `summarise`, tests beside it, no engine change.
+
+**Stage B — the horizon.** Generation takes a `horizonBars` cap (the app
+asks for it; tools, figures and tests keep asking for exact lengths, so
+every committed snapshot stays byte-identical). Past the chosen length the
+music draws grey; playing into it turns it white a bar at a time. The
+session's end condition becomes: from the chosen end onwards, a whole bar
+containing notes with no input at all ends the run — wrong notes are input,
+so fluffing four bars and carrying on survives, per the doc's shape, with
+the thresholds settled against the instrument. The results screen reports
+how far the run reached alongside the windowed score.
+
+**Stage C — the seams.** Themes stitch to the cap rather than the count
+when the horizon is on; patterns fill whole cycles to the cap; the tempo
+plan keeps writing steps and rits across every join the longer material
+has, which it already does by construction. Copy, warnings, and whatever
+playing the thing turns up.
+
+## Decisions deliberately left to playing
+
+The window size; the cap per material kind (200 bars of free material is
+around eight minutes — themes and cycles round to their own units); and the
+stopped rule's exact patience. All three are numbers, and numbers here get
+settled the way every figure before them was.
