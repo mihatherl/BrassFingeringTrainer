@@ -486,7 +486,167 @@ const HARDER: readonly Theme[] = [
   },
 ];
 
-export const THEMES: readonly Theme[] = [...FIRST_BATCH, ...HARDER];
+/*
+ * Variations on one tune, so the corpus stops being a set of strangers.
+ *
+ * Everything written before this is a different eight bars each time, and a
+ * page of unrelated phrases is its own kind of samey — nothing ever comes back.
+ * A variation set is the oldest answer to that: the same twelve bars five
+ * times, plainer or more decorated, so a player meets a shape they know at a
+ * level that stretches them, and hears what a difficulty step actually means
+ * rather than being told.
+ *
+ * The tune is *Ah! vous dirai-je, maman* — a French melody from about 1761 that
+ * English speakers know as Twinkle Twinkle. Mozart wrote variations on it
+ * rather than writing it, and both he and it are long out of copyright, which
+ * is worth stating in a corpus that is meant to be sold.
+ *
+ * One thing the tune settles that no argument would have: its rising fifth is
+ * seven semitones, and Beginner leaps four while Easy leaps five. So the plain
+ * melody cannot be tagged below Medium, and the two lower variations do what a
+ * variation is for — the fifth is arpeggiated at Beginner and walked up at
+ * Easy, rather than the tune being declared simple and left unplayable.
+ */
+const VARIATIONS: readonly Theme[] = [
+  {
+    id: 'twinkle-plain',
+    name: 'Twinkle — plain',
+    difficulty: 'beginner',
+    metres: [[4, 4]],
+    bars: 12,
+    /* The fifth arpeggiated through the third, so nothing leaps past a third. */
+    events: [
+      n(1, 1), n(1, 1), n(3, 1), n(5, 1),
+      n(6, 1), n(6, 1), n(5, 2),
+      n(4, 1), n(4, 1), n(3, 1), n(3, 1),
+      n(2, 1), n(2, 1), n(1, 2),
+      n(3, 1), n(5, 1), n(4, 1), n(4, 1),
+      n(3, 1), n(3, 1), n(2, 2),
+      n(3, 1), n(5, 1), n(4, 1), n(4, 1),
+      n(3, 1), n(3, 1), n(2, 2),
+      n(1, 1), n(1, 1), n(3, 1), n(5, 1),
+      n(6, 1), n(6, 1), n(5, 2),
+      n(4, 1), n(4, 1), n(3, 1), n(3, 1),
+      n(2, 1), n(2, 1), n(1, 2),
+    ],
+  },
+  {
+    id: 'twinkle-filled',
+    name: 'Twinkle — filled in',
+    difficulty: 'easy',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * The fifth walked up in quavers instead of leapt, which is both what puts
+     * it inside Easy and what a first variation does anyway. Bar six starts off
+     * the beat, and bar ten stops to be counted.
+     */
+    events: [
+      n(1, 1), n(1, 0.5), n(2, 0.5), n(3, 0.5), n(4, 0.5), n(5, 1),
+      n(6, 1), n(6, 1), n(5, 2),
+      n(4, 0.5), n(4, 0.5), n(3, 1), n(3, 1), n(2, 1),
+      n(2, 1), n(1, 1), n(1, 2),
+      n(3, 0.5), n(4, 0.5), n(5, 1), n(5, 1), n(4, 1),
+      n(4, 0.5), n(3, 1), n(3, 1), n(2, 1), n(2, 0.5),
+      n(5, 0.5), n(4, 0.5), n(5, 1), n(5, 1), n(4, 1),
+      n(4, 1), n(3, 1), n(2, 2),
+      n(1, 1), n(1, 0.5), n(2, 0.5), n(3, 0.5), n(4, 0.5), n(5, 1),
+      n(6, 1), n(6, 1), n(5, 1), r(1),
+      n(4, 0.5), n(3, 0.5), n(4, 1), n(3, 1), n(2, 1),
+      n(2, 1), n(1, 1), n(1, 2),
+    ],
+  },
+  {
+    id: 'twinkle-dotted',
+    name: 'Twinkle — dotted',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * The tune as it actually goes, fifth and all, with the rhythm dotted and
+     * one note held over the bar line into bar five. Bar six pushes against the
+     * beat: a quaver, then crotchets, then a quaver — the same notes landing in
+     * the wrong places, which is where a reader either counts or guesses.
+     */
+    events: [
+      n(1, 1.5), n(1, 0.5), n(5, 1), n(5, 1),
+      n(6, 1), n(6, 0.5), n(5, 0.5), n(5, 2),
+      n(4, 1.5), n(4, 0.5), n(3, 1), n(3, 1),
+      n(2, 1), n(2, 1), n(1, 2, { tied: true }),
+      n(1, 1), n(5, 1), n(5, 1), n(4, 1),
+      n(4, 0.5), n(3, 1), n(3, 1), n(2, 1), n(2, 0.5),
+      n(5, 1), n(5, 0.5), n(4, 0.5), n(4, 1), n(3, 1),
+      n(3, 1.5), n(2, 0.5), n(2, 2),
+      n(1, 1.5), n(1, 0.5), n(5, 1), n(5, 1),
+      n(6, 1), n(6, 0.5), n(5, 0.5), n(5, 1), r(1),
+      n(4, 1), n(4, 0.5), n(3, 0.5), n(3, 1), n(2, 1),
+      n(2, 1), n(1, 3),
+    ],
+  },
+  {
+    id: 'twinkle-running',
+    name: 'Twinkle — running',
+    difficulty: 'hard',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * Mozart's first variation is the tune with semiquavers running around it,
+     * and this is that idea: the melody note is still on the beat and the
+     * decoration turns about it. The octave in bar five is the leap the tune
+     * already has, taken the long way.
+     */
+    events: [
+      n(1, 0.5), n(1, 0.5), n(5, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(5, 1), n(3, 1),
+      n(6, 0.25), n(7, 0.25), n(6, 0.25), n(5, 0.25), n(6, 1), n(5, 2),
+      n(4, 0.25), n(5, 0.25), n(4, 0.25), n(3, 0.25), n(4, 1), n(3, 1), n(3, 1),
+      n(2, 0.5), n(1, 0.5), n(2, 0.5), n(3, 0.5), n(2, 1), n(1, 1),
+      n(1, 0.5), n(1, 0.5, { octave: 1 }), n(5, 1), n(5, 1), n(4, 1),
+      n(4, 0.25), n(3, 0.25), n(2, 0.25), n(3, 0.25), n(4, 1), n(3, 1), n(2, 1),
+      n(5, 0.5), n(4, 0.5), n(5, 0.5), n(6, 0.5), n(5, 1), n(4, 1),
+      n(3, 0.5), n(4, 0.5, { alter: 1 }), n(5, 1), n(3, 1), n(2, 1),
+      n(1, 0.5), n(1, 0.5), n(5, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(5, 1), n(3, 1),
+      n(6, 0.25), n(7, 0.25), n(6, 0.25), n(5, 0.25), n(6, 1), n(5, 1), r(1),
+      n(4, 0.5), n(3, 0.5), n(4, 0.5), n(3, 0.5), n(2, 1), n(3, 1),
+      n(2, 1), n(1, 3),
+    ],
+  },
+  {
+    id: 'twinkle-flourish',
+    name: 'Twinkle — flourish',
+    difficulty: 'expert',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * The tune buried in decoration, which is where a variation set usually
+     * ends up: scale runs against it, a chromatic leaning note, a flattened
+     * sixth in bar ten, and in bar five a leap of a tenth where the original
+     * leaps a fifth. Held over the bar line into that leap, so the ear has to
+     * carry the note across and the eye has to find where it lands.
+     */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25),
+      n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25), n(1, 0.5), n(5, 0.5), n(5, 1),
+      n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }), n(7, 0.25),
+      n(6, 0.5), n(5, 0.5), n(5, 2),
+      n(4, 0.25), n(3, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.5), n(3, 0.5), n(3, 1), n(2, 1),
+      n(2, 0.5), n(1, 0.5), n(2, 0.25), n(3, 0.25), n(2, 0.25), n(1, 0.25),
+      n(1, 2, { tied: true }),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(2, 0.5, { octave: 1 }),
+      n(1, 0.5, { octave: 1 }), n(5, 1), n(4, 1),
+      n(4, 0.25), n(5, 0.25), n(4, 0.25), n(3, 0.25), n(4, 0.5), n(3, 0.5), n(3, 1), n(2, 1),
+      n(5, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(5, 0.5), n(4, 0.5), n(4, 1), n(3, 1),
+      n(3, 0.5), n(4, 0.5, { alter: 1 }), n(5, 0.5), n(4, 0.5),
+      n(3, 0.5), n(2, 0.5), n(2, 1),
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25),
+      n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 0.25, { octave: 1 }), n(5, 1), n(5, 1),
+      n(6, 0.5), n(6, 0.5, { alter: -1 }), n(5, 0.5), n(4, 0.5), n(5, 1), r(1),
+      n(4, 0.25), n(3, 0.25), n(2, 0.25), n(1, 0.25), n(2, 0.5), n(3, 0.5), n(3, 1), n(2, 1),
+      n(2, 0.5), n(1, 0.5), n(1, 3),
+    ],
+  },
+];
+
+export const THEMES: readonly Theme[] = [...FIRST_BATCH, ...HARDER, ...VARIATIONS];
 
 export function themeById(id: string): Theme | undefined {
   return THEMES.find((theme) => theme.id === id);

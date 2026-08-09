@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.7.0 is deployed** to GitHub Pages, 472 tests. Since v1:
+**v1.8.0 is deployed** to GitHub Pages, 472 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Eighteen, hand-written; every difficulty covered in 4/4. |
+| `src/exercise/themes.ts` | The corpus itself. Twenty-three, hand-written: eighteen phrases and one tune varied across all five levels. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -596,6 +596,26 @@ pattern deals its keys across cycles, so a key is finished with before the next
 is taken up and a set too large simply uses fewer of its keys. Changing key
 inside a tune that was not written to do so is a signature laid over somebody
 else's phrase.
+
+**A variation set answers a kind of sameness that more themes cannot.** Every
+theme being a different eight bars is its own monotony — nothing ever comes
+back. So one tune is written five times, plainer or more decorated, one at each
+difficulty: a player meets a shape they already know at a level that stretches
+them, and *hears* what a difficulty step means rather than being told. The tune
+is *Ah! vous dirai-je, maman*, French, about 1761, which Mozart wrote variations
+on rather than writing — both long out of copyright, worth stating in a corpus
+meant to be sold.
+
+It also turned up something no argument would have. **A perfect fifth is seven
+semitones, and Beginner leaps four while Easy leaps five** — so the best-known
+tune in the language cannot be tagged below Medium. Those caps were set for a
+random walk, where a fifth between unrelated notes really is hard; inside a tune
+that a player already knows, it is the easiest interval there is. Rather than
+loosen a number that the generated material depends on, the two lower variations
+do what variations are for: the fifth is arpeggiated at Beginner and walked up
+in quavers at Easy. Expect this to recur with any real tune — the ladder
+measures difficulty as a random walk experiences it, and a theme is not a random
+walk.
 
 **Every difficulty now has themes in 4/4** — three or four apiece, eighteen in
 the corpus — so the fallback below no longer fires for the metre almost
