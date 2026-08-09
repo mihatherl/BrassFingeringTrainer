@@ -521,11 +521,25 @@ the transport's new `rampRatio` — the bend within the active ramp, not the
 ratio to nominal, which a step change would leave burning forever. Warm
 violet is coded and unreachable until the plan writes an accel. Ship.
 
-**Stage 3 — fermata.** Spike first, against an instrument: the hold pose,
-the orb's build and discharge, the release gesture, judged by the re-entry
-spread. Then: `hold` events from the plan, the derived glyph, the conductor's
-hold mode and release, the detach fix for held notes, the settings warning
-when nothing can release you. Ship.
+**Stage 3 — fermata. Parked, 2026-08-10, on the player's verdict.** The
+spike was built and played (`public/spike/fermata.html` — meld, lift, drop,
+orb, random holds, re-entry spread measured by tap or microphone onset),
+and the review of the theory settled it: a fermata is a **two-handed act**.
+Robertson's own example has the left hand showing the sustain while the
+right hand carries the pattern; sustain, cutoff and release are a hand of
+their own, and a single drawn baton cannot carry both without flattening
+the nuance into something no conductor does. Rather than ship a gesture
+that teaches less than it claims, fermatas wait for the hand that can
+genuinely release one — **the microphone**, which hears the player stop and
+can give the re-entry against what was actually played. That is where
+`v2-design.md` originally placed the release, and the spike has now earned
+that placement with a measurement rather than an argument.
+
+What survives, at no cost: the dwell in the map (built, property-tested,
+inert until an event uses it — exactly the "carried, and inert" posture the
+theme format was designed with); the spike itself, kept as the workbench
+and the record; and the orb, which lives on in the rits it already serves.
+Nothing in the app needs removing, because the plan never emitted a hold.
 
 **Stage 4 — later, separately.** Authored tempo character in the theme corpus
 (the format finally growing the "carried, inert" field, now that the engine
@@ -571,6 +585,11 @@ Put to the player and ruled on 2026-08-09.
    when the selling work happens, and adding the boolean then is trivial.
 4. **When the orb debuts: stage 2, with rits** — vocabulary learned where it
    is redundant, and in place before deep rits and holds need disambiguating.
+5. **Fermatas are parked** — ruled 2026-08-10, after the spike and further
+   reading. A fermata is a two-handed act, and the nuance a real one carries
+   is not capturable in the single baton; it waits for the microphone, which
+   can release the player by hearing them. See stage 3 below for what
+   survives.
 
 Still open, deliberately:
 

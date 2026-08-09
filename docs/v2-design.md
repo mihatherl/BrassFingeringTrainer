@@ -1164,6 +1164,17 @@ means "hold until released" and there is no conductor to release you. It becomes
 practisable exactly when there is something that can release you — the on-screen
 conductor, or the microphone hearing you stop.
 
+**The conductor half was tried and ruled out, 2026-08-10.** A spike
+(`public/spike/fermata.html`) drew the full release — the meld, the breath
+of a lift, the drop to the contact line, the orb building through the hold —
+and playing against it alongside further reading settled the matter: a
+fermata is a two-handed act. Robertson's *Fermate* chapter has the left hand
+carrying the sustain while the right keeps the pattern; sustain, cutoff and
+release are a hand of their own, and one drawn baton flattens that into a
+gesture no conductor makes. So the fermata waits for the microphone, which
+releases the player by hearing them — the tempo map's dwell machinery is
+built, tested and inert until then, and the spike stays as the workbench.
+
 ## The microphone, parked
 
 Proven and then deliberately set aside in favour of the notation work above.
