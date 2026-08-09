@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.14.0 is deployed** to GitHub Pages, 481 tests. Since v1:
+**v1.15.0 is deployed** to GitHub Pages, 481 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Thirty-eight, hand-written, covering every difficulty in every metre the app offers. |
+| `src/exercise/themes.ts` | The corpus itself. Forty-two, hand-written, covering every difficulty in every metre the app offers. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -689,9 +689,18 @@ often than a wide leap is, and no amount of stepwise practice prepares anyone
 for it. Worth writing several bars of it in a row — one bar of syncopation
 reads as a misprint.
 
-**Triplets are built** — see *Triplets, as built* — and three themes use them:
-crotchet triplets at Medium, quaver triplets at Hard, and both against
-semiquavers at Expert.
+**Triplets are built** — see *Triplets, as built* — and seven themes use them,
+spread across the metres rather than piled into 4/4: a hymn tune at Easy, which
+is where a player actually meets their first; crotchet triplets at Medium in
+both 4/4 and 3/4; quaver triplets at Hard in 4/4 and 2/4; and at Expert both
+against semiquavers, so the division of the beat moves under the reader from
+four to three and back.
+
+A triplet reads differently for how much bar is left around it. Two beats of a
+3/4 bar leaves one, and that single plain beat is the only thing telling a
+reader where they are; two beats of a 4/4 bar leaves two, which is room to
+recover; and a beat of triplets in 2/4 is half the bar gone before the counting
+has caught up.
 
 **Where a triplet is legal falls out of the rhythm ladder** rather than being
 decided separately. A difficulty may not go shorter than its own shortest note,

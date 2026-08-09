@@ -1020,6 +1020,110 @@ const TRIPLETS: readonly Theme[] = [
   },
 ];
 
+
+/*
+ * More triplets, spread across the metres rather than piled into four-four.
+ *
+ * A triplet reads differently depending on how much bar is left around it: two
+ * beats of a three-four bar leaves one, which is a very different sensation
+ * from two beats of a four-four bar leaving two, and a beat of triplets in
+ * two-four is half the bar gone at once.
+ */
+const MORE_TRIPLETS: readonly Theme[] = [
+  {
+    id: 'hymn-triplets',
+    name: 'Hymn triplets',
+    difficulty: 'easy',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Where a player actually meets their first triplet: a hymn tune, moving
+     * by step, three notes taking the time of two and nothing else going on to
+     * distract from that.
+     */
+    events: [
+      n(1, 2 / 3), n(2, 2 / 3), n(3, 2 / 3), n(2, 1), n(1, 1),
+      n(2, 2 / 3), n(3, 2 / 3), n(4, 2 / 3), n(3, 1), n(2, 1),
+      n(3, 2 / 3), n(4, 2 / 3), n(5, 2 / 3), n(4, 2),
+      n(3, 2), n(2, 2),
+      n(3, 2 / 3), n(2, 2 / 3), n(1, 2 / 3), n(2, 1), n(3, 1),
+      n(4, 2 / 3), n(3, 2 / 3), n(2, 2 / 3), n(3, 1), n(4, 1),
+      n(5, 2 / 3), n(4, 2 / 3), n(3, 2 / 3), n(2, 1), n(1, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'waltz-triplets',
+    name: 'Waltz triplets',
+    difficulty: 'medium',
+    metres: [[3, 4]],
+    bars: 8,
+    /* Two beats of triplet against one plain beat — the bar has no half to
+     * check against, so the third beat is the only thing telling you where you
+     * are. */
+    events: [
+      n(1, 2 / 3), n(2, 2 / 3), n(3, 2 / 3), n(5, 1),
+      n(4, 2 / 3), n(3, 2 / 3), n(2, 2 / 3), n(1, 1),
+      n(3, 2 / 3), n(4, 2 / 3), n(5, 2 / 3), n(4, 1),
+      n(3, 2), n(2, 1),
+      n(1, 2 / 3), n(5, 2 / 3), n(3, 2 / 3), n(4, 1),
+      n(3, 2 / 3), n(2, 2 / 3), n(1, 2 / 3), n(2, 1),
+      n(3, 2 / 3), n(4, 2 / 3), n(5, 2 / 3), n(2, 1),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'quickstep-triplets',
+    name: 'Quickstep triplets',
+    difficulty: 'hard',
+    metres: [[2, 4]],
+    bars: 8,
+    /* A beat of triplets is half a two-four bar, so the bar is gone before the
+     * reader has finished counting it. */
+    events: [
+      n(1, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(5, 1),
+      n(4, 1 / 3), n(3, 1 / 3), n(2, 1 / 3), n(1, 1),
+      n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3), n(6, 1 / 3), n(5, 1 / 3), n(4, 1 / 3),
+      n(3, 1), n(5, 1),
+      n(1, 1 / 3), n(3, 1 / 3), n(5, 1 / 3), n(1, 1, { octave: 1 }),
+      n(7, 1 / 3), n(6, 1 / 3), n(5, 1 / 3), n(4, 1),
+      n(3, 1 / 3), n(2, 1 / 3), n(1, 1 / 3), n(2, 1),
+      n(1, 2),
+    ],
+  },
+  {
+    id: 'perpetual-triplets',
+    name: 'Perpetual triplets',
+    difficulty: 'expert',
+    metres: [[3, 4]],
+    bars: 8,
+    /*
+     * Nine triplet quavers to a bar and almost nothing else, so there is no
+     * plain beat to re-anchor against — and two bars where semiquavers cut
+     * across them, which is the moment the division of the beat changes under
+     * the reader.
+     */
+    events: [
+      n(1, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3), n(4, 1 / 3),
+      n(3, 1 / 3), n(2, 1 / 3), n(1, 1 / 3),
+      n(1, 1 / 3), n(3, 1 / 3, { octave: 1 }), n(2, 1 / 3, { octave: 1 }),
+      n(1, 1 / 3, { octave: 1 }), n(7, 1 / 3), n(6, 1 / 3),
+      n(5, 1 / 3), n(4, 1 / 3), n(3, 1 / 3),
+      n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.25),
+      n(4, 1 / 3), n(3, 1 / 3), n(2, 1 / 3), n(3, 0.5), n(2, 0.5),
+      n(1, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3), n(6, 1 / 3),
+      n(5, 1),
+      n(4, 1 / 3), n(3, 1 / 3), n(2, 1 / 3), n(3, 1 / 3), n(4, 1 / 3), n(5, 1 / 3),
+      n(4, 1),
+      n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25),
+      n(5, 1 / 3), n(4, 1 / 3), n(3, 1 / 3), n(2, 1),
+      n(1, 1 / 3), n(3, 1 / 3), n(5, 1 / 3), n(3, 1 / 3), n(1, 1 / 3), n(2, 1 / 3),
+      n(3, 1),
+      n(1, 3),
+    ],
+  },
+];
+
 export const THEMES: readonly Theme[] = [
   ...FIRST_BATCH,
   ...HARDER,
@@ -1029,6 +1133,7 @@ export const THEMES: readonly Theme[] = [
   ...SYNCOPATED,
   ...THREE_FOUR,
   ...TRIPLETS,
+  ...MORE_TRIPLETS,
 ];
 
 export function themeById(id: string): Theme | undefined {
