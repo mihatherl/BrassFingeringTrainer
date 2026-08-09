@@ -82,6 +82,7 @@ function build(difficultyId: string, bars = 8) {
     kind: 'random',
     bars,
     cycles: 2,
+    themeCount: 2,
     metre: metreFor(4, 4),
     seed: 7,
   });
@@ -241,6 +242,7 @@ describe('drawing the review', () => {
           kind: 'phrases',
           bars: 8,
           cycles: 2,
+          themeCount: 2,
           metre: metreFor(4, 4),
           seed: 31,
         });

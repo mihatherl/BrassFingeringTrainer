@@ -16,7 +16,7 @@ function stitchOptions(overrides: Partial<StitchOptions> = {}): StitchOptions {
     fifths: -3,
     difficulty: 'beginner',
     metre: metreFor(4, 4),
-    bars: 16,
+    count: 3,
     rng: createRng(1),
     ...overrides,
   };
@@ -36,16 +36,18 @@ describe('themesFor', () => {
 });
 
 describe('stitchThemes', () => {
-  it('meets the length asked for without cutting a theme short', () => {
-    const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', bars: 20 }))!;
-    expect(stitched).not.toBeNull();
+  it('plays exactly the number of themes asked for, whole', () => {
+    for (const count of [1, 2, 3, 4, 6]) {
+      const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', count }))!;
+      expect(stitched.used, `${count} themes`).toHaveLength(count);
 
-    // Whole themes only: the total is the sum of the themes used.
-    const barsUsed = stitched.used
-      .map((id) => THEMES.find((t) => t.id === id)!.bars)
-      .reduce((a, b) => a + b, 0);
-    expect(stitched.totalBeats).toBe(barsUsed * 4);
-    expect(stitched.totalBeats).toBeGreaterThanOrEqual(20 * 4);
+      // Length is a consequence of which themes were drawn, not a target: the
+      // total is the sum of their own lengths and nothing is cut.
+      const barsUsed = stitched.used
+        .map((id) => THEMES.find((t) => t.id === id)!.bars)
+        .reduce((a, b) => a + b, 0);
+      expect(stitched.totalBeats, `${count} themes`).toBe(barsUsed * 4);
+    }
   });
 
   /*
@@ -76,7 +78,7 @@ describe('stitchThemes', () => {
   it('does not play the same theme twice running where there is a choice', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const stitched = stitchThemes(
-        stitchOptions({ difficulty: 'medium', bars: 20, corpus: pair, rng: createRng(seed) }),
+        stitchOptions({ difficulty: 'medium', count: 20, corpus: pair, rng: createRng(seed) }),
       )!;
       expect(stitched.used.length, `seed ${seed}`).toBeGreaterThan(2);
       for (let i = 1; i < stitched.used.length; i++) {
@@ -89,13 +91,13 @@ describe('stitchThemes', () => {
 
   it('draws on both themes rather than settling on one', () => {
     const stitched = stitchThemes(
-      stitchOptions({ difficulty: 'medium', bars: 20, corpus: pair }),
+      stitchOptions({ difficulty: 'medium', count: 20, corpus: pair }),
     )!;
     expect(new Set(stitched.used)).toEqual(new Set(['alpha', 'beta']));
   });
 
   it('lays every theme end to end with no gap and no overlap', () => {
-    const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', bars: 32 }))!;
+    const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', count: 4 }))!;
     let expected = 0;
     for (const slot of stitched.slots) {
       expect(slot.startBeat).toBeCloseTo(expected, 9);
@@ -105,7 +107,7 @@ describe('stitchThemes', () => {
   });
 
   it('states a key only where it actually moves', () => {
-    const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', bars: 32 }))!;
+    const stitched = stitchThemes(stitchOptions({ difficulty: 'medium', count: 4 }))!;
     for (let i = 1; i < stitched.keys.length; i++) {
       expect(stitched.keys[i].fifths, 'a change to the key already in force').not.toBe(
         stitched.keys[i - 1].fifths,
@@ -116,7 +118,7 @@ describe('stitchThemes', () => {
 
   it('moves through the key set the player chose', () => {
     const stitched = stitchThemes(
-      stitchOptions({ difficulty: 'medium', bars: 32, keys: [-3, -1] }),
+      stitchOptions({ difficulty: 'medium', count: 4, keys: [-3, -1] }),
     )!;
     const reached = new Set(stitched.keys.map((k) => k.fifths));
     expect(reached.has(-3)).toBe(true);
@@ -126,7 +128,7 @@ describe('stitchThemes', () => {
   it('lands every key change on a bar line, which is the only place one may land', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const stitched = stitchThemes(
-        stitchOptions({ difficulty: 'expert', bars: 48, keys: [-3, -1, 0], rng: createRng(seed) }),
+        stitchOptions({ difficulty: 'expert', count: 6, keys: [-3, -1, 0], rng: createRng(seed) }),
       );
       if (!stitched) continue;
       for (const key of stitched.keys) {
@@ -136,15 +138,16 @@ describe('stitchThemes', () => {
   });
 });
 
-describe('sight-reading through the generator', () => {
-  function phrases(overrides: Record<string, unknown> = {}) {
+describe('themes through the generator', () => {
+  function themed(overrides: Record<string, unknown> = {}) {
     return generateExercise({
       instrument: instrumentById('eb-bass'),
       clef: 'treble',
       fifths: -3,
       difficulty: difficultyById('beginner'),
-      kind: 'phrases',
+      kind: 'themes',
       bars: 16,
+      themeCount: 2,
       cycles: 2,
       metre: metreFor(4, 4),
       seed: 3,
@@ -161,7 +164,7 @@ describe('sight-reading through the generator', () => {
      */
     const [low, high] = tonicWindow(instrumentById('eb-bass'), 'treble');
     for (const fifths of [-5, -3, -1, 0, 2, 4]) {
-      const exercise = phrases({ fifths });
+      const exercise = themed({ fifths });
       const opening = exercise.notes[0].writtenMidi;
       expect(opening, `opening note in ${fifths} fifths`).toBeGreaterThanOrEqual(low);
       expect(opening, `opening note in ${fifths} fifths`).toBeLessThanOrEqual(high);
@@ -169,15 +172,29 @@ describe('sight-reading through the generator', () => {
   });
 
   it('falls back to generated material where the corpus has nothing', () => {
-    // Nothing is written in 5/4, and an exercise is still owed.
-    const exercise = phrases({ metre: metreFor(5, 4), bars: 8 });
+    // Nothing is written in 5/4, and an exercise is still owed. The fallback is
+    // free material, so it is measured in bars again.
+    const exercise = themed({ metre: metreFor(5, 4), bars: 8 });
     expect(exercise.notes.length).toBeGreaterThan(0);
     expect(exercise.totalBeats).toBe(8 * exercise.metre.barBeats);
   });
 
   it('is reproducible from its seed, like everything else generated', () => {
-    expect(phrases().notes.map((n) => n.writtenMidi)).toEqual(
-      phrases().notes.map((n) => n.writtenMidi),
+    expect(themed().notes.map((n) => n.writtenMidi)).toEqual(
+      themed().notes.map((n) => n.writtenMidi),
     );
+  });
+
+  it('leaves sight-reading to the random walk it always had', () => {
+    /*
+     * Themes were wired into sight-reading first and it never sat right: a
+     * theme is a fixed length, and asking for twelve bars of them asks for one
+     * and a half of something written to be played whole. Sight-reading is
+     * measured in bars, exactly, as free material always has been.
+     */
+    for (const bars of [4, 12, 16]) {
+      const exercise = themed({ kind: 'phrases', bars, difficulty: difficultyById('medium') });
+      expect(exercise.totalBeats, `${bars} bars`).toBe(bars * exercise.metre.barBeats);
+    }
   });
 });

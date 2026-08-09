@@ -11,6 +11,7 @@ import type { ExerciseKind } from '../exercise/types';
 import {
   BARS_OPTIONS,
   CYCLE_OPTIONS,
+  THEME_OPTIONS,
   MAX_KEYS_IN_PLAY,
   sanitise,
   SCROLL_SPEED_RANGE,
@@ -317,7 +318,18 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
               follows from how many notes it has. */}
           <label className="field">
             <span className="field__label">Length</span>
-            {patternKind ? (
+            {settings.kind === 'themes' ? (
+              <select
+                value={settings.themeCount}
+                onChange={(event) => update('themeCount', Number(event.target.value))}
+              >
+                {THEME_OPTIONS.map((count) => (
+                  <option key={count} value={count}>
+                    {count === 1 ? 'One theme' : `${count} themes`}
+                  </option>
+                ))}
+              </select>
+            ) : patternKind ? (
               <select
                 value={settings.cycles}
                 onChange={(event) => update('cycles', Number(event.target.value))}

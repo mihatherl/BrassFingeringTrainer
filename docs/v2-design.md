@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.5.1 is deployed** to GitHub Pages, 455 tests. Since v1:
+**v1.6.0 is deployed** to GitHub Pages, 471 tests. Since v1:
 
 | | |
 |---|---|
@@ -24,6 +24,7 @@ requests at all — that last part is worth defending rather than an accident.
 | Pattern cycles | Built. Scales are measured in times through, not bars. |
 | Play-screen layout | Rebuilt around one shared unit; a real wide layout for tablets and desktops. |
 | Commercial groundwork | The licence seam, and CI building the gated app. See *Selling it, one day*. |
+| Themes | Built, as its own material kind. Written tunes played whole, measured in themes. See *Themes, and playing for as long as you like*. |
 
 Push to `main` deploys: Actions runs `npm test`, then builds the app twice —
 once with `VITE_GATED=true` to prove the paid path still compiles, then the
@@ -74,7 +75,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
 | `src/exercise/themes.ts` | The corpus itself. Nine so far, hand-written; five of them Medium in 4/4. |
-| `src/exercise/phrases.ts` | Choosing themes and laying them end to end. |
+| `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
 | `src/render/stave.ts` | `layoutKeySignature` — one arithmetic shared by drawing and measuring, including the naturals that cancel an outgoing key. |
@@ -177,9 +178,10 @@ release.
    schedules, judges and spaces correctly today. What is missing is purely
    notational — bracket, numeral, beaming.
 2. ~~**Key changes**~~ — built. See *Key changes, in detail*.
-3. **Themes for sight-reading** — real melodic material instead of a random
-   walk, stored as scale degrees so it is agnostic of key and tempo. Needs no
-   engine change at all. See *Themes, and playing for as long as you like*.
+3. ~~**Themes**~~ — built, as a material kind of its own rather than as a better
+   sight-reading. Written tunes stored as scale degrees, agnostic of key and
+   tempo. The corpus is the work that remains. See *Themes, and playing for as
+   long as you like*.
 4. **Windowed scoring** — the score covers the last so many bars rather than
    the whole session. Small, independent, and useful on its own.
 5. **Endless play, with a grey horizon** — music continues past the chosen
@@ -550,23 +552,44 @@ treble it is the ledger C up to the C in the stave; bass clef is the same octave
 where that clef puts it. Outside the window is a fallback rather than a failure,
 for a theme too wide to sit there.
 
-### Stitching, and what it needs from the corpus
+### Themes are their own mode, measured in themes
 
-**Built.** Sight-reading now comes from themes laid end to end, and falls back
-to the random walk where nothing in the corpus fits — the same shape as a
-pattern that will not fit an instrument, and the ordinary case rather than an
-error while the corpus is small.
+**Built.** *Themes* is a material kind beside Random notes, Scales, Arpeggios
+and Sight-reading — not a replacement for sight-reading, which keeps the random
+walk it always had.
 
-Length is measured the way a pattern's is rather than the way free material's
-is: the bars asked for are a floor, and stitching stops at the end of whichever
-theme passes the mark. Cutting a phrase off mid sentence is the one thing this
-material exists not to do.
+They were wired into sight-reading first and the join never sat right. A theme
+is a fixed length, so asking for twelve bars of them asks for one and a half of
+something written to be played whole, and any answer to that is a fudge: stop
+short and the phrase is cut off, overshoot and the length setting is a
+suggestion. **Kept apart, each mode is measured in the unit it actually has** —
+bars of generated material, or whole themes — and neither has to apologise for
+the other. Length is a count, exactly as a pattern is measured in cycles, with
+its own `themeCount` rather than borrowing `cycles`: a theme is not played twice
+over, the next one is a different tune, and calling both the same thing is how a
+numerator ends up mistaken for a bar length.
 
-**The key set governs the joins; a theme governs its own inside.** Each theme
-opens in the key the set has reached, spread by position and never sooner than
-four bars after the last change, and whatever the theme does internally is part
-of the tune. Wiring themes in without this silently took the key set away from
-anyone choosing sight-reading, which an existing test caught.
+How many bars that comes to is a consequence rather than a target. Three themes
+is twenty-eight bars where one of them is twelve, which is the point of
+measuring in themes at all.
+
+**A key change lands where one theme ends and the next begins, and nowhere
+else.** The set is dealt across the themes in contiguous blocks, exactly as a
+pattern deals its keys across cycles, so a key is finished with before the next
+is taken up and a set too large simply uses fewer of its keys. Changing key
+inside a tune that was not written to do so is a signature laid over somebody
+else's phrase.
+
+**It falls back to generated material** where the corpus has nothing for a
+difficulty or metre — the same shape as a pattern that will not fit an
+instrument, and the ordinary case while the corpus is small. That fallback is
+silent, which is the one dishonest edge in this feature: a player choosing
+Themes at a difficulty with none written gets a random walk and nothing says so.
+It wants the same treatment as the gated settings screen — say what is not
+there rather than substituting quietly.
+
+**Themes are a paid kind.** `FREE_TIER.kinds` is random and scales, so nothing
+new leaks into the free tier by having been added.
 
 **The corpus is published**, at `spike/themes.html` on the deployed site — every
 theme engraved, from a phone, with nothing to run. It is generated rather than

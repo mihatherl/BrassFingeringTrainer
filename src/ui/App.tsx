@@ -94,6 +94,7 @@ export function App() {
         difficulty: difficultyById(settings.difficultyId),
         kind: settings.kind,
         bars: settings.bars,
+        themeCount: settings.themeCount,
         cycles: settings.cycles,
         metre: metreFor(settings.beatsPerBar, settings.beatUnit),
         seed,

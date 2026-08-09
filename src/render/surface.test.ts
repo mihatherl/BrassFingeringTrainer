@@ -123,6 +123,7 @@ function build(kind: ExerciseKind, clef: 'treble' | 'bass', fifths: number, seed
     kind,
     bars: 8,
     cycles: 2,
+    themeCount: 2,
     metre: metreFor(4, 4),
     seed,
   });
@@ -193,6 +194,7 @@ describe('scrolling renderer', () => {
         kind: 'random',
         bars: 8,
         cycles: 2,
+        themeCount: 2,
         metre: metreFor(4, 4),
         seed: 12,
       }),
@@ -274,6 +276,7 @@ describe('scrolling renderer', () => {
       kind: 'random',
       bars: 8,
       cycles: 2,
+      themeCount: 2,
       metre: metreFor(4, 4),
       seed: 5,
     });
@@ -661,6 +664,7 @@ describe('scrolling renderer', () => {
         kind: 'random',
         bars: 2,
         cycles: 2,
+        themeCount: 2,
         metre: metreFor(4, 4),
         seed: 4,
       });
@@ -703,6 +707,7 @@ describe('scrolling renderer', () => {
         kind: 'random',
         bars: 32,
         cycles: 2,
+        themeCount: 2,
         metre: metreFor(4, 4),
         seed: 21,
       });
@@ -765,6 +770,7 @@ describe('scrolling renderer', () => {
         kind: 'random',
         bars: 16,
         cycles: 2,
+        themeCount: 2,
         metre: metreFor(4, 4),
         seed: 9,
       });
@@ -859,6 +865,7 @@ describe('scrolling renderer', () => {
         kind: 'random',
         bars: 16,
         cycles: 2,
+        themeCount: 2,
         metre: metreFor(4, 4),
         seed: 9,
       });
@@ -1113,6 +1120,7 @@ describe('revealByBar', () => {
       kind: 'random',
       bars: 2,
       cycles: 2,
+      themeCount: 2,
       metre: metreFor(4, 4),
       seed: 4,
     });

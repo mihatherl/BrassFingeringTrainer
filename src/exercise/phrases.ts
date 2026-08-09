@@ -7,15 +7,15 @@
  * followed by one starting on the sixth sounds like a page turned two bars
  * early.
  *
- * A theme keeps whatever key it arrived in, and its own changes move it on from
- * there — so a set of themes chains harmonically rather than each one resetting
- * to the key the player picked. The exercise still opens in that key.
+ * Length is a count of themes, not a number of bars — the same reason a pattern
+ * is measured in cycles. A theme is a written shape and how many bars it fills
+ * is its own business, so asking for twelve bars of them asks for one and a
+ * half of something meant to be played whole.
  *
- * Length works the way a pattern's does rather than the way free material's
- * does: a theme is a fixed shape, and how many bars it occupies is its own
- * business. Asking for eight bars therefore means "at least eight", stopping at
- * the end of whichever theme passes the mark, because cutting a phrase off mid
- * sentence is the one thing this material exists not to do.
+ * The key set is dealt across those themes in contiguous blocks, exactly as a
+ * pattern deals its keys across cycles, and a change lands only where one theme
+ * ends and the next begins. Changing key inside a tune that was not written to
+ * do so is a signature laid over somebody else's phrase.
  */
 
 import type { Clef, Instrument } from '../domain/instruments';
@@ -25,9 +25,6 @@ import type { Slot } from './assemble';
 import type { Rng } from './rng';
 import { realiseTheme, type Theme } from './theme';
 import { THEMES } from './themes';
-
-/** Bars a key is given before another may take over. Matches free material. */
-const MIN_BARS_PER_KEY = 4;
 
 export interface StitchOptions {
   instrument: Instrument;
@@ -45,8 +42,8 @@ export interface StitchOptions {
   keys?: readonly number[];
   difficulty: string;
   metre: Metre;
-  /** Bars asked for. The result meets or passes it, never stops short. */
-  bars: number;
+  /** Whole themes to play, end to end. */
+  count: number;
   rng: Rng;
   /**
    * The themes to draw from. Defaults to the shipped corpus.
@@ -69,7 +66,7 @@ export interface StitchedPhrases {
 }
 
 /** Themes this instrument, difficulty and metre can actually take. */
-export function themesFor(options: Omit<StitchOptions, 'rng' | 'bars' | 'keys'>): Theme[] {
+export function themesFor(options: Omit<StitchOptions, 'rng' | 'count' | 'keys'>): Theme[] {
   const { beatsPerBar, beatUnit } = options.metre;
   return (options.corpus ?? THEMES).filter((theme) => {
     if (theme.difficulty !== options.difficulty) return false;
@@ -96,29 +93,44 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
   const keys: KeyChange[] = [];
   const used: string[] = [];
 
-  const wanted = options.bars * options.metre.barBeats;
   const set = options.keys?.length ? options.keys : [options.fifths];
-  const minKeyBeats = MIN_BARS_PER_KEY * options.metre.barBeats;
 
   let beat = 0;
   let fifths = options.fifths;
-  let lastChangeBeat = 0;
   let last: string | undefined;
 
-  while (beat < wanted - 1e-9) {
+  for (let played = 0; played < options.count; played++) {
     /*
-     * Where the set has got to by this point in the exercise, changing only on
-     * a theme boundary — which is a bar line, the only place a key change may
-     * land. Spread by position rather than one key per theme, so a set of four
-     * is not exhausted in the first third, and never sooner than four bars
-     * after the last change: a set too large for the exercise uses fewer of its
-     * keys rather than hurrying through them.
+     * Which key this theme is played in.
+     *
+     * Dealt across the themes in contiguous blocks, exactly as a pattern deals
+     * its keys across cycles: a key is finished with before the next is taken
+     * up, and a set too large for the exercise simply uses fewer of its keys
+     * rather than hurrying through them. A theme is where a key change may
+     * land, and a theme is the only place — the tune is a whole thought, and
+     * changing key inside one that was not written to would be a change of
+     * signature laid over somebody else's phrase.
      */
-    const target = set[Math.min(set.length - 1, Math.floor((beat / wanted) * set.length))];
-    if (target !== fifths && beat - lastChangeBeat >= minKeyBeats - 1e-9) {
-      fifths = target;
-      lastChangeBeat = beat;
-    }
+    fifths = set[Math.floor((played * set.length) / options.count)];
+
+    const place = (theme: Theme) =>
+      realiseTheme(theme, {
+        instrument: options.instrument,
+        clef: options.clef,
+        fifths,
+        metre: options.metre,
+        fromBeat: beat,
+      });
+
+    /*
+     * Only themes that fit *this* key. The list was built against the key the
+     * exercise opens in, and a later key can put a wide theme out of reach —
+     * so it is asked again rather than assumed, and a theme that will not go is
+     * never picked instead of being picked and skipped, which would quietly
+     * spend one of the themes asked for.
+     */
+    const fitting = available.filter((theme) => place(theme) !== null);
+    if (fitting.length === 0) break;
 
     /*
      * Not the same theme twice running where there is a choice. Repetition
@@ -126,23 +138,9 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
      * how eight bars of practice becomes the same eight bars again, and the
      * player stops reading and starts remembering.
      */
-    const choices = available.length > 1 ? available.filter((t) => t.id !== last) : available;
+    const choices = fitting.length > 1 ? fitting.filter((t) => t.id !== last) : fitting;
     const theme = options.rng.pick(choices);
-
-    const realised = realiseTheme(theme, {
-      instrument: options.instrument,
-      clef: options.clef,
-      fifths,
-      metre: options.metre,
-      fromBeat: beat,
-    });
-    // It fitted when the list was built, in the key the exercise opened in. A
-    // later theme may arrive in a key that puts it out of reach, and skipping
-    // it is better than forcing it.
-    if (!realised) {
-      if (choices.length === 1) break;
-      continue;
-    }
+    const realised = place(theme)!;
 
     slots.push(...realised.slots);
     pitches.push(...realised.pitches);
@@ -158,8 +156,6 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
       if (keys[keys.length - 1]?.fifths !== key.fifths) keys.push(key);
     }
     used.push(theme.id);
-
-    fifths = realised.keys[realised.keys.length - 1].fifths;
     beat += realised.beats;
     last = theme.id;
   }

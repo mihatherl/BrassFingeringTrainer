@@ -55,6 +55,7 @@ function generated(overrides: Partial<GenerateOptions> = {}): Exercise {
     kind: 'random',
     bars: 8,
     cycles: 2,
+    themeCount: 2,
     metre: metreFor(4, 4),
     seed: 1,
     ...overrides,

@@ -84,7 +84,7 @@ export interface Exercise {
   kind: ExerciseKind;
 }
 
-export type ExerciseKind = 'random' | 'scales' | 'arpeggios' | 'phrases';
+export type ExerciseKind = 'random' | 'scales' | 'arpeggios' | 'phrases' | 'themes';
 
 export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blurb: string }> = [
   { id: 'random', name: 'Random notes', blurb: 'Unpredictable intervals — pure fingering reflex.' },
@@ -95,4 +95,9 @@ export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blu
     blurb: 'Tonic, subdominant, dominant, dominant 7th and relative minor — all in key.',
   },
   { id: 'phrases', name: 'Sight-reading', blurb: 'Musical phrases with contour, leaps and rests.' },
+  {
+    id: 'themes',
+    name: 'Themes',
+    blurb: 'Written tunes with a shape you can see coming — played whole, one after another.',
+  },
 ];

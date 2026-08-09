@@ -49,8 +49,17 @@ export interface GenerateOptions {
   keySet?: readonly number[];
   difficulty: Difficulty;
   kind: ExerciseKind;
-  /** Length of free material. Patterns are measured in `cycles` instead. */
+  /** Length of free material. Patterns and themes have units of their own. */
   bars: number;
+  /**
+   * Whole themes played end to end, for the Themes kind.
+   *
+   * A count rather than a length, for the same reason a pattern is measured in
+   * cycles: a theme is a written shape and how many bars it occupies is its
+   * own business. Asking for twelve bars of themes asks for one and a half of
+   * something meant to be played whole.
+   */
+  themeCount: number;
   /**
    * Times a scale or arpeggio is played through, up and back down.
    *
@@ -161,16 +170,20 @@ export function generateExercise(options: GenerateOptions): Exercise {
   const { metre } = options;
 
   /*
-   * Sight-reading comes from authored themes where there are any that fit, and
-   * from the random walk where there are not.
+   * Themes are their own kind rather than a better sight-reading.
    *
-   * A walk cannot produce repetition, an answering phrase or a cadence, which
-   * are the three things that make a line readable at sight — but the corpus is
-   * small and is filtered by difficulty, metre and compass, so a fall back to
-   * generated material is the ordinary case rather than an error. The same
-   * shape as a pattern that will not fit an instrument.
+   * They were wired into sight-reading first, and the join never sat right: a
+   * theme is a fixed length, so asking for twelve bars of them means one and a
+   * half of something written to be played whole. Kept apart, each mode is
+   * measured in the unit it actually has — bars of generated material, or
+   * whole themes — and neither has to apologise for the other. Sight-reading
+   * keeps the random walk it always had.
+   *
+   * A fall back to generated material stays, for a difficulty or metre the
+   * corpus has nothing for. It is the same shape as a pattern that will not fit
+   * an instrument, and while the corpus is small it is the ordinary case.
    */
-  if (options.kind === 'phrases') {
+  if (options.kind === 'themes') {
     const stitched = stitchThemes({
       instrument: options.instrument,
       clef: options.clef,
@@ -178,7 +191,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
       difficulty: options.difficulty.id,
       keys: orderByCloseness(options.fifths, options.keySet ?? [options.fifths]),
       metre,
-      bars: options.bars,
+      count: options.themeCount,
       rng,
     });
     if (stitched) {

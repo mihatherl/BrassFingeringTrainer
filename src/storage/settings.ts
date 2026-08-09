@@ -32,6 +32,8 @@ export interface Settings {
   tempo: number;
   difficultyId: string;
   kind: ExerciseKind;
+  /** Themes played end to end, for the Themes kind. Ignored by everything else. */
+  themeCount: number;
   /** How long free material runs. Scales and arpeggios use `cycles` instead. */
   bars: number;
   /**
@@ -120,6 +122,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tempo: 80,
   difficultyId: 'easy',
   kind: 'random',
+  themeCount: 2,
   bars: 8,
   cycles: 4,
   beatsPerBar: 4,
@@ -147,6 +150,17 @@ export const BARS_OPTIONS = [4, 8, 12, 16, 24] as const;
  * substantial exercise rather than a short one.
  */
 export const CYCLE_OPTIONS = [1, 2, 4, 8] as const;
+
+/**
+ * How many themes a Themes exercise plays, end to end.
+ *
+ * Its own field rather than borrowing `cycles`, which means times through one
+ * shape. A theme is not played twice over; the next one is a different tune,
+ * and calling both "cycles" is how a numerator ends up mistaken for a bar
+ * length. See `metre.ts` for the version of that mistake this project has
+ * already made once.
+ */
+export const THEME_OPTIONS = [1, 2, 3, 4, 6] as const;
 
 /**
  * Most keys one exercise may move through.
@@ -272,6 +286,7 @@ export function sanitise(settings: Settings): Settings {
     tempo: clamp(settings.tempo, TEMPO_RANGE.min, TEMPO_RANGE.max),
     bars: clamp(settings.bars, 1, 64),
     cycles: clamp(settings.cycles, 1, 16),
+    themeCount: clamp(settings.themeCount, 1, 8),
     countInBars: clamp(settings.countInBars, 0, 2),
     scrollSpeed: clamp(settings.scrollSpeed, SCROLL_SPEED_RANGE.min, SCROLL_SPEED_RANGE.max),
     readingMode: READING_MODES.some((m) => m.id === settings.readingMode)

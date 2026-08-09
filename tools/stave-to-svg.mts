@@ -68,9 +68,10 @@ const exercise = arg('theme', '')
     ? arg('keys', '').split(',').map(Number)
     : undefined,
   difficulty: difficultyById(arg('difficulty', 'hard')),
-  kind: arg('kind', 'random') as 'random' | 'scales' | 'arpeggios' | 'phrases',
+  kind: arg('kind', 'random') as 'random' | 'scales' | 'arpeggios' | 'phrases' | 'themes',
   bars: Number(arg('bars', '8')),
   cycles: Number(arg('cycles', '2')),
+  themeCount: Number(arg('themes', '2')),
   metre: metreFor(Number(arg('beats', '4')), Number(arg('unit', '4'))),
   seed: Number(arg('seed', '1')),
     });

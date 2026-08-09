@@ -20,6 +20,7 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
     kind: 'random',
     bars: 8,
     cycles: 2,
+    themeCount: 2,
     metre: metreFor(4, 4),
     seed: 12345,
     ...overrides,
@@ -200,8 +201,10 @@ describe('scales and arpeggios', () => {
     });
 
     it('gets longer with more cycles', () => {
-      const once = generateExercise(options({ kind: 'scales', cycles: 1, seed: 2 }));
-      const twice = generateExercise(options({ kind: 'scales', cycles: 2, seed: 2 }));
+      const once = generateExercise(options({ kind: 'scales', cycles: 1,
+ themeCount: 2, seed: 2 }));
+      const twice = generateExercise(options({ kind: 'scales', cycles: 2,
+ themeCount: 2, seed: 2 }));
 
       // Notes scale exactly, discounting the closing tonic each ends on.
       expect(twice.notes.length - 1).toBe((once.notes.length - 1) * 2);
@@ -219,7 +222,8 @@ describe('scales and arpeggios', () => {
     it('leaves free material measured in bars, untouched', () => {
       // `cycles` is a pattern's unit and must not leak into anything else.
       for (const bars of [4, 8, 16]) {
-        const exercise = generateExercise(options({ kind: 'random', bars, cycles: 7, seed: bars }));
+        const exercise = generateExercise(options({ kind: 'random', bars, cycles: 7,
+ themeCount: 2, seed: bars }));
         expect(exercise.totalBeats, `random ${bars}`).toBe(bars * exercise.metre.barBeats);
       }
     });
@@ -232,8 +236,10 @@ describe('scales and arpeggios', () => {
        * thing this material exists not to do.
        */
       for (const bars of [4, 8, 16]) {
-        const seven = generateExercise(options({ kind: 'phrases', bars, cycles: 7, seed: bars }));
-        const two = generateExercise(options({ kind: 'phrases', bars, cycles: 2, seed: bars }));
+        const seven = generateExercise(options({ kind: 'phrases', bars, cycles: 7,
+ themeCount: 2, seed: bars }));
+        const two = generateExercise(options({ kind: 'phrases', bars, cycles: 2,
+ themeCount: 2, seed: bars }));
 
         expect(seven.totalBeats, `phrases ${bars}`).toBeGreaterThanOrEqual(
           bars * seven.metre.barBeats,
@@ -772,7 +778,8 @@ describe('key changes', () => {
     for (const kind of KINDS) {
       for (let seed = 1; seed <= 4; seed++) {
         const exercise = generateExercise(
-          options({ kind, fifths: -3, keySet: [-3, -2, -1], bars: 24, cycles: 4, seed }),
+          options({ kind, fifths: -3, keySet: [-3, -2, -1], bars: 24, cycles: 4,
+ themeCount: 2, seed }),
         );
         for (const change of exercise.keys) {
           expect(
@@ -814,7 +821,8 @@ describe('key changes', () => {
      * interrupted half way up to change key would be neither scale.
      */
     const exercise = generateExercise(
-      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 4, seed: 6 }),
+      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 4,
+ themeCount: 2, seed: 6 }),
     );
     expect(exercise.keys.length).toBeGreaterThan(1);
 
@@ -831,7 +839,8 @@ describe('key changes', () => {
     // A scale in B flat is a different set of notes from one in E flat. Only
     // redrawing the signature would be a change of clothes, not of key.
     const exercise = generateExercise(
-      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 2, seed: 3 }),
+      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 2,
+ themeCount: 2, seed: 3 }),
     );
     const [first, second] = exercise.keys;
     expect(second).toBeDefined();

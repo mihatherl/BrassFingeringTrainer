@@ -19,6 +19,7 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
     kind: 'random',
     bars: 12,
     cycles: 2,
+    themeCount: 2,
     metre: metreFor(4, 4),
     seed: 1,
     ...overrides,

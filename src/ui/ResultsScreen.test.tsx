@@ -21,6 +21,7 @@ const exercise = generateExercise({
   kind: 'random',
   bars: 4,
   cycles: 2,
+  themeCount: 2,
   metre: metreFor(4, 4),
   seed: 3,
 });
