@@ -569,9 +569,17 @@ its own `themeCount` rather than borrowing `cycles`: a theme is not played twice
 over, the next one is a different tune, and calling both the same thing is how a
 numerator ends up mistaken for a bar length.
 
-How many bars that comes to is a consequence rather than a target. Three themes
-is twenty-eight bars where one of them is twelve, which is the point of
-measuring in themes at all.
+How many bars that comes to is a consequence rather than a target, and that is
+**agreed rather than tolerated**: three themes is twenty-eight bars where one of
+them is twelve, and an approximate bar count is the right price for whole
+phrases. The alternative — standardising the corpus on eight bars so that four
+themes always means thirty-two — was considered and rejected. A page of nothing
+but eight-bar phrases teaches a reader to expect the break rather than read for
+it, and expecting the break is the habit sight-reading is supposed to break.
+
+So the corpus should **vary its lengths on purpose**. Eight bars is the usual
+shape and twelve is worth having; the point is that a reader cannot count on
+either.
 
 **A key change lands where one theme ends and the next begins, and nowhere
 else.** The set is dealt across the themes in contiguous blocks, exactly as a
