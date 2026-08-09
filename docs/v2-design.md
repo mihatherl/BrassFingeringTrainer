@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.5.1 is deployed** to GitHub Pages, 439 tests. Since v1:
+**v1.5.1 is deployed** to GitHub Pages, 455 tests. Since v1:
 
 | | |
 |---|---|
@@ -82,7 +82,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `public/spike/` | Throwaway. The conductor and microphone spikes, and where shapes are argued about. |
 | `tools/stave-to-svg.mts` | `npm run svg` — renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
 | `tools/render-svg.mts` | The drawing itself, shared by that tool and the engraving snapshots so the two cannot drift. |
-| `src/render/__snapshots__/engraving/` | Seven committed SVGs, held to the byte by `engraving.test.ts`. Open them; they are pictures. |
+| `src/render/__snapshots__/engraving/` | Nine committed SVGs, held to the byte by `engraving.test.ts`. Open them; they are pictures. |
 | `tools/shots.mts` | `npm run shots` — drives the real app at five viewports and photographs it. The viewport list is the valuable part. |
 | `input/` | Reference material, gitignored. Currently a conducting textbook chapter. |
 
@@ -137,7 +137,7 @@ across machines would cry wolf. They are for looking at. The byte-for-byte
 check is the SVG one.
 
 **That SVG route now runs as a test.** `src/render/engraving.test.ts` draws
-seven figures and holds each to a committed SVG, byte for byte. It was the
+nine figures and holds each to a committed SVG, byte for byte. It was the
 cheapest regression check available and it depended on somebody remembering to
 do it; now it does not.
 
@@ -153,7 +153,9 @@ whatever the code happens to do.
 
 The figures are chosen for what has broken or what carries a rule this project
 committed to, not for coverage: ties curving both ways, a key change *and* a
-change into C major, a scale in cycles, 6/8, and the bass clef. Two of them
+change into C major, a scale in cycles, 6/8, the bass clef, and two authored
+themes — the plainest, and the modulating one, where both of that feature's
+faults were. Two of them
 depend on `seed: 6` putting the change mid-system — on a system break a change
 draws nothing but the signature every line states anyway, so the double bar and
 the cancelling naturals would go unexercised. A test asserts that seed still
