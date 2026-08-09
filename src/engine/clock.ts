@@ -15,6 +15,8 @@
  * a dropped frame cannot disturb the timing.
  */
 
+import { beatAt, compileTempo, timeAt, type TempoEvent, type TempoMap } from '../domain/tempo';
+
 export type ScheduleWindow = (fromBeat: number, toBeat: number) => void;
 
 const LOOKAHEAD_SECONDS = 0.15;
@@ -43,38 +45,38 @@ export class Transport {
    * a property of the page, set once, not something that should surge and stall
    * through a rit.
    */
-  nominalSecondsPerBeat: number;
+  readonly nominalSecondsPerBeat: number;
+
+  /**
+   * The beat↔time arithmetic, compiled once at construction and immutable for
+   * the transport's life. That immutability is what `setTempo` used to guard
+   * with a throw: the mapping is anchored at a single origin, and changing it
+   * mid-run would retroactively move every note already scheduled. Now there
+   * is nothing to call — a different tempo is a different transport.
+   */
+  private readonly map: TempoMap;
 
   private readonly context: AudioContext;
   /** NaN so the first comparison always misses and anchors afresh. */
   private anchorAudioTime = Number.NaN;
   private anchorPerfTime = 0;
 
-  constructor(context: AudioContext, tempo: number) {
+  constructor(context: AudioContext, tempo: number, events: readonly TempoEvent[] = []) {
     this.context = context;
     this.nominalSecondsPerBeat = 60 / tempo;
+    this.map = compileTempo(tempo, events);
   }
 
   get isRunning(): boolean {
     return this.timer !== null;
   }
 
-  /**
-   * Tempo may only be changed while stopped: the beat/time mapping is linear
-   * from a single origin, and changing its slope mid-run would retroactively
-   * move every note already scheduled.
-   */
-  setTempo(bpm: number): void {
-    if (this.isRunning) throw new Error('Cannot change tempo while the transport is running');
-    this.nominalSecondsPerBeat = 60 / bpm;
-  }
-
   timeForBeat(beat: number): number {
-    return this.originTime + beat * this.nominalSecondsPerBeat;
+    return this.originTime + timeAt(this.map, beat);
   }
 
   beatForTime(time: number): number {
-    return (time - this.originTime) / this.nominalSecondsPerBeat;
+    return beatAt(this.map, time - this.originTime);
   }
 
   /**
@@ -85,12 +87,14 @@ export class Transport {
    * this note", "how much time before the next one", "how much slack does this
    * note get" are all this question, and none of them needs a rate.
    *
-   * While the tempo is constant it is a subtraction and a multiply. Under a
-   * tempo map it becomes the closed-form integral between the two beats, and
-   * every caller is already phrased so that nothing has to change.
+   * Under the tempo map it is the closed-form integral between the two
+   * beats — see `domain/tempo.ts` — and with no events that degenerates to
+   * the subtraction and multiply it always was. Every caller was phrased so
+   * that nothing had to change when this stopped being constant, and nothing
+   * did.
    */
   secondsBetween(fromBeat: number, toBeat: number): number {
-    return this.timeForBeat(toBeat) - this.timeForBeat(fromBeat);
+    return timeAt(this.map, toBeat) - timeAt(this.map, fromBeat);
   }
 
   /** Current musical position, which may be negative during a count-in. */
@@ -140,7 +144,7 @@ export class Transport {
     this.onWindow = onWindow;
     // A small offset gives the first scheduling pass room to run before the
     // origin passes, so the very first note is never late.
-    this.originTime = this.context.currentTime + 0.1 - startAtBeat * this.nominalSecondsPerBeat;
+    this.originTime = this.context.currentTime + 0.1 - timeAt(this.map, startAtBeat);
     this.scheduledUntilBeat = startAtBeat;
 
     this.tick();

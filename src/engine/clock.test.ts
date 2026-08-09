@@ -136,3 +136,40 @@ describe('the visual clock', () => {
     expect(t.visualBeat()).toBeGreaterThan(t.currentBeat());
   });
 });
+
+describe('the transport under a tempo map', () => {
+  /*
+   * The map's own arithmetic is held to properties in `domain/tempo.test.ts`;
+   * these only pin that the transport routes through it — and that with no
+   * events it is the transport the rest of this file already describes.
+   */
+
+  it('is unchanged by an empty map', () => {
+    const plain = new Transport(context, 120);
+    expect(plain.timeForBeat(6)).toBeCloseTo(3, 12);
+    expect(plain.beatForTime(3)).toBeCloseTo(6, 12);
+    expect(plain.secondsBetween(-4, 0)).toBeCloseTo(2, 12);
+  });
+
+  it('schedules and reads through a step change', () => {
+    const t = new Transport(context, 120, [{ kind: 'tempo', atBeat: 4, bpm: 60 }]);
+    expect(t.timeForBeat(6)).toBeCloseTo(4, 12);
+    expect(t.secondsBetween(2, 6)).toBeCloseTo(3, 12);
+    audioTime = 3;
+    expect(t.currentBeat()).toBeCloseTo(5, 12);
+  });
+
+  it('stands still through a hold, and so does the display', () => {
+    const t = new Transport(context, 120, [{ kind: 'hold', atBeat: 4, seconds: 2 }]);
+    // The re-entry beat sounds at the release, not the arrival...
+    expect(t.timeForBeat(4)).toBeCloseTo(4, 12);
+    // ...while the clock reads the held beat for the whole dwell, which is
+    // what parks the scheduling horizon as well as the notation.
+    audioTime = 2.5;
+    expect(t.currentBeat()).toBe(4);
+    audioTime = 3.9;
+    expect(t.currentBeat()).toBe(4);
+    audioTime = 4.5;
+    expect(t.currentBeat()).toBeCloseTo(5, 12);
+  });
+});

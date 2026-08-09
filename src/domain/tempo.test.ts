@@ -1,0 +1,191 @@
+import { describe, expect, it } from 'vitest';
+import { beatAt, compileTempo, tempoAt, timeAt, type TempoEvent } from './tempo';
+
+/**
+ * The clock is the one place a bug desynchronises sound from notation — the
+ * fault a rhythm trainer cannot have — so the map is held to properties, not
+ * examples: the closed forms against numerical integration, the inverse
+ * against the forward map, and additivity across every kind of boundary.
+ */
+
+/** Riemann midpoint integral of 60/bpm across [from, to], for checking. */
+function integrated(bpmAtBeat: (b: number) => number, from: number, to: number): number {
+  const steps = 20000;
+  const width = (to - from) / steps;
+  let sum = 0;
+  for (let i = 0; i < steps; i++) sum += (60 / bpmAtBeat(from + (i + 0.5) * width)) * width;
+  return sum;
+}
+
+describe('a constant tempo', () => {
+  const map = compileTempo(120);
+
+  it('is the multiplication it always was, both ways', () => {
+    expect(timeAt(map, 2)).toBeCloseTo(1, 12);
+    expect(timeAt(map, 0)).toBe(0);
+    expect(beatAt(map, 1)).toBeCloseTo(2, 12);
+  });
+
+  it('is total over the count-in', () => {
+    expect(timeAt(map, -4)).toBeCloseTo(-2, 12);
+    expect(beatAt(map, -2)).toBeCloseTo(-4, 12);
+  });
+
+  it('is in force everywhere', () => {
+    expect(tempoAt(map, -4)).toBe(120);
+    expect(tempoAt(map, 100)).toBe(120);
+  });
+});
+
+describe('a step change', () => {
+  const map = compileTempo(120, [{ kind: 'tempo', atBeat: 4, bpm: 60 }]);
+
+  it('splits time piecewise at the boundary', () => {
+    expect(timeAt(map, 4)).toBeCloseTo(2, 12);
+    expect(timeAt(map, 6)).toBeCloseTo(4, 12);
+    expect(beatAt(map, 3)).toBeCloseTo(5, 12);
+  });
+
+  it('adds up across the boundary', () => {
+    const between = (a: number, b: number) => timeAt(map, b) - timeAt(map, a);
+    expect(between(0, 6)).toBeCloseTo(between(0, 3) + between(3, 6), 12);
+  });
+
+  it('takes force on the boundary itself, like keyAt', () => {
+    expect(tempoAt(map, 4 - 1e-6)).toBeCloseTo(120, 3);
+    expect(tempoAt(map, 4)).toBe(60);
+  });
+
+  it('leaves the count-in at the opening tempo', () => {
+    expect(timeAt(map, -4)).toBeCloseTo(-2, 12);
+  });
+});
+
+describe('a ramp', () => {
+  const map = compileTempo(120, [{ kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 60 }]);
+  const bpmAtBeat = (b: number) => 120 + ((60 - 120) / 4) * (b - 4);
+
+  it('matches the integral it claims to be in closed form', () => {
+    const closed = timeAt(map, 8) - timeAt(map, 4);
+    expect(closed).toBeCloseTo(integrated(bpmAtBeat, 4, 8), 6);
+    // And part-way through, not only across the whole span.
+    expect(timeAt(map, 5.3) - timeAt(map, 4)).toBeCloseTo(integrated(bpmAtBeat, 4, 5.3), 6);
+  });
+
+  it('inverts exactly, which the render loop leans on sixty times a second', () => {
+    for (const beat of [-3, 0, 2, 4, 4.7, 6, 7.999, 8, 11]) {
+      expect(beatAt(map, timeAt(map, beat))).toBeCloseTo(beat, 9);
+    }
+  });
+
+  it('arrives, and the arrival tempo stays in force', () => {
+    expect(tempoAt(map, 6)).toBeCloseTo(90, 9);
+    expect(tempoAt(map, 8)).toBe(60);
+    expect(tempoAt(map, 20)).toBe(60);
+    expect(timeAt(map, 9) - timeAt(map, 8)).toBeCloseTo(1, 12);
+  });
+
+  it('degenerates continuously as the slope vanishes', () => {
+    const flat = compileTempo(120, [{ kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 120 }]);
+    const nearly = compileTempo(120, [
+      { kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 120 + 1e-7 },
+    ]);
+    expect(timeAt(flat, 8)).toBeCloseTo(4, 12);
+    expect(timeAt(nearly, 8)).toBeCloseTo(4, 8);
+  });
+});
+
+describe('a hold', () => {
+  const map = compileTempo(120, [{ kind: 'hold', atBeat: 8, seconds: 2 }]);
+
+  it('sits between the beats: the far side answers after the dwell', () => {
+    expect(timeAt(map, 8 - 1e-9)).toBeCloseTo(4, 6);
+    // The re-entry note on the boundary sounds at the release, not the arrival.
+    expect(timeAt(map, 8)).toBeCloseTo(6, 12);
+    expect(timeAt(map, 9)).toBeCloseTo(6.5, 12);
+  });
+
+  it('plateaus the inverse, which is the display honestly standing still', () => {
+    expect(beatAt(map, 4)).toBe(8);
+    expect(beatAt(map, 5)).toBe(8);
+    expect(beatAt(map, 6 - 1e-9)).toBe(8);
+    expect(beatAt(map, 6)).toBeCloseTo(8, 12);
+    expect(beatAt(map, 6.5)).toBeCloseTo(9, 12);
+  });
+
+  it('is spanned by secondsBetween, so a held note sounds through it', () => {
+    expect(timeAt(map, 9) - timeAt(map, 7)).toBeCloseTo(0.5 + 2 + 0.5, 12);
+  });
+
+  it('still inverts on either side', () => {
+    for (const beat of [-2, 0, 7.9, 8, 8.1, 12]) {
+      expect(beatAt(map, timeAt(map, beat))).toBeCloseTo(beat, 9);
+    }
+  });
+
+  it('tolerates a zero-length dwell', () => {
+    const zero = compileTempo(120, [{ kind: 'hold', atBeat: 8, seconds: 0 }]);
+    expect(timeAt(zero, 8)).toBeCloseTo(4, 12);
+    expect(beatAt(zero, 4)).toBeCloseTo(8, 12);
+  });
+});
+
+describe('the band cliché: rit into a fermata into the new tempo', () => {
+  // Broaden through the last bar, hold, then off again quicker — the join
+  // every test piece has, and the reason event order at one beat is a rule.
+  const events: TempoEvent[] = [
+    { kind: 'ramp', fromBeat: 8, toBeat: 12, toBpm: 84 },
+    { kind: 'hold', atBeat: 12, seconds: 2 },
+    { kind: 'tempo', atBeat: 12, bpm: 96 },
+  ];
+  const map = compileTempo(120, events);
+
+  it('runs the hold in the old tempo and re-enters in the new', () => {
+    expect(tempoAt(map, 12 - 1e-6)).toBeCloseTo(84, 2);
+    expect(tempoAt(map, 12)).toBe(96);
+  });
+
+  it('accounts for every second, in order', () => {
+    const rit = integrated((b) => 120 + ((84 - 120) / 4) * (b - 8), 8, 12);
+    expect(timeAt(map, 12)).toBeCloseTo(4 + rit + 2, 6);
+    expect(timeAt(map, 13) - timeAt(map, 12)).toBeCloseTo(60 / 96, 12);
+  });
+
+  it('holds the display at the join for the whole dwell', () => {
+    const arrival = timeAt(map, 12) - 2;
+    expect(beatAt(map, arrival + 0.001)).toBe(12);
+    expect(beatAt(map, arrival + 1.999)).toBe(12);
+  });
+
+  it('survives the events arriving in any order', () => {
+    const shuffled = compileTempo(120, [events[2], events[0], events[1]]);
+    expect(timeAt(shuffled, 13)).toBeCloseTo(timeAt(map, 13), 12);
+  });
+});
+
+describe('what the compiler refuses', () => {
+  it('an event on or before the music starts', () => {
+    expect(() => compileTempo(120, [{ kind: 'tempo', atBeat: 0, bpm: 90 }])).toThrow(/start/);
+    expect(() => compileTempo(120, [{ kind: 'hold', atBeat: -2, seconds: 1 }])).toThrow(/start/);
+  });
+
+  it('an event inside a ramp', () => {
+    expect(() =>
+      compileTempo(120, [
+        { kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 60 },
+        { kind: 'tempo', atBeat: 6, bpm: 90 },
+      ]),
+    ).toThrow(/overlaps/);
+  });
+
+  it('tempi that are not tempi', () => {
+    expect(() => compileTempo(0)).toThrow(/positive/);
+    expect(() => compileTempo(120, [{ kind: 'tempo', atBeat: 4, bpm: -60 }])).toThrow(/positive/);
+    expect(() => compileTempo(120, [{ kind: 'ramp', fromBeat: 4, toBeat: 4, toBpm: 60 }])).toThrow(
+      /width/,
+    );
+    expect(() => compileTempo(120, [{ kind: 'hold', atBeat: 4, seconds: -1 }])).toThrow(
+      /non-negative/,
+    );
+  });
+});
