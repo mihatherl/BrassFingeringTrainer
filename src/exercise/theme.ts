@@ -93,6 +93,32 @@ export interface Theme {
 const STABLE_DEGREES = [1, 3, 5];
 
 /**
+ * Where a theme's tonic is allowed to sit, as a written pitch.
+ *
+ * A ruling from playing rather than from arithmetic. Placing a theme by
+ * centring whatever it happens to span puts the same tune somewhere different
+ * in every key, and puts a wide one somewhere nobody would write it — the tonic
+ * is what a player feels the music sitting on, so that is what gets placed.
+ *
+ * Written rather than sounding, because this is about where the notes land on
+ * the page in front of the player. An octave from just below the stave to just
+ * inside it, which on a treble-clef tuba part is low G up to the G the clef
+ * curls around, and on everything else in treble is the ledger C up to the C in
+ * the stave. Bass clef is the same octave where that clef puts it.
+ *
+ * Clamped to what the instrument can actually reach, so the window can never
+ * ask for a note that does not exist.
+ */
+export function tonicWindow(instrument: Instrument, clef: Clef): [number, number] {
+  const TUBAS = ['eb-bass', 'bb-bass'];
+  const [low, high] =
+    clef === 'bass' ? [48, 60] : TUBAS.includes(instrument.id) ? [55, 67] : [60, 72];
+
+  const [lowest, highest] = writtenRange(instrument, clef);
+  return [Math.max(low, lowest), Math.min(high, highest)];
+}
+
+/**
  * Everything wrong with a theme, or an empty list.
  *
  * Written as a list rather than a throw because the point is to check a whole
@@ -305,26 +331,32 @@ export function realiseTheme(theme: Theme, options: RealiseOptions): RealisedThe
 
   /*
    * The opening tonic may sit in any octave whose pitch class matches the key.
-   * Try each, nearest the middle of the compass first, and take the first that
-   * holds the whole theme — every section of it, since a theme that modulates
-   * upwards may fit at the start and run off the top later.
+   * The one inside `tonicWindow` is the one wanted, so the same tune sits in
+   * the same part of the instrument whichever key it is played in.
+   *
+   * Outside the window is a fallback rather than a failure: a theme that spans
+   * more than the compass leaves above its tonic has to sit lower, and a tune
+   * an octave from home is better than no tune. Every candidate is still tested
+   * against the whole theme, since one that modulates upwards can fit at the
+   * start and run off the top later.
    */
   const tonicClass = ((tonicPitchClass(keys[0].fifths) % 12) + 12) % 12;
-  const middle = (lowest + highest) / 2;
+  const [windowLow, windowHigh] = tonicWindow(instrument, clef);
   const bases: number[] = [];
   for (let midi = lowest - 24; midi <= highest + 24; midi++) {
     if (((midi % 12) + 12) % 12 === tonicClass) bases.push(midi);
   }
-  bases.sort((a, b) => {
-    const [aLow, aHigh] = spanOf(a);
-    const [bLow, bHigh] = spanOf(b);
-    return Math.abs((aLow + aHigh) / 2 - middle) - Math.abs((bLow + bHigh) / 2 - middle);
-  });
 
-  const base = bases.find((candidate) => {
+  const home = (windowLow + windowHigh) / 2;
+  bases.sort((a, b) => Math.abs(a - home) - Math.abs(b - home));
+
+  const holds = (candidate: number) => {
     const [low, high] = spanOf(candidate);
     return low >= lowest && high <= highest;
-  });
+  };
+
+  const base =
+    bases.find((c) => c >= windowLow && c <= windowHigh && holds(c)) ?? bases.find(holds);
   if (base === undefined) return null;
 
   const tonics = tonicsFrom(base);

@@ -218,11 +218,28 @@ describe('scales and arpeggios', () => {
 
     it('leaves free material measured in bars, untouched', () => {
       // `cycles` is a pattern's unit and must not leak into anything else.
-      for (const kind of ['random', 'phrases'] as const) {
-        for (const bars of [4, 8, 16]) {
-          const exercise = generateExercise(options({ kind, bars, cycles: 7, seed: bars }));
-          expect(exercise.totalBeats, `${kind} ${bars}`).toBe(bars * exercise.metre.barBeats);
-        }
+      for (const bars of [4, 8, 16]) {
+        const exercise = generateExercise(options({ kind: 'random', bars, cycles: 7, seed: bars }));
+        expect(exercise.totalBeats, `random ${bars}`).toBe(bars * exercise.metre.barBeats);
+      }
+    });
+
+    it('measures sight-reading in whole themes, and still owes nothing to cycles', () => {
+      /*
+       * Themed material is measured the way a pattern is rather than the way
+       * free material is: a theme is a fixed shape, so the length asked for is
+       * a floor and not a target. Cutting a phrase off mid sentence is the one
+       * thing this material exists not to do.
+       */
+      for (const bars of [4, 8, 16]) {
+        const seven = generateExercise(options({ kind: 'phrases', bars, cycles: 7, seed: bars }));
+        const two = generateExercise(options({ kind: 'phrases', bars, cycles: 2, seed: bars }));
+
+        expect(seven.totalBeats, `phrases ${bars}`).toBeGreaterThanOrEqual(
+          bars * seven.metre.barBeats,
+        );
+        expect(seven.totalBeats % seven.metre.barBeats, 'ends part way through a bar').toBe(0);
+        expect(two.totalBeats, `cycles leaked into phrases at ${bars}`).toBe(seven.totalBeats);
       }
     });
   });

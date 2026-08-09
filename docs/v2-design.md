@@ -538,12 +538,42 @@ can say so per note.
 any key. Two are pinned by the engraving snapshots: the plainest, and the
 modulating one, since that is where both faults were.
 
-**Still open, and worth deciding when stitching is built.** A theme is currently
-fitted to the instrument's whole compass rather than to the difficulty's range,
-so a beginner's theme may sit anywhere the instrument can reach. That is
-probably wrong, and it is not obviously right to fix it by narrowing to the
-difficulty either — a theme is a fixed shape, and a range that will not hold it
-means no theme rather than a squashed one.
+**Where a theme sits is settled, and it is the tonic that is placed.** A ruling
+from playing rather than from arithmetic: centring whatever a theme happens to
+span puts the same tune somewhere different in every key. The tonic is what a
+player feels the music sitting on, so the tonic goes in a window — written
+pitch, an octave from just below the stave to just inside it. On a treble-clef
+tuba part that is low G up to the G the clef curls around; on everything else in
+treble it is the ledger C up to the C in the stave; bass clef is the same octave
+where that clef puts it. Outside the window is a fallback rather than a failure,
+for a theme too wide to sit there.
+
+### Stitching, and what it needs from the corpus
+
+**Built.** Sight-reading now comes from themes laid end to end, and falls back
+to the random walk where nothing in the corpus fits — the same shape as a
+pattern that will not fit an instrument, and the ordinary case rather than an
+error while the corpus is small.
+
+Length is measured the way a pattern's is rather than the way free material's
+is: the bars asked for are a floor, and stitching stops at the end of whichever
+theme passes the mark. Cutting a phrase off mid sentence is the one thing this
+material exists not to do.
+
+**The key set governs the joins; a theme governs its own inside.** Each theme
+opens in the key the set has reached, spread by position and never sooner than
+four bars after the last change, and whatever the theme does internally is part
+of the tune. Wiring themes in without this silently took the key set away from
+anyone choosing sight-reading, which an existing test caught.
+
+**The corpus is injectable, and that is not gold-plating.** Selection is where
+the rules are — do not repeat, carry the key on, skip what will not fit — and
+with one theme per difficulty none of them has anything to choose between. The
+tests supply a corpus of two so the rules are exercised rather than asserted.
+Rendering 24 bars at Medium today draws the same eight bars three times, which
+is not a fault in the stitching but the corpus doing what a corpus of one must.
+**Coverage is the next thing this needs**: several themes per difficulty in at
+least one metre, so that a session does not repeat itself.
 
 ### Where the themes come from
 

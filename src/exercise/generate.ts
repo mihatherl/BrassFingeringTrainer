@@ -33,6 +33,7 @@ import type { Difficulty } from './difficulty';
 import type { Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
 import { assembleExercise, type Slot } from './assemble';
+import { stitchThemes } from './phrases';
 import type { Exercise, ExerciseKind } from './types';
 
 export interface GenerateOptions {
@@ -158,6 +159,41 @@ function restsFilling(from: number, beats: number, metre: Metre): Slot[] {
 export function generateExercise(options: GenerateOptions): Exercise {
   const rng = createRng(options.seed);
   const { metre } = options;
+
+  /*
+   * Sight-reading comes from authored themes where there are any that fit, and
+   * from the random walk where there are not.
+   *
+   * A walk cannot produce repetition, an answering phrase or a cadence, which
+   * are the three things that make a line readable at sight — but the corpus is
+   * small and is filtered by difficulty, metre and compass, so a fall back to
+   * generated material is the ordinary case rather than an error. The same
+   * shape as a pattern that will not fit an instrument.
+   */
+  if (options.kind === 'phrases') {
+    const stitched = stitchThemes({
+      instrument: options.instrument,
+      clef: options.clef,
+      fifths: options.fifths,
+      difficulty: options.difficulty.id,
+      keys: orderByCloseness(options.fifths, options.keySet ?? [options.fifths]),
+      metre,
+      bars: options.bars,
+      rng,
+    });
+    if (stitched) {
+      return assembleExercise(stitched.slots, stitched.pitches, {
+        instrument: options.instrument,
+        clef: options.clef,
+        keys: stitched.keys,
+        metre,
+        totalBeats: stitched.totalBeats,
+        seed: options.seed,
+        kind: options.kind,
+      });
+    }
+  }
+
   const candidates = candidatePitches(options);
   if (candidates.length === 0) {
     throw new Error('No playable notes in range for this instrument and difficulty');
