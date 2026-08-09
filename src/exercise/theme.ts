@@ -21,7 +21,7 @@
 import { writtenRange, type Clef, type Instrument } from '../domain/instruments';
 import { MAJOR_SCALE, tonicPitchClass, type KeyChange } from '../domain/keys';
 import { metreFor, type Metre } from '../domain/metre';
-import { durationFromBeats } from '../domain/rhythm';
+import { durationBeats, durationFromBeats } from '../domain/rhythm';
 import { assembleExercise, type Slot } from './assemble';
 import { DIFFICULTIES } from './difficulty';
 import type { Exercise } from './types';
@@ -168,6 +168,65 @@ export function validateTheme(theme: Theme): string[] {
     } else if (next.degree !== event.degree || (next.alter ?? 0) !== (event.alter ?? 0) ||
       (next.octave ?? 0) !== (event.octave ?? 0)) {
       problems.push(at(`event ${index} is tied to a different note, which is a slur`));
+    }
+  }
+
+  /*
+   * The difficulty tag, held to what the difficulty actually says.
+   *
+   * A tag is a claim, and an unchecked one drifts: a theme labelled Beginner
+   * with a leap of a tenth in it is worse than no theme, because a player
+   * meeting it has been told it is within reach. `difficulty.ts` already states
+   * these numbers for generated material, so a theme is measured against the
+   * same ones rather than against an opinion.
+   *
+   * Only the unambiguous claims are checked. Note *values* are not: the pool
+   * says what the generator draws from, and a dotted minim is plainly fine for
+   * a beginner without appearing in it. The shortest note is checked, because
+   * that one really is a difficulty.
+   */
+  const difficulty = DIFFICULTIES.find((d) => d.id === theme.difficulty);
+  if (difficulty) {
+    const shortest = Math.min(...difficulty.rhythms.map((r) => durationBeats(r.duration)));
+    for (const [index, event] of theme.events.entries()) {
+      if (event.beats < shortest - 1e-9) {
+        problems.push(
+          at(`event ${index} is shorter than ${theme.difficulty} reads: ${event.beats} beats`),
+        );
+      }
+    }
+
+    if (difficulty.accidentalChance === 0 && sounded.some((n) => (n.alter ?? 0) !== 0)) {
+      problems.push(at(`${theme.difficulty} takes no accidentals`));
+    }
+    if (difficulty.restChance === 0 && theme.events.some(isRest)) {
+      problems.push(at(`${theme.difficulty} takes no rests`));
+    }
+    if (difficulty.tieChance === 0 && sounded.some((n) => n.tied)) {
+      problems.push(at(`${theme.difficulty} takes no ties`));
+    }
+
+    /*
+     * Intervals and span are measured in the theme's own degree space, which is
+     * what the author wrote and can control. A theme that changes key is
+     * measured within each key rather than across the join, since where the
+     * join lands is decided later, by the compass.
+     */
+    const offsets = sounded.map(semitonesAbove);
+    const span = Math.max(...offsets) - Math.min(...offsets);
+    if (span > difficulty.rangeSemitones) {
+      problems.push(
+        at(`spans ${span} semitones; ${theme.difficulty} reads ${difficulty.rangeSemitones}`),
+      );
+    }
+    for (let i = 1; i < sounded.length; i++) {
+      if (sounded[i - 1].tied) continue;
+      const leap = Math.abs(offsets[i] - offsets[i - 1]);
+      if (leap > difficulty.maxInterval) {
+        problems.push(
+          at(`leaps ${leap} semitones at note ${i}; ${theme.difficulty} leaps ${difficulty.maxInterval}`),
+        );
+      }
     }
   }
 

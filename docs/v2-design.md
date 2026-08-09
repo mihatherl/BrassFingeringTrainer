@@ -73,7 +73,9 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Five so far, hand-written. |
+| `src/exercise/themes.ts` | The corpus itself. Nine so far, hand-written; five of them Medium in 4/4. |
+| `src/exercise/phrases.ts` | Choosing themes and laying them end to end. |
+| `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
 | `src/render/stave.ts` | `layoutKeySignature` — one arithmetic shared by drawing and measuring, including the naturals that cancel an outgoing key. |
 | `src/render/surface.ts` | Both reading modes. `staveSpaceCeiling` is the unit the whole play screen is sized from. |
@@ -565,6 +567,25 @@ opens in the key the set has reached, spread by position and never sooner than
 four bars after the last change, and whatever the theme does internally is part
 of the tune. Wiring themes in without this silently took the key set away from
 anyone choosing sight-reading, which an existing test caught.
+
+**How to review what gets written.** `npm run themes` draws the whole corpus on
+one page, grouped by difficulty, with the validator's complaints printed under
+each theme and an empty difficulty named rather than skipped. `--difficulty
+medium`, `--fifths 2` and `--instrument cornet` narrow it. That is for seeing
+whether a theme is *correct*; `?theme=<id>` on the running app plays one and
+nothing else, which is the only way to find out whether it is any *good*. The
+same shape of hook as `?tier=free`, and as forgiving — an id naming nothing
+falls through to the ordinary exercise.
+
+**A difficulty tag is a claim, so it is checked.** `difficulty.ts` already
+states the numbers for generated material, and a theme is now held to the same
+ones: nothing shorter than that difficulty's shortest note, no accidental where
+the chance is zero, no rest, no tie, no leap beyond its `maxInterval`, no span
+beyond its `rangeSemitones`. A theme labelled Beginner with a leap of a tenth is
+worse than no theme, because a player meeting it has been told it is within
+reach. Note *values* are deliberately not checked against the pool — that says
+what the generator draws from, and a dotted minim is plainly fine for a beginner
+without appearing in it.
 
 **The corpus is injectable, and that is not gold-plating.** Selection is where
 the rules are — do not repeat, carry the key on, skip what will not fit — and

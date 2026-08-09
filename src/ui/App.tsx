@@ -3,6 +3,8 @@ import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
 import { metreFor } from '../domain/metre';
 import { generateExercise } from '../exercise/generate';
+import { exerciseFromTheme } from '../exercise/theme';
+import { themeById } from '../exercise/themes';
 import { randomSeed } from '../exercise/rng';
 import type { Exercise } from '../exercise/types';
 import type { SessionSummary } from '../engine/judge';
@@ -62,6 +64,27 @@ export function App() {
       const weights = settings.weakNoteDrilling
         ? noteWeights(loadStats(settings.instrumentId, settings.clef))
         : undefined;
+
+      /*
+       * `?theme=<id>` plays one theme and nothing else.
+       *
+       * For auditioning the corpus while it is being written — seeing a theme
+       * engraved says whether it is correct, and only playing it says whether
+       * it is any good. The same shape of hook as `?tier=free`, and as
+       * forgiving: an id that names nothing falls through to the ordinary
+       * exercise rather than leaving the player with a broken screen.
+       */
+      const wanted = new URLSearchParams(window.location.search).get('theme');
+      const theme = wanted ? themeById(wanted) : undefined;
+      if (theme) {
+        const one = exerciseFromTheme(theme, {
+          instrument,
+          clef: settings.clef,
+          fifths: settings.fifths,
+          metre: metreFor(...theme.metres[0]),
+        });
+        if (one) return one;
+      }
 
       return generateExercise({
         instrument,

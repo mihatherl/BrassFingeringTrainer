@@ -36,3 +36,6 @@ input/
 # the host's fonts and GPU, so diffing them across machines would cry wolf. The
 # committed engraving check is the SVG one in src/render/__snapshots__.
 shots/
+
+# Review page from `npm run themes`, regenerated on demand.
+themes.html

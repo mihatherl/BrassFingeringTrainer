@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "svg": "tsx tools/stave-to-svg.mts",
-    "shots": "tsx tools/shots.mts"
+    "shots": "tsx tools/shots.mts",
+    "themes": "tsx tools/theme-sheet.mts"
   },
   "dependencies": {
     "react": "^19.2.8",

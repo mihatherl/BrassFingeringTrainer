@@ -102,6 +102,105 @@ export const THEMES: readonly Theme[] = [
     ],
   },
   {
+    id: 'step-and-sequence',
+    name: 'Step and sequence',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * A sequence: one figure, then the same figure a step higher. Recognising
+     * that the second bar is the first one moved is the single most useful
+     * thing a sight-reader can do, and it is exactly what a random walk can
+     * never offer — there is nothing to recognise.
+     */
+    events: [
+      n(1, 1), n(2, 0.5), n(3, 0.5), n(2, 1), n(3, 1),
+      n(4, 1), n(3, 0.5), n(4, 0.5), n(5, 1), n(3, 1),
+      n(2, 1), n(3, 0.5), n(4, 0.5), n(3, 1), n(4, 1),
+      n(5, 2), n(4, 2),
+      n(3, 1), n(4, 0.5), n(5, 0.5), n(4, 1), n(5, 1),
+      n(6, 1), n(5, 0.5), n(4, 0.5), n(3, 1), n(2, 1),
+      n(3, 1.5), n(2, 0.5), n(1, 1), n(2, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'question-and-answer',
+    name: 'Question and answer',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * Two four-bar sentences, the second answering the first: the same opening,
+     * a different ending. The rest at the top of bar three is a breath rather
+     * than a gap — it is where the answer starts, and a reader who is counting
+     * hears the shape rather than merely surviving it.
+     */
+    events: [
+      n(5, 1), n(3, 1), n(1, 1), n(2, 1),
+      n(3, 1.5), n(2, 0.5), n(1, 2),
+      r(1), n(5, 1), n(4, 1), n(3, 1),
+      n(2, 1), n(3, 1), n(1, 2),
+      n(1, 1), n(3, 1), n(5, 1), n(4, 1),
+      n(3, 1), n(2, 0.5), n(1, 0.5), n(2, 2),
+      n(3, 1), n(4, 1), n(5, 2, { tied: true }),
+      n(5, 2), n(1, 2),
+    ],
+  },
+  {
+    id: 'turning-figure',
+    name: 'Turning figure',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 8,
+    /*
+     * A turn around the tonic, and the one accidental in the corpus that earns
+     * its place: the raised fourth in bar two is a passing note leaning into the
+     * fifth, which is where nearly every accidental in real band music comes
+     * from. An accidental that is not going anywhere is just a wrong note to
+     * read.
+     */
+    events: [
+      n(1, 0.5), n(2, 0.5), n(3, 1), n(2, 0.5), n(1, 0.5), n(2, 1),
+      n(3, 1), n(4, 0.5), n(4, 0.5, { alter: 1 }), n(5, 2),
+      n(5, 0.5), n(4, 0.5), n(3, 0.5), n(2, 0.5), n(3, 1), n(1, 1),
+      n(2, 1.5), n(1, 0.5), n(2, 2),
+      n(3, 0.5), n(4, 0.5), n(5, 1), n(4, 0.5), n(3, 0.5), n(4, 1),
+      n(5, 1), n(6, 0.5), n(5, 0.5), n(4, 1), n(3, 1),
+      n(2, 0.5), n(3, 0.5), n(4, 1), n(3, 1), n(2, 1),
+      n(1, 4),
+    ],
+  },
+  {
+    id: 'falling-thirds',
+    name: 'Falling thirds',
+    difficulty: 'medium',
+    metres: [[4, 4]],
+    bars: 12,
+    /*
+     * Twelve bars rather than eight, so that stitching does not fall into a
+     * predictable rhythm of its own — a page of nothing but eight-bar phrases
+     * teaches a reader to expect the break rather than to read for it.
+     *
+     * The interval is the drill: a third down then a step up, over and over,
+     * which is the shape most likely to be misread as a run of steps.
+     */
+    events: [
+      n(5, 1), n(3, 1), n(4, 1), n(2, 1),
+      n(3, 1), n(1, 1), n(2, 2),
+      n(3, 0.5), n(4, 0.5), n(5, 1), n(3, 1), n(4, 1),
+      n(5, 2), r(1), n(5, 1),
+      n(6, 1), n(4, 1), n(5, 1), n(3, 1),
+      n(4, 1), n(2, 1), n(3, 2),
+      n(1, 0.5), n(2, 0.5), n(3, 0.5), n(4, 0.5), n(5, 2),
+      n(4, 1.5), n(3, 0.5), n(2, 2),
+      n(3, 1), n(5, 1), n(4, 1), n(2, 1),
+      n(3, 1), n(1, 1), n(2, 1), n(3, 1),
+      n(4, 1), n(3, 1), n(2, 2, { tied: true }),
+      n(2, 2), n(1, 2),
+    ],
+  },
+  {
     id: 'six-eight-lilt',
     name: 'Six-eight lilt',
     difficulty: 'hard',
