@@ -11,7 +11,7 @@ is written down so it does not have to be argued out again.
 judged by three on-screen buttons. Fully offline, no backend, no runtime network
 requests at all — that last part is worth defending rather than an accident.
 
-**v1.10.0 is deployed** to GitHub Pages, 472 tests. Since v1:
+**v1.11.0 is deployed** to GitHub Pages, 472 tests. Since v1:
 
 | | |
 |---|---|
@@ -74,7 +74,7 @@ at all, then a visible fix that the feature happened to need, then the feature.
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
-| `src/exercise/themes.ts` | The corpus itself. Twenty-five, hand-written: eighteen phrases, and one tune varied across all five levels plus two figuration variations. |
+| `src/exercise/themes.ts` | The corpus itself. Twenty-one, hand-written: eighteen phrases and three treatments of one tune. |
 | `src/exercise/phrases.ts` | Choosing themes and laying them end to end. Named for the kind it first served; it now serves *Themes*. |
 | `tools/theme-sheet.mts` | `npm run themes` — the whole corpus engraved on one page, for deciding what to keep. |
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
@@ -608,14 +608,23 @@ is taken up and a set too large simply uses fewer of its keys. Changing key
 inside a tune that was not written to do so is a signature laid over somebody
 else's phrase.
 
-**A variation set answers a kind of sameness that more themes cannot.** Every
-theme being a different eight bars is its own monotony — nothing ever comes
-back. So one tune is written five times, plainer or more decorated, one at each
-difficulty: a player meets a shape they already know at a level that stretches
-them, and *hears* what a difficulty step means rather than being told. The tune
-is *Ah! vous dirai-je, maman*, French, about 1761, which Mozart wrote variations
-on rather than writing — both long out of copyright, worth stating in a corpus
-meant to be sold.
+**A variation set answers a kind of sameness that more themes cannot** — every
+theme being a different eight bars is its own monotony, since nothing ever comes
+back. One tune was therefore written five times, plainer or more decorated, one
+at each difficulty. **Four of the five were then binned**, and the reason is the
+useful part: the same melody at *every* level is its own monotony too. A player
+who meets Twinkle at Beginner, Easy, Medium, Hard and Expert has met one tune
+five times, which is the sameness the set was meant to cure rather than a cure
+for it.
+
+So the rule that came out of it: **one or two treatments of a tune, at levels
+far enough apart to be different music.** Three survive here — the tune dotted
+at Medium, and two figuration variations at Hard — and they were kept while the
+plain, filled, running and flourished versions went.
+
+The tune is *Ah! vous dirai-je, maman*, French, about 1761, which Mozart wrote
+variations on rather than writing — both long out of copyright, worth stating in
+a corpus meant to be sold.
 
 It also turned up something no argument would have. **A perfect fifth is seven
 semitones, and Beginner leaps four while Easy leaps five** — so the best-known
