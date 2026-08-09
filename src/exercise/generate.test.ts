@@ -916,15 +916,23 @@ describe('variable tempo, at generation', () => {
       options({ kind: 'themes', themeCount: 3, tempo: 80, variableTempo: true, ...overrides }),
     );
 
-  it('writes a step on a theme join and nowhere else', () => {
+  it('writes steps on theme joins and rits on whole bars, nowhere else', () => {
     const exercise = themed();
     expect(exercise.tempo.length).toBeGreaterThan(0);
     for (const event of exercise.tempo) {
-      expect(event.kind).toBe('tempo');
-      const atBeat = 'atBeat' in event ? event.atBeat : NaN;
-      expect(atBeat).toBeGreaterThan(0);
-      expect(atBeat % exercise.metre.barBeats).toBe(0);
+      if (event.kind === 'tempo') {
+        expect(event.atBeat).toBeGreaterThan(0);
+        expect(event.atBeat % exercise.metre.barBeats).toBe(0);
+      } else if (event.kind === 'ramp') {
+        expect(event.fromBeat % exercise.metre.barBeats).toBe(0);
+        expect(event.toBeat).toBeLessThanOrEqual(exercise.totalBeats);
+      } else {
+        throw new Error('no holds until stage 3');
+      }
     }
+    // Ends broaden: the last event is always the closing rit.
+    const last = exercise.tempo[exercise.tempo.length - 1];
+    expect(last.kind === 'ramp' && last.toBeat).toBe(exercise.totalBeats);
   });
 
   it('writes nothing with the setting off, and nothing changes but the marks', () => {
@@ -936,12 +944,18 @@ describe('variable tempo, at generation', () => {
     expect(off.notes).toEqual(on.notes);
   });
 
-  it('leaves material without joins alone, for now', () => {
-    // Stage 2 gives everything a closing rit; until then only themes have a
-    // boundary for the plan to use.
-    const scales = generateExercise(
-      options({ kind: 'scales', cycles: 2, tempo: 80, variableTempo: true }),
-    );
-    expect(scales.tempo).toEqual([]);
+  it('broadens the end of every material kind, joins or none', () => {
+    for (const kind of ['random', 'scales', 'arpeggios', 'phrases'] as const) {
+      const exercise = generateExercise(
+        options({ kind, cycles: 2, tempo: 80, variableTempo: true }),
+      );
+      expect(exercise.tempo, kind).toHaveLength(1);
+      const rit = exercise.tempo[0];
+      expect(rit.kind, kind).toBe('ramp');
+      if (rit.kind === 'ramp') {
+        expect(rit.toBeat, kind).toBe(exercise.totalBeats);
+        expect(rit.toBpm, kind).toBeLessThan(80);
+      }
+    }
   });
 });

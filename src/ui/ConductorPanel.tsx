@@ -55,6 +55,26 @@ const TRAIL_SECONDS = 0.4;
 /** Room left round the gesture so the tip never touches the edge. */
 const PADDING = 0.08;
 
+/**
+ * The orb: conductor intent as light at the tip, on its own channel.
+ *
+ * Position carries the beat and must never carry anything else, so intent is
+ * light instead — the same licence the trail takes, an invented graphic for a
+ * true quantity. The quantity is the transport's ramp ratio: how far the
+ * tempo has bent within the ramp now in progress, 1 wherever none is. So the
+ * orb appears only while the speed is actually changing — cooling blue as a
+ * rit takes energy out — and a settled tempo, whatever it is, shows nothing.
+ *
+ * The palette deliberately avoids the verdict colours: blue rather than
+ * green for calm, and when accels one day warm the tip it will be the violet
+ * family rather than red. Full strength by a third of the way to half speed,
+ * so the glow is legible early in an ordinary rit rather than only at the
+ * bottom of a deep one.
+ */
+const COOL_RGB = '59, 130, 246';
+const WARM_RGB = '192, 38, 211';
+const ORB_FULL_AT = 0.35;
+
 export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pattern = patternFor(metre);
@@ -106,9 +126,27 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
 
       // Interpolated rather than raw, so the gesture is smooth between audio
       // ticks — the same reading the notation is positioned from.
-      const pulse = pulseAt(metre, transport.visualBeat());
+      const beat = transport.visualBeat();
+      const pulse = pulseAt(metre, beat);
       const tip = tipAt(pattern, pulse, STYLE);
       const grip = gripFor(pattern, tip);
+      const tipPx = px(tip);
+
+      // Behind everything, so the gesture stays crisp over its own light.
+      const ratio = transport.rampRatio(beat);
+      const bend = Math.abs(1 - ratio);
+      if (bend > 0.02) {
+        const strength = Math.min(1, bend / ORB_FULL_AT);
+        const rgb = ratio < 1 ? COOL_RGB : WARM_RGB;
+        const radius = scale * (0.1 + 0.08 * strength);
+        const glow = ctx.createRadialGradient(tipPx.x, tipPx.y, 0, tipPx.x, tipPx.y, radius);
+        glow.addColorStop(0, `rgba(${rgb}, ${0.5 * strength})`);
+        glow.addColorStop(1, `rgba(${rgb}, 0)`);
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(tipPx.x, tipPx.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       const now = performance.now() / 1000;
       trail.push({ ...tip, at: now });
@@ -130,12 +168,11 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
       }
 
       ctx.globalAlpha = 1;
-      const tipAtPx = px(tip);
       const gripAtPx = px(grip);
       ctx.lineWidth = Math.max(1.5, scale * 0.018);
       ctx.beginPath();
       ctx.moveTo(gripAtPx.x, gripAtPx.y);
-      ctx.lineTo(tipAtPx.x, tipAtPx.y);
+      ctx.lineTo(tipPx.x, tipPx.y);
       ctx.stroke();
 
       ctx.fillStyle = theme.note;
@@ -143,7 +180,7 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
       ctx.arc(gripAtPx.x, gripAtPx.y, Math.max(2, scale * 0.032), 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(tipAtPx.x, tipAtPx.y, Math.max(1.5, scale * 0.018), 0, Math.PI * 2);
+      ctx.arc(tipPx.x, tipPx.y, Math.max(1.5, scale * 0.018), 0, Math.PI * 2);
       ctx.fill();
     };
 

@@ -245,3 +245,24 @@ export function tempoAt(map: TempoMap, beat: number): number {
   const span = spanAt(map, beat);
   return span.bpm0 + span.slope * (beat - span.fromBeat);
 }
+
+/**
+ * How far the tempo has bent from the speed it held when the ramp now in
+ * progress began: sliding below 1 through a rit, above 1 through an accel,
+ * and exactly 1 wherever no ramp is running — including after one ends, when
+ * the arrival tempo is simply the tempo.
+ *
+ * The orb's quantity. Deliberately *not* the ratio to the nominal tempo: a
+ * step change moves that ratio and leaves it moved, so a glow driven by it
+ * would burn from the first join to the end of the piece — signalling state
+ * where the orb must only ever signal transition. A settled tempo, whatever
+ * it is, has no energy coming out of it.
+ */
+export function rampRatioAt(map: TempoMap, beat: number): number {
+  const span = spanAt(map, beat);
+  // A sloped span found by lookup always contains the beat: compilation
+  // appends the flat arrival span after every ramp, so nothing past a ramp's
+  // end can land on it.
+  if (Math.abs(span.slope) < FLAT) return 1;
+  return (span.bpm0 + span.slope * (beat - span.fromBeat)) / span.bpm0;
+}

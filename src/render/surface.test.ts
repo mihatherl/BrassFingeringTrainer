@@ -175,6 +175,25 @@ describe('scrolling renderer', () => {
     expect(calls.some((c) => c.method === 'fillText' && c.args[0] === '= 96')).toBe(true);
   });
 
+  it('prints rit. where a ramp begins', () => {
+    const calls: RecordedCall[] = [];
+    const exercise = build('random', 'treble', -3, 11);
+    exercise.tempo = [{ kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 60 }];
+
+    const renderer = new StaveRenderer({
+      canvas: mockCanvas(calls),
+      exercise,
+      transport: new Transport(fakeAudioContext(0), 100),
+      theme: LIGHT_THEME,
+      scrollSpeed: 110,
+      readingMode: 'scrolling',
+      verdictFor: () => undefined,
+    });
+    renderer.draw();
+
+    expect(calls.some((c) => c.method === 'fillText' && c.args[0] === 'rit.')).toBe(true);
+  });
+
   it('draws every clef, key and verdict combination across a whole exercise', () => {
     // An unstarted transport has its origin at time zero, so the audio clock's
     // current time *is* the position in seconds — winding it forward scrubs

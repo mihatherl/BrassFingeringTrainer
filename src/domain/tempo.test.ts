@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beatAt, compileTempo, tempoAt, timeAt, type TempoEvent } from './tempo';
+import { beatAt, compileTempo, rampRatioAt, tempoAt, timeAt, type TempoEvent } from './tempo';
 
 /**
  * The clock is the one place a bug desynchronises sound from notation — the
@@ -160,6 +160,29 @@ describe('the band cliché: rit into a fermata into the new tempo', () => {
   it('survives the events arriving in any order', () => {
     const shuffled = compileTempo(120, [events[2], events[0], events[1]]);
     expect(timeAt(shuffled, 13)).toBeCloseTo(timeAt(map, 13), 12);
+  });
+});
+
+describe('the ramp ratio, which is what the orb reads', () => {
+  const map = compileTempo(120, [
+    { kind: 'tempo', atBeat: 4, bpm: 96 },
+    { kind: 'ramp', fromBeat: 8, toBeat: 12, toBpm: 72 },
+  ]);
+
+  it('is 1 wherever no ramp is running, whatever steps have done', () => {
+    expect(rampRatioAt(map, -4)).toBe(1);
+    expect(rampRatioAt(map, 2)).toBe(1);
+    // After the step the tempo is different and the ratio still 1: a settled
+    // tempo has no energy coming out of it.
+    expect(rampRatioAt(map, 6)).toBe(1);
+  });
+
+  it('slides through the ramp and settles at 1 on arrival', () => {
+    expect(rampRatioAt(map, 8)).toBeCloseTo(1, 12);
+    expect(rampRatioAt(map, 10)).toBeCloseTo(84 / 96, 12);
+    expect(rampRatioAt(map, 12 - 1e-9)).toBeCloseTo(72 / 96, 6);
+    expect(rampRatioAt(map, 12)).toBe(1);
+    expect(rampRatioAt(map, 20)).toBe(1);
   });
 });
 

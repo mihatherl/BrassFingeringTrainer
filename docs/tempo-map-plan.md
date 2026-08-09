@@ -274,7 +274,7 @@ of the framework that had nowhere to live until now.
 | State | Orb | Driven by |
 |---|---|---|
 | Steady tempo | None — today's plain dot | Nothing to say. An installed app should not sprout a throbbing light because it updated; same ruling that made the conductor off by default. |
-| Rit / accel | Hue cools toward blue / warms, returning to neutral at *a tempo* | Ratio of local bpm to nominal, straight off the map |
+| Rit / accel | Hue cools toward blue / warms, fading as the ramp arrives | The ramp ratio: how far the tempo has bent within the ramp in progress, 1 wherever none is. Not the ratio to nominal — a step moves that and leaves it moved, and a glow that stayed on after a join would signal state where the orb must only ever signal transition. |
 | Hold | Throb and intensity build, eased so most of the change lands just before the release, then discharge on the release ictus | Dwell progress from the transport |
 
 Three constraints, from perception and from the app's existing vocabulary:
@@ -498,16 +498,28 @@ retired rather than adapted: it had no callers, and its invariant — no
 change while running — is now true by construction, the map being compiled
 once and immutable. 507 tests, build and lint green.
 
-**Stage 1 — step changes between themes.** The setting, `Exercise.tempo`,
-theme-join beats out of `stitchThemes`, the plan generator emitting steps
-only, the printed metronome mark, session tests for click and onset times
-across a step. Ship; the feature exists.
+**Stage 1 — step changes between themes. Built, v1.16.0.** The Variable
+tempo checkbox under the bpm slider (off by default, coerced off for stored
+settings that predate it); `Exercise.tempo` carried like `keys`;
+`stitchThemes` reporting each theme's opening beat; `tempo-plan.ts` drawing
+a factor per join from a palette — never restating the tempo in force,
+clamped to `TEMPO_RANGE` (now a domain constant), rounded for the printed
+mark — from the exercise rng *after* stitching, so the switch cannot change
+which themes play. The cue-sized metronome mark draws in both reading modes
+from the same events the transport compiles; hints yield the air over a
+marked note; an engraving figure pins the mark with a guard on its seed;
+session tests assert click and onset times across a step. 525 tests.
 
-**Stage 2 — rits.** Ramp segments (the closed forms), `rit.`/`a tempo`
-marks, closing rit for every material kind, snapshot figures for the marks.
-Optionally the orb's calm half debuts here — cooling through a rit, where it
-is redundant with the slowing gesture — so the vocabulary is learned in a
-low-stakes place before the hold makes it the only signal. Ship.
+**Stage 2 — rits. Built, v1.17.0.** The plan broadens into every ending
+(closing rit, one or two whole bars, deeper factors than at joins) and into
+half its theme joins by chance — half and half so a band never learns that
+every change is telegraphed. "rit." prints in italic at each ramp's start;
+no "a tempo" proved necessary, since every mid-piece rit resolves into an
+explicit metronome mark at its join and the closing one ends the piece. The
+orb's calm half shipped with it: a cool blue glow at the baton tip driven by
+the transport's new `rampRatio` — the bend within the active ramp, not the
+ratio to nominal, which a step change would leave burning forever. Warm
+violet is coded and unreachable until the plan writes an accel. Ship.
 
 **Stage 3 — fermata.** Spike first, against an instrument: the hold pose,
 the orb's build and discharge, the release gesture, judged by the re-entry

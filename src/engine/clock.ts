@@ -15,7 +15,14 @@
  * a dropped frame cannot disturb the timing.
  */
 
-import { beatAt, compileTempo, timeAt, type TempoEvent, type TempoMap } from '../domain/tempo';
+import {
+  beatAt,
+  compileTempo,
+  rampRatioAt,
+  timeAt,
+  type TempoEvent,
+  type TempoMap,
+} from '../domain/tempo';
 
 export type ScheduleWindow = (fromBeat: number, toBeat: number) => void;
 
@@ -100,6 +107,15 @@ export class Transport {
   /** Current musical position, which may be negative during a count-in. */
   currentBeat(): number {
     return this.beatForTime(this.context.currentTime);
+  }
+
+  /**
+   * How far the tempo has bent within the ramp in progress at a beat; exactly
+   * 1 when none is. What the conductor's orb reads — see `rampRatioAt` for
+   * why it is this and not the ratio to the nominal tempo.
+   */
+  rampRatio(beat: number): number {
+    return rampRatioAt(this.map, beat);
   }
 
   /**

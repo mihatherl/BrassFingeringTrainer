@@ -416,9 +416,10 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
         </label>
         <p className="field__note muted">
           The tempo you set is where the music starts. Themes change speed where one ends and the
-          next begins — a metronome mark over the bar line says the new speed, the beat moves to
-          it, and you go with it. This is what following a conductor into a new tempo feels like,
-          and no steady metronome can teach it.
+          next begins — a metronome mark over the bar line says the new speed — and every ending
+          broadens into a rit., printed where it starts. The beat moves and you go with it, which
+          is what following a conductor feels like, and nothing a steady metronome can teach. With
+          the conductor on, watch the tip of the baton cool to blue as the speed comes out.
         </p>
 
         <label className="field">

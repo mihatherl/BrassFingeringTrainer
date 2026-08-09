@@ -34,7 +34,7 @@ import type { Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
 import { assembleExercise, type Slot } from './assemble';
 import { stitchThemes } from './phrases';
-import { planTempoSteps } from './tempo-plan';
+import { planTempo } from './tempo-plan';
 import type { Exercise, ExerciseKind } from './types';
 
 export interface GenerateOptions {
@@ -214,7 +214,13 @@ export function generateExercise(options: GenerateOptions): Exercise {
        */
       const tempo =
         options.variableTempo && options.tempo
-          ? planTempoSteps({ starts: stitched.starts, bpm: options.tempo, rng })
+          ? planTempo({
+              starts: stitched.starts,
+              totalBeats: stitched.totalBeats,
+              metre,
+              bpm: options.tempo,
+              rng,
+            })
           : [];
       return assembleExercise(stitched.slots, stitched.pitches, {
         instrument: options.instrument,
@@ -317,6 +323,17 @@ export function generateExercise(options: GenerateOptions): Exercise {
         keyForNote,
       );
 
+  /*
+   * Every material kind has the one boundary everything has — its end — and
+   * what a band does at an end is broaden into it. Drawn from the rng after
+   * every note is settled, so the switch changes what is written over the
+   * music and never the music itself.
+   */
+  const tempo =
+    options.variableTempo && options.tempo
+      ? planTempo({ starts: [0], totalBeats, metre, bpm: options.tempo, rng })
+      : [];
+
   return assembleExercise(slots, pitches, {
     instrument: options.instrument,
     clef: options.clef,
@@ -325,6 +342,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
     totalBeats,
     seed: options.seed,
     kind: options.kind,
+    tempo,
   });
 }
 

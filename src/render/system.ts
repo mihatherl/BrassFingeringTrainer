@@ -12,6 +12,7 @@
  */
 
 import { keyAt } from '../domain/keys';
+import type { TempoEvent } from '../domain/tempo';
 import type { Exercise } from '../exercise/types';
 import {
   drawBeamGroup,
@@ -151,7 +152,23 @@ const MARK_SCALE = 0.75;
 const MARK_RISE = 2.5;
 
 /**
- * A metronome mark — a cue-sized crotchet, "= 96" after it — above the stave.
+ * The beat a tempo event's mark anchors to on the page, or null for events
+ * that print nothing there.
+ *
+ * A step marks the beat it takes force; a rit marks where the broadening
+ * begins — its far end needs no mark of its own, since either a new metronome
+ * mark stands there or the music ends. A hold prints on its note rather than
+ * over a bar line, and not until stage 3 gives it a glyph.
+ */
+export function tempoMarkBeat(event: TempoEvent): number | null {
+  if (event.kind === 'tempo') return event.atBeat;
+  if (event.kind === 'ramp') return event.fromBeat;
+  return null;
+}
+
+/**
+ * A tempo event's mark above the stave: a cue-sized crotchet with "= 96" for
+ * a step, "rit." for a ramp.
  *
  * Drawn from the exercise's own tempo events and nowhere else: the mark is
  * the page stating what the clock will actually do, and both read the same
@@ -159,32 +176,46 @@ const MARK_RISE = 2.5;
  * with a stem, not font text, because the music fonts are embedded as paths
  * and a ♩ from the system font would render differently on every device.
  *
+ * A ramp prints "rit." unconditionally because the plan writes no accels;
+ * the day it does, the label needs the tempo in force, which is the map's to
+ * answer rather than something to reconstruct here.
+ *
  * Exported for the scrolling surface, which draws its own endless line rather
  * than systems and needs the same mark at the same beat.
  */
-export function drawTempoMark(
+export function drawTempoEvent(
   ctx: CanvasRenderingContext2D,
   metrics: StaveMetrics,
   x: number,
-  bpm: number,
+  event: TempoEvent,
   colour: string,
 ): void {
   const { staveSpace } = metrics;
   const y = metrics.topLineY - staveSpace * MARK_RISE;
-  const headWidth = glyphWidth('noteheadBlack') * staveSpace * MARK_SCALE;
-  const stemWidth = Math.max(1, staveSpace * 0.12 * MARK_SCALE);
-  const stemRise = staveSpace * 2.6 * MARK_SCALE;
+  const textY = y + staveSpace * 0.4;
 
   ctx.save();
   ctx.fillStyle = colour;
-  drawGlyph(ctx, 'noteheadBlack', x, y, staveSpace * MARK_SCALE);
-  // Up on the right of the head, as every stem this size is.
-  ctx.fillRect(x + headWidth - stemWidth, y - stemRise, stemWidth, stemRise);
-
-  ctx.font = `600 ${Math.round(staveSpace * 1.25)}px system-ui, sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`= ${bpm}`, x + headWidth + staveSpace * 0.5, y + staveSpace * 0.4);
+
+  if (event.kind === 'tempo') {
+    const headWidth = glyphWidth('noteheadBlack') * staveSpace * MARK_SCALE;
+    const stemWidth = Math.max(1, staveSpace * 0.12 * MARK_SCALE);
+    const stemRise = staveSpace * 2.6 * MARK_SCALE;
+
+    drawGlyph(ctx, 'noteheadBlack', x, y, staveSpace * MARK_SCALE);
+    // Up on the right of the head, as every stem this size is.
+    ctx.fillRect(x + headWidth - stemWidth, y - stemRise, stemWidth, stemRise);
+
+    ctx.font = `600 ${Math.round(staveSpace * 1.25)}px system-ui, sans-serif`;
+    ctx.fillText(`= ${event.bpm}`, x + headWidth + staveSpace * 0.5, textY);
+  } else if (event.kind === 'ramp') {
+    // Italic, as every printed part sets it.
+    ctx.font = `italic 600 ${Math.round(staveSpace * 1.25)}px system-ui, sans-serif`;
+    ctx.fillText('rit.', x, textY);
+  }
+
   ctx.restore();
 }
 
@@ -265,13 +296,13 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
    * seen.
    */
   for (const event of exercise.tempo) {
-    if (event.kind !== 'tempo') continue;
-    if (event.atBeat < firstBeat || event.atBeat >= lastBeat) continue;
-    drawTempoMark(
+    const beat = tempoMarkBeat(event);
+    if (beat === null || beat < firstBeat || beat >= lastBeat) continue;
+    drawTempoEvent(
       ctx,
       metrics,
-      xForBeat(event.atBeat) - BAR_LINE_SETBACK * staveSpace,
-      event.bpm,
+      xForBeat(beat) - BAR_LINE_SETBACK * staveSpace,
+      event,
       theme.note,
     );
   }
