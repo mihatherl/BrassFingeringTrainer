@@ -568,6 +568,14 @@ four bars after the last change, and whatever the theme does internally is part
 of the tune. Wiring themes in without this silently took the key set away from
 anyone choosing sight-reading, which an existing test caught.
 
+**The corpus is published**, at `spike/themes.html` on the deployed site — every
+theme engraved, from a phone, with nothing to run. It is generated rather than
+written, committed rather than built, and a test holds it to what the generator
+produces right now: a static page of a moving corpus is exactly the thing that
+goes stale, which `tools/` did for four releases while every test passed. If
+that test fails, regenerate with `npm run themes -- --publish` rather than
+editing the page, which is output and not source.
+
 **How to review what gets written.** `npm run themes` draws the whole corpus on
 one page, grouped by difficulty, with the validator's complaints printed under
 each theme and an empty difficulty named rather than skipped. `--difficulty
