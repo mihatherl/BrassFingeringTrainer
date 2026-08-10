@@ -129,6 +129,53 @@ describe('placing a beat in its pattern', () => {
   });
 });
 
+describe('the style axis', () => {
+  /*
+   * That it *does* something, which nothing checked.
+   *
+   * Found by breaking `shapeFor` so every style returned the flowing gesture:
+   * the whole suite still passed. The block below runs each property at four
+   * points along the axis, which reads like thorough coverage and is — of the
+   * gesture at each point. Not one of them compares two points, so an axis that
+   * had quietly become a constant would have gone out looking tested.
+   */
+  it('gives a different gesture at each end, in every way it is meant to', () => {
+    const flowing = shapeFor(CONDUCTOR_STYLE_RANGE.min);
+    const marcato = shapeFor(CONDUCTOR_STYLE_RANGE.max);
+
+    // The width runs the other way from everything else — a march is beaten
+    // tight and close, a lyrical phrase broad — so it is asserted by direction
+    // rather than lumped in with the rest.
+    expect(marcato.width).toBeLessThan(flowing.width);
+    expect(marcato.arcs).toBeGreaterThan(flowing.arcs);
+    expect(marcato.downbeat).toBeGreaterThan(flowing.downbeat);
+    expect(marcato.beats).toBeGreaterThan(flowing.beats);
+    expect(marcato.lag).toBeGreaterThan(flowing.lag);
+  });
+
+  it('moves steadily between them rather than jumping', () => {
+    // Every value at the middle sits between the ends, so a setting halfway
+    // along is halfway there. A lookup table pretending to be an axis would
+    // pass the test above and fail this one.
+    const flowing = shapeFor(0);
+    const middle = shapeFor(0.5);
+    const marcato = shapeFor(1);
+    for (const key of ['width', 'arcs', 'downbeat', 'beats', 'lag'] as const) {
+      const [low, high] = [flowing[key], marcato[key]].sort((a, b) => a - b);
+      expect(middle[key], key).toBeGreaterThan(low);
+      expect(middle[key], key).toBeLessThan(high);
+    }
+  });
+
+  it('reaches the ends and goes no further', () => {
+    // The panel and the tests both read `CONDUCTOR_STYLE_RANGE`; a setting
+    // outside it — from a stored file written by another version — must clamp
+    // rather than extrapolate into a gesture nobody designed.
+    expect(shapeFor(-1)).toEqual(shapeFor(CONDUCTOR_STYLE_RANGE.min));
+    expect(shapeFor(5)).toEqual(shapeFor(CONDUCTOR_STYLE_RANGE.max));
+  });
+});
+
 describe('naming a style', () => {
   it('has a word for every point the player can set', () => {
     // The slider shows the name, not the number, so a gap would put a settings

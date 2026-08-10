@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn \"toBeDefined\\(\\)\\\\|toBeTruthy\\(\\)\\\\|expect\\(true\\)\\\\|toBeGreaterThan\\(0\\)$\" src --include=\"*.test.ts*\")",
+      "Bash(/tmp/claude-1000/-home-mh-Desktop-CodeProjects-BrassTrainerClaude/e76b9579-3918-44a1-aa43-c5133466591c/scratchpad/mutate.sh src/render/conductor.ts 'return \\(beat / metre.barBeats\\) * pattern.length;' 'return beat;' 'placeInPattern ignores the metre')",
+      "Bash(/tmp/claude-1000/-home-mh-Desktop-CodeProjects-BrassTrainerClaude/e76b9579-3918-44a1-aa43-c5133466591c/scratchpad/mutate.sh src/render/conductor.ts 'bpm < SUBDIVIDE_BELOW_BPM' false 'slow 6/8 never subdivides')",
+      "Bash(/tmp/claude-1000/-home-mh-Desktop-CodeProjects-BrassTrainerClaude/e76b9579-3918-44a1-aa43-c5133466591c/scratchpad/mutate.sh src/render/conductor.ts 'rebound: beat.rebound * \\(index === last ? shape.downbeat : shape.arcs\\),' 'rebound: beat.rebound,' 'arcs and downbeat scaling dropped')",
+      "Bash(/tmp/claude-1000/-home-mh-Desktop-CodeProjects-BrassTrainerClaude/e76b9579-3918-44a1-aa43-c5133466591c/scratchpad/mutate.sh src/render/stave.ts 'const lineX = crisp ? Math.round\\(x\\) + 0.5 : x;' 'const lineX = x;' 'bar-line crisping dropped')",
+      "Bash(/tmp/claude-1000/-home-mh-Desktop-CodeProjects-BrassTrainerClaude/e76b9579-3918-44a1-aa43-c5133466591c/scratchpad/mutate.sh src/domain/fingering.ts export export 'control: no change at all')",
+      "Bash(cp src/render/stave.ts /tmp/mut.bak)",
+      "Bash(python3 -c ' *)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}
