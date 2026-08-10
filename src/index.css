@@ -259,6 +259,9 @@ body {
   grid-area: recent;
   display: flex;
   align-items: stretch;
+  /* Centred as a pair, so a gesture narrower than its cap sits in from the
+     edge rather than against it. */
+  justify-content: center;
   gap: 0.5rem;
   min-width: 0;
   /*
@@ -293,11 +296,21 @@ body {
   /* Matches the list's height, so the stave never moves when the conductor is
      switched on or off. */
   height: var(--aside-size);
-  /* Width follows from the height and the gesture's own proportions, which
-     `ConductorPanel.tsx` sets as an `aspect-ratio` per metre — a two pattern
-     is a tall narrow shape, a four is a wide one. Still capped as a share of
-     the row, so a wide pattern cannot crowd out the note list beside it. */
-  max-width: 42%;
+  /*
+   * Width follows from the height and the gesture's own proportions, which
+   * `ConductorPanel.tsx` sets as an `aspect-ratio` per metre and per style — a
+   * two pattern is a tall narrow shape, a four is a wide one, and a flowing
+   * gesture is far wider than a marcato one.
+   *
+   * Still capped as a share of the row so it cannot crowd out the note list,
+   * but much less tightly than it was. The cap is what decides how big the
+   * gesture draws, because a wide one is width-limited long before it runs out
+   * of height: at the flowing end a four pattern is better than four to one, so
+   * filling the panel's height would want more width than a phone has. It was
+   * reported as too small and too hidden, and it was — at 42% the flowing
+   * gesture used a quarter of the height it was given.
+   */
+  max-width: 58%;
 }
 
 .conductor__canvas {
@@ -307,7 +320,17 @@ body {
 }
 
 .recent {
-  flex: 1 1 auto;
+  /*
+   * A definite share, and deliberately not `1 1 auto`.
+   *
+   * Growing to fill was what pushed the conductor into the right-hand corner:
+   * with the list taking every spare pixel there was nowhere else for the
+   * gesture to be. Fixed instead, so the pair can sit centred as a group and
+   * the conductor lands nearer the middle of the row — and so its position does
+   * not shift as the note names beside it change width, which a content-sized
+   * list would have done on every judgement.
+   */
+  flex: 0 0 38%;
   min-width: 0;
   list-style: none;
   margin: 0;
