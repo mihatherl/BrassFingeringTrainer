@@ -114,11 +114,18 @@ beforeAll(() => {
 
 const KINDS: ExerciseKind[] = ['random', 'scales', 'arpeggios', 'phrases'];
 
-function build(kind: ExerciseKind, clef: 'treble' | 'bass', fifths: number, seed: number) {
+function build(
+  kind: ExerciseKind,
+  clef: 'treble' | 'bass',
+  fifths: number,
+  seed: number,
+  keySet?: number[],
+) {
   return generateExercise({
     instrument: instrumentById(clef === 'bass' ? 'euphonium' : 'eb-bass'),
     clef,
     fifths,
+    keySet,
     difficulty: difficultyById('hard'),
     kind,
     bars: 8,
@@ -173,6 +180,83 @@ describe('scrolling renderer', () => {
     // The cue-note is glyph and rectangle, which the smoke assertions cover;
     // the figure itself is text, and it is the part a player reads.
     expect(calls.some((c) => c.method === 'fillText' && c.args[0] === '= 96')).toBe(true);
+  });
+
+  it('shows a key change coming, rather than springing it at the strike line', () => {
+    /*
+     * Reported from playing: the change arrived without warning. It was never
+     * drawn in the travelling music at all — only the signature in the fixed
+     * header changed, and that happens as the playhead crosses it, which is the
+     * one moment the information is no use.
+     *
+     * Looked for as the *double bar*, which is the thing a change brings and
+     * nothing else on the stave has: two vertical strokes a fraction of a stave
+     * space apart, where ordinary bar lines stand a whole bar from each other.
+     * That is what makes this fail against the old renderer, which drew the
+     * plain bar line at that beat and nothing more.
+     */
+    const calls: RecordedCall[] = [];
+    const exercise = build('random', 'treble', -3, 24, [-3, -1]);
+    expect(exercise.keys.map((k) => k.fromBeat)).toEqual([0, 16]);
+
+    // Beat 13 at 100bpm, so the change three beats ahead is well in view and
+    // still comfortably in front of the strike line.
+    new StaveRenderer({
+      canvas: mockCanvas(calls),
+      exercise,
+      transport: new Transport(fakeAudioContext(13 * 0.6), 100),
+      theme: LIGHT_THEME,
+      scrollSpeed: 110,
+      readingMode: 'scrolling',
+      verdictFor: () => undefined,
+    }).draw();
+
+    /*
+     * Bar lines are the vertical strokes spanning the whole stave, top line to
+     * bottom — derived from the stave lines the same frame drew rather than
+     * from a guessed pixel figure. Filtering on "vertical and reasonably long"
+     * is not enough: note stems are vertical too, and a beamed group puts them
+     * close enough together to look like a double bar. That version passed
+     * against a renderer with the fix taken out.
+     */
+    const pairs: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    for (let i = 0; i < calls.length - 1; i++) {
+      if (calls[i].method !== 'moveTo' || calls[i + 1].method !== 'lineTo') continue;
+      const [x1, y1] = calls[i].args as number[];
+      const [x2, y2] = calls[i + 1].args as number[];
+      pairs.push({ x1, y1, x2, y2 });
+    }
+
+    // The stave's own lines: horizontal and running the width of the canvas,
+    // where a ledger line is horizontal and short.
+    const staveYs = pairs
+      .filter((p) => p.y1 === p.y2 && Math.abs(p.x2 - p.x1) > 100)
+      .map((p) => p.y1);
+    expect(staveYs.length).toBeGreaterThanOrEqual(5);
+    const top = Math.min(...staveYs);
+    const bottom = Math.max(...staveYs);
+
+    // Within a pixel rather than exactly: the stave's lines are crisped onto
+    // half-pixels and a bar line is not, so they span the same distance from
+    // two figures that differ in the last place.
+    const barLines = pairs
+      .filter(
+        (p) =>
+          p.x1 === p.x2 &&
+          Math.abs(Math.min(p.y1, p.y2) - top) < 1.5 &&
+          Math.abs(Math.max(p.y1, p.y2) - bottom) < 1.5,
+      )
+      .map((p) => p.x1)
+      .sort((a, b) => a - b);
+
+    const closest = barLines
+      .slice(1)
+      .reduce((least, x, index) => Math.min(least, x - barLines[index]), Infinity);
+
+    // The double bar's two lines sit a fraction of a stave space apart, where
+    // one bar of 4/4 at this speed is several hundred pixels.
+    expect(barLines.length, 'bar lines drawn').toBeGreaterThanOrEqual(2);
+    expect(closest, `bar lines at ${barLines.map((x) => x.toFixed(0)).join(', ')}`).toBeLessThan(20);
   });
 
   it('greys the music past the white, whatever its verdicts would be', () => {

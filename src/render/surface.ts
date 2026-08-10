@@ -47,6 +47,7 @@ import {
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
 import {
   BAR_LINE_SETBACK,
+  drawKeyChange,
   drawSystem,
   drawTempoEvent,
   justifiedX,
@@ -844,9 +845,25 @@ export class StaveRenderer {
     ctx.strokeStyle = theme.stave;
     drawStaveLines(ctx, this.metrics, this.headerWidth, this.width);
 
+    /*
+     * Where the key changes, so the ordinary bar line can give way to the
+     * double one the change brings with it.
+     *
+     * The opening key is not a change: there is nothing in front of it to
+     * cancel and no bar line to double.
+     */
+    const changes = new Map<number, number>();
+    for (const change of exercise.keys) {
+      if (change.fromBeat <= 0) continue;
+      // The key being left, which is whatever was in force just before.
+      changes.set(change.fromBeat, keyAt(exercise.keys, change.fromBeat - 1e-6));
+    }
+
     ctx.strokeStyle = theme.stave;
     for (let bar = 0; bar * exercise.metre.barBeats <= exercise.totalBeats; bar++) {
-      const x = xForBeat(bar * exercise.metre.barBeats);
+      const beat = bar * exercise.metre.barBeats;
+      const x = xForBeat(beat);
+      if (changes.has(beat)) continue;
       if (x < this.headerWidth - 20 || x > this.width + 20) continue;
       // Set back from the beat rather than on it. A note is positioned by its
       // centre, so a downbeat drawn at the same x puts the notehead astride the
@@ -854,6 +871,28 @@ export class StaveRenderer {
       // moves and the note does not, because the note's position is what the
       // strike line is timed against.
       drawBarLine(ctx, this.metrics, x - BAR_LINE_SETBACK * this.metrics.staveSpace, false);
+    }
+
+    /*
+     * The changes themselves, travelling with the music like everything else.
+     *
+     * This was missing, and the effect was that a key change arrived without
+     * warning: the signature in the fixed header simply swapped as the playhead
+     * crossed it, which is the one moment a reader has no use for the
+     * information. A part shows the change coming, and so does this now.
+     *
+     * Culled by where the drawing actually reaches rather than by the downbeat,
+     * because all of it stands to the *left* of that beat — a change whose
+     * downbeat is still off the right-hand edge already has its double bar on
+     * screen, which is the whole point.
+     */
+    for (const [beat, from] of changes) {
+      const to = keyAt(exercise.keys, beat);
+      const x = xForBeat(beat);
+      const reach =
+        keyChangeRoom(this.metrics, from, to) + BAR_LINE_SETBACK * this.metrics.staveSpace;
+      if (x - reach > this.width || x < this.headerWidth - 20) continue;
+      drawKeyChange(ctx, this.metrics, x, to, from, theme.stave);
     }
 
     for (const rest of exercise.rests) {

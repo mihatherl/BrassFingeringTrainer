@@ -173,6 +173,43 @@ export function tempoMarkBeat(event: TempoEvent): number | null {
 }
 
 /**
+ * A change of key: the double bar, the naturals cancelling what is being left,
+ * and the new signature.
+ *
+ * Positioned from the downbeat the change takes force at, and stacked leftwards
+ * from there — the signature finishes where the downbeat's own clearance
+ * begins. All of it has to fit between the last note of the old key and the
+ * first of the new, which is why `keyChangeRoom` is reserved in the spacing
+ * before any of this is drawn.
+ *
+ * Exported for the same reason `drawTempoEvent` is: the scrolling surface draws
+ * one endless line rather than systems, and a change of key has to look the
+ * same and sit in the same place whichever way the music is being read. It was
+ * missing there entirely — the key simply switched in the fixed header as the
+ * playhead crossed it, with nothing travelling towards the strike line to say
+ * it was coming.
+ */
+export function drawKeyChange(
+  ctx: CanvasRenderingContext2D,
+  metrics: StaveMetrics,
+  downbeatX: number,
+  to: number,
+  from: number,
+  colour: string,
+): void {
+  const { staveSpace } = metrics;
+  const { width } = layoutKeySignature(metrics, to, from);
+  const signatureX = downbeatX - BAR_LINE_SETBACK * staveSpace - width;
+  const lineX = signatureX - staveSpace * KEY_CHANGE_LEAD;
+
+  ctx.strokeStyle = colour;
+  drawBarLine(ctx, metrics, lineX);
+  drawBarLine(ctx, metrics, lineX - staveSpace * DOUBLE_BAR_GAP);
+  ctx.fillStyle = colour;
+  drawKeySignature(ctx, metrics, signatureX, to, from);
+}
+
+/**
  * A tempo event's mark above the stave: a cue-sized beat note with "= 96" for
  * a step, "rit." for a ramp.
  *
@@ -297,18 +334,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   }
 
   for (const [beat, from] of changes) {
-    const to = keyAt(exercise.keys, beat);
-    const { width } = layoutKeySignature(metrics, to, from);
-    // The signature finishes where the downbeat's own clearance begins, and
-    // everything else is stacked leftwards from there.
-    const signatureX = xForBeat(beat) - BAR_LINE_SETBACK * staveSpace - width;
-    const lineX = signatureX - staveSpace * KEY_CHANGE_LEAD;
-
-    ctx.strokeStyle = theme.stave;
-    drawBarLine(ctx, metrics, lineX);
-    drawBarLine(ctx, metrics, lineX - staveSpace * DOUBLE_BAR_GAP);
-    ctx.fillStyle = theme.stave;
-    drawKeySignature(ctx, metrics, signatureX, to, from);
+    drawKeyChange(ctx, metrics, xForBeat(beat), keyAt(exercise.keys, beat), from, theme.stave);
   }
 
   for (const rest of exercise.rests) {
