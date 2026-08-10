@@ -67,14 +67,31 @@ const RESOLVE_INTERVAL_MS = 10;
 const TAIL_BEATS = 1;
 
 /**
- * Consecutive silent bars past the chosen length that end a run.
+ * Beats of silence past the chosen length that end a run.
  *
- * Two rather than one, because a player who loses their place and drops out
- * to find it again is resting, not finished — and a brass player does
- * exactly that. At an ordinary tempo this is around five seconds of holding
- * nothing while the music goes past, which nobody does by accident.
+ * Beats rather than bars, so the wait is the same length of music whatever
+ * the metre — a bar of 2/4 is half the patience of a bar of 4/4, and the
+ * player feels beats going by rather than bar lines. Three is under two
+ * seconds at an ordinary tempo: long enough that a breath or a fumbled entry
+ * is not mistaken for leaving, short enough that putting the instrument down
+ * ends the session while you are still putting it down.
+ *
+ * Silence alone is never enough — see `hasStopped`, which also asks whether
+ * anything went past that actually needed a valve.
  */
-const SILENT_BARS_TO_STOP = 2;
+const SILENT_BEATS_TO_STOP = 3;
+
+/**
+ * What the reference tone drops to past the chosen length, until the player
+ * shows they mean to carry on.
+ *
+ * The music continuing into the grey is an offer, not an instruction, and an
+ * offer should not be made at full volume. Playing on answers it and the
+ * tone comes back up; playing nothing lets `SILENT_BEATS_TO_STOP` end the
+ * run a moment later, so the quiet is also the sound of a session about to
+ * finish.
+ */
+const GREY_VOLUME = 0.5;
 
 
 export class Session {
@@ -88,10 +105,19 @@ export class Session {
   private resolveTimer: number | null = null;
   private nextNoteToSchedule = 0;
   private nextNoteToResolve = 0;
-  /** Bar the stop rule examines next; starts where the chosen length ends. */
-  private nextStopBar: number;
-  /** Consecutive bars that asked for a valve and got nothing. */
-  private silentBars = 0;
+  /**
+   * Beats of every note that cannot be played open, in order.
+   *
+   * The stop rule asks whether anything needing a valve went past unplayed,
+   * and asks it a hundred times a second, so the question is answered by a
+   * binary search of this rather than by walking the notes.
+   */
+  private readonly demandingBeats: number[];
+  /** Where the player last had something down; -Infinity if they never have. */
+  private lastHeldBeat = Number.NEGATIVE_INFINITY;
+  /** Whether the reference tone has been dropped, and then answered. */
+  private quietened = false;
+  private carryingOn = false;
   /** Notes already confirmed as right, so each is announced only once. */
   private readonly noticed: boolean[];
   private finished = false;
@@ -111,8 +137,9 @@ export class Session {
     // A count-in of whole bars, so it must be measured in the crotchets a bar
     // actually holds rather than in the numerator on the stave.
     this.countInBeats = countInBars * exercise.metre.barBeats;
-    // With no horizon this sits past the paper and the rule never wakes.
-    this.nextStopBar = Math.ceil(exercise.chosenBeats / exercise.metre.barBeats - 1e-9);
+    this.demandingBeats = exercise.notes
+      .filter((note) => !note.acceptedMasks.includes(0))
+      .map((note) => note.startBeat);
   }
 
   /** Transport beat at which the exercise ends. */
@@ -137,6 +164,9 @@ export class Session {
   }
 
   start(): void {
+    // The voice is loaded once and reused across runs, so a session that
+    // ended quietly in the grey must not hand the next one a quiet start.
+    this.synth.setVolume(1);
     this.input.clearHistory();
     this.transport.start((from, to) => this.schedule(from, to), -this.countInBeats);
     this.noticed.fill(false);
@@ -271,18 +301,20 @@ export class Session {
 
     if (this.finished) return;
 
+    this.offerTheGrey(now);
+
     /*
-     * Stopped, or resting? Past the chosen length, consecutive bars that ask
-     * for a valve and get nothing end the run.
+     * Stopped, or resting? Past the chosen length, a few beats of silence
+     * with something that needed a valve going past in them ends the run.
      *
-     * **A bar every note of which could be played open proves nothing** and is
-     * passed over, exactly like a bar of rests. With buttons, playing an open
-     * note and having put the instrument down are the same input — the design
-     * doc says so outright — so a bar that never demands a valve cannot tell
-     * the two apart, and asking it to was this rule's first and worst bug: it
-     * credited such a bar as played, and since four bars in five contain an
-     * open note, a player who stopped was carried on for bar after bar.
-     * Scales, every bar of which has one, were never stopped at all.
+     * **Notes that can be played open prove nothing** and are ignored, along
+     * with rests. With buttons, playing an open note and having put the
+     * instrument down are the same input — the design doc says so outright —
+     * so a stretch of music that never demands a valve cannot tell the two
+     * apart, and asking it to was this rule's first and worst bug: it counted
+     * such music as played, and since four bars in five contain an open note,
+     * a player who had stopped was carried on regardless. Scales, every bar
+     * of which has one, were never stopped at all.
      *
      * Wrong valves are playing, so fluffing and carrying on survives — the
      * evidence wanted is a valve down at some instant, not a correct answer.
@@ -290,7 +322,7 @@ export class Session {
      * replaced by the microphone — which can simply hear that you have
      * stopped — rather than refined.
      */
-    if (this.stoppedPlaying(now)) {
+    if (this.hasStopped(now)) {
       this.finished = true;
       this.stop();
       this.options.onFinish?.(summarise(exercise.notes, this.judgements));
@@ -305,32 +337,65 @@ export class Session {
     }
   }
 
-  private stoppedPlaying(now: number): boolean {
+  /** Whether the exercise carries on past the length that was asked for. */
+  private get hasHorizon(): boolean {
     const { exercise } = this.options;
-    const { barBeats } = exercise.metre;
+    return exercise.chosenBeats < exercise.totalBeats;
+  }
 
-    for (;;) {
-      const barStart = this.nextStopBar * barBeats;
-      const barEnd = barStart + barBeats;
-      // The paper's own end is the natural finish's business, not this rule's.
-      if (barEnd > exercise.totalBeats + 1e-9) return false;
-      if (now < this.transport.timeForBeat(barEnd)) return false;
+  /**
+   * Drops the reference tone as the music passes into the grey, and brings it
+   * back the moment the player answers by playing something.
+   *
+   * Once only: after the first answer the player has plainly decided, and a
+   * tone that ducked at every block boundary would be nagging rather than
+   * asking.
+   */
+  private offerTheGrey(now: number): void {
+    if (!this.hasHorizon || this.carryingOn) return;
+    const { exercise } = this.options;
+    if (this.transport.beatForTime(now) < exercise.chosenBeats) return;
 
-      const inBar = (beat: number) => beat >= barStart - 1e-9 && beat < barEnd - 1e-9;
-      // Only a note that cannot be played open asks a question silence can
-      // answer. Bars of rests, and bars a bugle could play, are transparent:
-      // they neither end a run nor forgive one.
-      const demanding = exercise.notes.some(
-        (note) => inBar(note.startBeat) && !note.acceptedMasks.includes(0),
-      );
-      if (demanding) {
-        const touched = this.input
-          .statesDuring(this.transport.timeForBeat(barStart), this.transport.timeForBeat(barEnd))
-          .some((state) => state.mask !== 0);
-        this.silentBars = touched ? 0 : this.silentBars + 1;
-        if (this.silentBars >= SILENT_BARS_TO_STOP) return true;
-      }
-      this.nextStopBar++;
+    if (!this.quietened) {
+      this.synth.setVolume(GREY_VOLUME);
+      this.quietened = true;
     }
+    if (this.input.maskAt(now) !== 0) {
+      this.synth.setVolume(1);
+      this.carryingOn = true;
+    }
+  }
+
+  private hasStopped(now: number): boolean {
+    if (!this.hasHorizon) return false;
+    const { exercise } = this.options;
+
+    const beat = this.transport.beatForTime(now);
+    // The paper's own end is the natural finish's business, not this rule's.
+    if (beat <= exercise.chosenBeats || beat > exercise.totalBeats) return false;
+
+    if (this.input.maskAt(now) !== 0) {
+      this.lastHeldBeat = beat;
+      return false;
+    }
+
+    // Silence is only counted from the chosen end: whatever happened inside
+    // the length the player asked for, they asked for it.
+    const since = Math.max(this.lastHeldBeat, exercise.chosenBeats);
+    if (beat - since < SILENT_BEATS_TO_STOP) return false;
+    return this.demandedAValve(since, beat);
+  }
+
+  /** Whether any note needing a valve falls in `[from, to)`. */
+  private demandedAValve(from: number, to: number): boolean {
+    const beats = this.demandingBeats;
+    let low = 0;
+    let high = beats.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (beats[mid] < from) low = mid + 1;
+      else high = mid;
+    }
+    return low < beats.length && beats[low] < to;
   }
 }

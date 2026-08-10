@@ -245,9 +245,9 @@ describe('a session across a step change', () => {
 
 describe('stopped, or resting — the rule beyond the chosen length', () => {
   /** Six bars of 2/4 crotchets; the chosen length is the first two. */
-  function horizonExercise(chosenBeats = 4): Exercise {
+  function horizonExercise(chosenBeats = 4, notes = Array.from({ length: 12 }, (_, i) => note(i, 1))): Exercise {
     return {
-      notes: Array.from({ length: 12 }, (_, i) => note(i, 1)),
+      notes,
       rests: [],
       instrumentId: 'eb-bass',
       clef: 'treble',
@@ -268,86 +268,9 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     }
   }
 
-  it('ends the run after two silent bars, and not a moment sooner', () => {
-    let summary: SessionSummary | null = null;
-    let endedAt = 0;
-    const s = new Session({
-      context,
-      exercise: horizonExercise(),
-      tempo: 60,
-      countInBars: 0,
-      metronomeEnabled: false,
-      playbackMode: 'off',
-      brassVoice: voice,
-      onFinish: (result) => {
-        summary = result;
-        endedAt = audioTime;
-      },
-    });
-    // Wrong valves are still playing: hold a fingering nothing accepts.
-    s.input.pointerDown(1, 1);
-    s.start();
-    run(0, 6);
-    s.input.pointerUp(1);
-    run(6, 12);
-    s.stop();
-
-    // Playing stops at beat 6; the bars from 6 and from 8 are both silent,
-    // so the run ends at the second one's bar line rather than at the end of
-    // the paper — one bar out being resting rather than stopping.
-    expect(summary).not.toBeNull();
-    expect(endedAt).toBeGreaterThanOrEqual(10);
-    expect(endedAt).toBeLessThan(11);
-    const finished = summary as unknown as SessionSummary;
-    expect(finished.total).toBeLessThan(12);
-  });
-
-  it('keeps running while valves are down, wrong or not', () => {
-    let summary: SessionSummary | null = null;
-    const s = new Session({
-      context,
-      exercise: horizonExercise(),
-      tempo: 60,
-      countInBars: 0,
-      metronomeEnabled: false,
-      playbackMode: 'off',
-      brassVoice: voice,
-      onFinish: (result) => {
-        summary = result;
-      },
-    });
-    s.input.pointerDown(1, 1);
-    s.start();
-    run(0, 14);
-    s.stop();
-
-    const finished = summary as unknown as SessionSummary;
-    expect(finished.total, 'fluffing to the end is still a whole run').toBe(12);
-  });
-
-  it('is not fooled by open notes, which silence and playing share', () => {
-    /*
-     * The bug this rule shipped with. A player holding nothing *is* holding
-     * "open", so every open note past the chosen end was judged correct and
-     * the bar counted as played — and four bars in five contain one. Bars
-     * that never demand a valve must therefore prove nothing at all.
-     */
-    const openNote = (startBeat: number): NoteEvent => ({
-      ...note(startBeat, 1),
-      acceptedMasks: [0],
-      primaryMask: 0,
-    });
-    const ended = { at: 0 };
-    const exercise: Exercise = {
-      ...horizonExercise(),
-      // Bars three and four are all open; bars five and six demand valves.
-      notes: [
-        ...[0, 1, 2, 3].map((b) => note(b, 1)),
-        ...[4, 5, 6, 7].map(openNote),
-        ...[8, 9, 10, 11].map((b) => note(b, 1)),
-      ],
-    };
-    const s = new Session({
+  /** A session at 60bpm, where one second of audio time is one beat. */
+  function sessionOn(exercise: Exercise, onFinish: () => void): Session {
+    return new Session({
       context,
       exercise,
       tempo: 60,
@@ -355,65 +278,95 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
       metronomeEnabled: false,
       playbackMode: 'off',
       brassVoice: voice,
-      onFinish: () => {
-        ended.at = audioTime;
-      },
+      onFinish,
     });
+  }
+
+  it('ends a few beats after the playing stops, and not before', () => {
+    let endedAt = 0;
+    const s = sessionOn(horizonExercise(), () => {
+      endedAt = audioTime;
+    });
+    // Wrong valves are still playing: a fingering nothing here accepts.
+    s.input.pointerDown(1, 1);
     s.start();
-    run(0, 14);
+    run(0, 6);
+    s.input.pointerUp(1);
+    run(6, 8);
+    expect(endedAt, 'three beats of silence, not two').toBe(0);
+    run(8, 12);
     s.stop();
 
-    // The open bars neither end the run nor rescue it; the two demanding
-    // bars that follow do, and the run ends at the second one's bar line.
-    expect(ended.at).toBeGreaterThanOrEqual(12);
-    expect(ended.at).toBeLessThan(13);
+    expect(endedAt).toBeGreaterThanOrEqual(9);
+    expect(endedAt).toBeLessThan(10);
   });
 
-  it('forgives one bar out, and ends on the second', () => {
-    // A player who loses their place and drops out for a bar is resting.
+  it('is not fooled by open notes, which silence and playing share', () => {
+    /*
+     * The bug this rule shipped with. A player holding nothing *is* holding
+     * "open", so notes that accept open were judged correct beneath an absent
+     * player and the run was carried on — and four bars in five contain one.
+     * Music that never demands a valve must prove nothing at all.
+     */
+    const openNote = (startBeat: number): NoteEvent => ({
+      ...note(startBeat, 1),
+      acceptedMasks: [0],
+      primaryMask: 0,
+    });
     let endedAt = 0;
-    const s = new Session({
-      context,
-      exercise: horizonExercise(),
-      tempo: 60,
-      countInBars: 0,
-      metronomeEnabled: false,
-      playbackMode: 'off',
-      brassVoice: voice,
-      onFinish: () => {
+    // Beats 4 to 7 are open; the demanding notes resume at beat 8.
+    const s = sessionOn(
+      horizonExercise(4, [
+        ...[0, 1, 2, 3].map((b) => note(b, 1)),
+        ...[4, 5, 6, 7].map(openNote),
+        ...[8, 9, 10, 11].map((b) => note(b, 1)),
+      ]),
+      () => {
         endedAt = audioTime;
       },
+    );
+    s.start();
+    run(0, 7.5);
+    // Four beats of silence have passed, but nothing in them asked for a
+    // valve, so nothing has been proved and the run stands.
+    expect(endedAt, 'open notes cannot tell playing from silence').toBe(0);
+    run(7.5, 12);
+    s.stop();
+
+    // The first note that needs a valve settles it.
+    expect(endedAt).toBeGreaterThanOrEqual(8);
+    expect(endedAt).toBeLessThan(9);
+  });
+
+  it('forgives a moment out, and ends when it becomes a departure', () => {
+    // A player who loses their place for a beat or two is resting.
+    let endedAt = 0;
+    const s = sessionOn(horizonExercise(), () => {
+      endedAt = audioTime;
     });
     s.start();
     s.input.pointerDown(1, 1);
     run(0, 4);
-    s.input.pointerUp(1); // out for the bar from beat 4
-    run(4, 6);
-    s.input.pointerDown(1, 1); // back in for the bar from beat 6
-    run(6, 8);
-    expect(endedAt, 'one bar out is resting, not stopping').toBe(0);
+    s.input.pointerUp(1);
+    run(4, 6); // two beats out
+    s.input.pointerDown(1, 1);
+    run(6, 7);
+    expect(endedAt, 'two beats out is resting, not stopping').toBe(0);
 
     s.input.pointerUp(1);
-    run(8, 14);
+    run(7, 12);
     s.stop();
-    expect(endedAt).toBeGreaterThan(0);
+    // Three beats after the departure — the tick grid puts it a hair under.
+    expect(endedAt).toBeGreaterThan(9.5);
+    expect(endedAt).toBeLessThan(11);
   });
 
   it('never ends a run inside the chosen length, however silent', () => {
     let summary: SessionSummary | null = null;
     let endedAt = 0;
-    const s = new Session({
-      context,
-      exercise: horizonExercise(12),
-      tempo: 60,
-      countInBars: 0,
-      metronomeEnabled: false,
-      playbackMode: 'off',
-      brassVoice: voice,
-      onFinish: (result) => {
-        summary = result;
-        endedAt = audioTime;
-      },
+    const s = sessionOn(horizonExercise(12), (result?: SessionSummary) => {
+      summary = (result ?? null) as SessionSummary | null;
+      endedAt = audioTime;
     });
     s.start();
     run(0, 14);
@@ -424,6 +377,31 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     const finished = summary as unknown as SessionSummary;
     expect(finished.total).toBe(12);
     expect(endedAt).toBeGreaterThanOrEqual(12);
+  });
+
+  it('drops the reference tone into the grey, and restores it when played to', () => {
+    const volumes: number[] = [];
+    const listening = { ...voice, setVolume: (v: number) => volumes.push(v) };
+    const s = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'reference',
+      brassVoice: listening,
+      onFinish: () => {},
+    });
+
+    s.start();
+    expect(volumes, 'a run starts at full voice').toEqual([1]);
+    run(0, 5); // into the grey, holding nothing
+    expect(volumes[volumes.length - 1], 'quietened past the chosen end').toBe(0.5);
+
+    s.input.pointerDown(1, 1);
+    run(5, 6);
+    expect(volumes[volumes.length - 1], 'answered, so back to full').toBe(1);
+    s.stop();
   });
 });
 

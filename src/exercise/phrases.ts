@@ -19,7 +19,7 @@
  */
 
 import type { Clef, Instrument } from '../domain/instruments';
-import type { KeyChange } from '../domain/keys';
+import { tourKey, type KeyChange } from '../domain/keys';
 import type { Metre } from '../domain/metre';
 import { snapBeat } from '../domain/rhythm';
 import type { Slot } from './assemble';
@@ -140,10 +140,9 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
      * changing key inside one that was not written to would be a change of
      * signature laid over somebody else's phrase.
      */
-    // Beyond the chosen count the same tour wraps: the next block of themes
-    // takes the next key round the circle again. Inside it, the modulo
-    // changes nothing.
-    fifths = set[Math.floor((played * set.length) / options.count) % set.length];
+    // The set toured across the themes asked for, and round again for as
+    // long as the player keeps playing; see `tourKey`.
+    fifths = tourKey(set, played, options.count);
 
     const place = (theme: Theme) =>
       realiseTheme(theme, {

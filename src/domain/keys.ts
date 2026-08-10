@@ -72,6 +72,40 @@ export function widestKey(changes: readonly KeyChange[]): number {
 }
 
 /**
+ * Which key a unit of material is played in, touring the set for as long as
+ * the player keeps going.
+ *
+ * A unit is whatever the material is measured in — a cycle of a scale, a
+ * whole theme. The set is dealt across the units the player asked for, each
+ * key holding for a contiguous block, and **the tour then carries on round
+ * the set indefinitely**, because the music does: past the chosen length the
+ * paper continues, and a player working through four keys wants the fourth
+ * as much as the first.
+ *
+ * Where the set is larger than the chosen length can hold, the keys are taken
+ * **in order from the closest** rather than sampled across the set. Asking
+ * for two cycles of four keys used to give the first and the third, skipping
+ * a key the player had chosen for no reason they could see; now it gives the
+ * first and the second, and the rest arrive if they play on.
+ *
+ * `unitsChosen` is what the player asked for, not what was generated: the
+ * grey beyond it is more of the same tour rather than a new one.
+ */
+export function tourKey(
+  ordered: readonly number[],
+  unit: number,
+  unitsChosen: number,
+): number {
+  // Units each key holds for. At least one, so a set larger than the chosen
+  // length moves on every unit rather than standing still — which is what a
+  // whole-number division silently did: four keys across one chosen cycle
+  // advanced four places per cycle, and four places round a set of four is
+  // no movement at all.
+  const per = Math.max(1, Math.ceil(unitsChosen / ordered.length));
+  return ordered[Math.floor(unit / per) % ordered.length];
+}
+
+/**
  * Puts a set of keys in an order that modulates rather than jumps.
  *
  * Distance on the circle of fifths is the measure, because that is what

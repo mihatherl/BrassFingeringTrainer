@@ -20,6 +20,7 @@ import {
   orderByCloseness,
   scalePitchClasses,
   tonicPitchClass,
+  tourKey,
   type KeyChange,
 } from '../domain/keys';
 import {
@@ -296,15 +297,9 @@ export function generateExercise(options: GenerateOptions): Exercise {
   // back mid-exercise and the notes would stop being the pattern.
   const patterned = isPattern(options.kind) && contourFor.size === ordered.length;
 
-  /*
-   * Which key a cycle is played in: the chosen cycles deal the set out in
-   * contiguous blocks, exactly as before, and the grey beyond the chosen
-   * length wraps the same tour — the next block is the next key, round the
-   * circle again. For any cycle inside the chosen count the modulo changes
-   * nothing.
-   */
-  const dealKey = (cycle: number) =>
-    ordered[Math.floor((cycle * ordered.length) / options.cycles) % ordered.length];
+  // Which key a cycle is played in, touring the set for as long as the
+  // player keeps going; see `tourKey`.
+  const dealKey = (cycle: number) => tourKey(ordered, cycle, options.cycles);
 
   /*
    * The horizon, in each material's own unit: bars of free material — a
