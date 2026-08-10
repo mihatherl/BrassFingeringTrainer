@@ -311,6 +311,26 @@ export function drawRest(
             : 'rest16th';
   ctx.fillStyle = colour;
   drawGlyph(ctx, glyph, x, m.middleLineY, m.staveSpace);
+
+  /*
+   * A dotted rest gets its dot, in the space above the middle line where an
+   * engraver puts it.
+   *
+   * It was missing entirely, which barely showed while rests were filled at
+   * the half-bar and came out in plain values — and is the ordinary case the
+   * moment compound time arrives, where a rest of one beat *is* a dotted
+   * crotchet. A rest drawn a third shorter than it lasts is the notation
+   * lying about the bar.
+   */
+  if (duration.dotted) {
+    drawGlyph(
+      ctx,
+      'augmentationDot',
+      x + (glyphWidth(glyph) + DOT_GAP) * m.staveSpace,
+      m.middleLineY - m.staveSpace * 0.5,
+      m.staveSpace,
+    );
+  }
 }
 
 /**

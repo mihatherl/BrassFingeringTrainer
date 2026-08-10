@@ -1008,3 +1008,54 @@ describe('the horizon', () => {
     expect(capped.notes).toEqual(plain.notes);
   });
 });
+
+describe('compound time', () => {
+  const metre = metreFor(6, 8);
+  const beatsOf = (d: { value: string; dotted?: boolean }) =>
+    ({ whole: 4, half: 2, quarter: 1, eighth: 0.5, sixteenth: 0.25 })[d.value]! *
+    (d.dotted ? 1.5 : 1);
+
+  /**
+   * Nothing may straddle the dotted-crotchet beat. That one rule is the whole
+   * difference between 6/8 and 3/4 on the page, and both generators — free
+   * material and patterns — used to break it, by different routes.
+   */
+  const straddles = (exercise: ReturnType<typeof generateExercise>) =>
+    [...exercise.notes, ...exercise.rests].filter(
+      (e) => (e.startBeat % metre.pulseBeats) + beatsOf(e.duration) > metre.pulseBeats + 1e-9,
+    );
+
+  it('keeps free material inside the pulse, at every difficulty', () => {
+    for (const difficulty of DIFFICULTIES) {
+      for (const seed of [1, 2, 3]) {
+        const exercise = generateExercise(options({ difficulty, metre, bars: 8, seed }));
+        expect(straddles(exercise), `${difficulty.id} seed ${seed}`).toEqual([]);
+      }
+    }
+  });
+
+  it('keeps patterns inside the pulse too, by their own route', () => {
+    for (const difficulty of DIFFICULTIES) {
+      const exercise = generateExercise(
+        options({ difficulty, metre, kind: 'scales', cycles: 2, seed: 4 }),
+      );
+      expect(straddles(exercise), difficulty.id).toEqual([]);
+    }
+  });
+
+  it('gives a beginner the beat and nothing shorter', () => {
+    // A pool of minims and crotchets cannot fill a dotted-crotchet pulse in
+    // any combination, and the beat is what a beginner should be playing.
+    const exercise = generateExercise(
+      options({ difficulty: difficultyById('beginner'), metre, bars: 4, seed: 1 }),
+    );
+    expect(exercise.notes.every((n) => beatsOf(n.duration) === 1.5)).toBe(true);
+  });
+
+  it('leaves simple time exactly as it was', () => {
+    const before = generateExercise(options({ metre: metreFor(4, 4), bars: 8, seed: 9 }));
+    expect(before.notes.length).toBeGreaterThan(0);
+    // The compound path is entered on the metre alone, so 4/4 never sees it.
+    expect(before.notes.some((n) => beatsOf(n.duration) === 1)).toBe(true);
+  });
+});

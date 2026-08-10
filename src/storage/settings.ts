@@ -184,10 +184,22 @@ export const THEME_OPTIONS = [1, 2, 3, 4, 6] as const;
  * the exercise whether it gets there or not.
  */
 export const MAX_KEYS_IN_PLAY = 4;
+/**
+ * The metres on offer.
+ *
+ * 6/8 is compound and behaves differently everywhere it matters: two beats
+ * to a bar rather than six, quavers beamed in threes, the metronome on the
+ * dotted crotchet, and rhythm generated a whole pulse at a time. All of that
+ * was built and tested well before this list offered it — see `metre.ts`,
+ * which was written for exactly this and says so. A brass band player meets
+ * six-eight in marches before almost anything else, so its absence here was
+ * the most conspicuous gap on the screen.
+ */
 export const TIME_SIGNATURES = [
   { beatsPerBar: 4, beatUnit: 4, label: '4/4' },
   { beatsPerBar: 3, beatUnit: 4, label: '3/4' },
   { beatsPerBar: 2, beatUnit: 4, label: '2/4' },
+  { beatsPerBar: 6, beatUnit: 8, label: '6/8' },
 ] as const;
 
 const PANELS_KEY = 'brass-trainer:open-panels';

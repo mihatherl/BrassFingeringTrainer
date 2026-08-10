@@ -1124,6 +1124,139 @@ const MORE_TRIPLETS: readonly Theme[] = [
   },
 ];
 
+
+/**
+ * Compound time, which is its own way of moving rather than a different bar
+ * length.
+ *
+ * The beat is the dotted crotchet and everything is felt in threes against
+ * it, so every one of these is written pulse by pulse: nothing crosses the
+ * middle of a bar, and the dotted crotchets are where the beat actually is.
+ * A brass band player meets 6/8 in marches before almost anything else,
+ * which is why the level that matters most here is the bottom one — a
+ * beginner's 6/8 is the beat and nothing else, played until it is felt.
+ */
+const COMPOUND: readonly Theme[] = [
+  {
+    id: 'six-eight-beat',
+    name: 'Six-eight, the beat itself',
+    difficulty: 'beginner',
+    metres: [[6, 8]],
+    bars: 8,
+    /*
+     * Two dotted crotchets to a bar and nothing shorter. There is no rhythm
+     * to read here at all, which is the point: the only new thing is where
+     * the beat falls, and a beginner meeting compound time for the first
+     * time has quite enough to think about in that.
+     */
+    events: [
+      n(1, 1.5), n(2, 1.5),
+      n(3, 1.5), n(2, 1.5),
+      n(1, 1.5), n(3, 1.5),
+      n(5, 3),
+      n(5, 1.5), n(4, 1.5),
+      n(3, 1.5), n(4, 1.5),
+      n(5, 1.5), n(3, 1.5),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'six-eight-march',
+    name: 'Six-eight march',
+    difficulty: 'easy',
+    metres: [[6, 8]],
+    bars: 8,
+    /*
+     * The figure a march is built from: three quavers running into the beat,
+     * then the beat held. Every bar is the same shape, so what is being read
+     * is the tune rather than the rhythm — which is how a player learns to
+     * feel two-in-a-bar rather than count six.
+     */
+    events: [
+      n(1, 0.5), n(2, 0.5), n(3, 0.5), n(3, 1.5),
+      n(3, 0.5), n(2, 0.5), n(1, 0.5), n(2, 1.5),
+      n(3, 0.5), n(4, 0.5), n(5, 0.5), n(5, 1.5),
+      n(5, 3),
+      n(5, 0.5), n(4, 0.5), n(3, 0.5), n(4, 1.5),
+      n(3, 0.5), n(2, 0.5), n(1, 0.5), n(2, 1.5),
+      n(3, 0.5), n(4, 0.5), n(3, 0.5), n(2, 1.5),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'six-eight-leap',
+    name: 'Six-eight, wide',
+    difficulty: 'medium',
+    metres: [[6, 8]],
+    bars: 8,
+    /*
+     * The open fifth on the downbeat, which is what a bass line in six does
+     * for a living, answered by quavers walking back down. The leap is the
+     * whole difficulty: it arrives on the beat every time, so there is no
+     * excuse for missing it and nowhere to hide if the fingering is not
+     * ready before the bar line.
+     */
+    events: [
+      n(1, 1.5), n(5, 1.5),
+      n(4, 0.5), n(3, 0.5), n(2, 0.5), n(3, 1.5),
+      n(1, 1.5), n(5, 1.5),
+      n(6, 0.5), n(5, 0.5), n(4, 0.5), n(3, 1.5),
+      n(5, 1.5), n(3, 1.5),
+      n(4, 0.5), n(5, 0.5), n(6, 0.5), n(5, 1.5),
+      n(4, 0.5), n(3, 0.5), n(2, 0.5), n(1, 1.5),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'six-eight-running',
+    name: 'Six-eight, running',
+    difficulty: 'hard',
+    metres: [[6, 8]],
+    bars: 8,
+    /*
+     * Semiquavers inside the pulse, which is where compound time gets
+     * genuinely awkward: six to a beat, beamed as one group, and the
+     * temptation is to feel them in twos and arrive early. The dotted
+     * crotchets after each run are the check on whether that happened.
+     */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.25), n(4, 0.25), n(3, 1.5),
+      n(3, 0.5), n(4, 0.5), n(5, 0.5), n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25), n(1, 0.5),
+      n(1, 0.25), n(3, 0.25), n(5, 0.25), n(3, 0.25), n(1, 0.25), n(3, 0.25), n(5, 1.5),
+      n(5, 3),
+      n(6, 0.5), n(5, 0.5), n(4, 0.5), n(3, 0.5), n(2, 0.5), n(1, 0.5),
+      n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25), n(7, 0.25), n(1, 1.5, { octave: 1 }),
+      n(1, 0.5, { octave: 1 }), n(7, 0.5), n(6, 0.5), n(5, 0.5), n(4, 0.5), n(3, 0.5),
+      n(1, 3),
+    ],
+  },
+  {
+    id: 'six-eight-flight',
+    name: 'Six-eight in flight',
+    difficulty: 'expert',
+    metres: [[6, 8]],
+    bars: 8,
+    /*
+     * Compound time at speed, with the octave-and-a-third leap that Expert
+     * exists for. Nothing here is longer than a quaver until the very last
+     * note, so there is no bar in which to recover — which is the difference
+     * between reading this and reading the level below it.
+     */
+    events: [
+      n(1, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.25), n(6, 0.25),
+      n(7, 0.25), n(1, 0.25, { octave: 1 }), n(2, 0.25, { octave: 1 }), n(3, 0.25, { octave: 1 }), n(2, 0.25, { octave: 1 }), n(1, 0.25, { octave: 1 }),
+      n(1, 0.5), n(3, 0.5, { octave: 1 }), n(1, 0.5, { octave: 1 }), n(7, 0.5), n(6, 0.5), n(5, 0.5),
+      n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.25), n(3, 0.25), n(4, 0.25), n(5, 0.5), n(4, 0.5), n(3, 0.5),
+      n(3, 0.5), n(5, 0.5), n(1, 0.5, { octave: 1 }), n(5, 0.5), n(3, 0.5), n(1, 0.5),
+      n(1, 0.25), n(3, 0.25), n(5, 0.25), n(1, 0.25, { octave: 1 }), n(5, 0.25), n(3, 0.25),
+      n(1, 0.25), n(3, 0.25), n(5, 0.25), n(1, 0.25, { octave: 1 }), n(5, 0.25), n(3, 0.25),
+      n(2, 0.5), n(3, 0.5), n(4, 0.5), n(5, 0.5), n(6, 0.5), n(7, 0.5),
+      n(1, 0.25, { octave: 1 }), n(7, 0.25), n(6, 0.25), n(5, 0.25), n(4, 0.25), n(3, 0.25), n(2, 0.5), n(3, 0.5), n(4, 0.5),
+      n(5, 3),
+    ],
+  },
+];
+
 export const THEMES: readonly Theme[] = [
   ...FIRST_BATCH,
   ...HARDER,
@@ -1134,6 +1267,7 @@ export const THEMES: readonly Theme[] = [
   ...THREE_FOUR,
   ...TRIPLETS,
   ...MORE_TRIPLETS,
+  ...COMPOUND,
 ];
 
 export function themeById(id: string): Theme | undefined {

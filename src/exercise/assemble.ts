@@ -190,7 +190,18 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre):
   // time and the difference between beaming in twos and in threes once it is
   // not: 6/8 beams three quavers to a dotted crotchet.
   const pulseOf = (beat: number) => Math.floor(beat / metre.pulseBeats + 1e-9);
-  const restBeats = new Set(rests.map((r) => pulseOf(r.startBeat)));
+  const restStarts = rests.map((r) => r.startBeat).sort((a, b) => a - b);
+  /*
+   * Whether a rest comes between two notes, which is where a beam breaks.
+   *
+   * Asked of the gap rather than of the whole pulse. Refusing to beam any
+   * pulse containing a rest is the same thing while a pulse holds two notes,
+   * which is all a crotchet beat holds in quavers — so the difference never
+   * showed until compound time put three to a beat, and then a single quaver
+   * rest left the two beside it standing apart with flags of their own.
+   */
+  const restBetween = (from: number, to: number) =>
+    restStarts.some((beat) => beat > from - 1e-9 && beat < to - 1e-9);
   let group = 0;
   let index = 0;
 
@@ -209,7 +220,7 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre):
       isBeamable(notes[end + 1].duration) &&
       pulseOf(notes[end + 1].startBeat) === beat &&
       barAt(metre, notes[end + 1].startBeat) === bar &&
-      !restBeats.has(beat)
+      !restBetween(notes[end].startBeat, notes[end + 1].startBeat)
     ) {
       end++;
     }

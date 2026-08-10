@@ -173,8 +173,18 @@ const LONGEST_FIRST: Duration[] = NOTE_VALUES.flatMap((value) => [
  */
 function restsFilling(from: number, beats: number, metre: Metre): Slot[] {
   const { barBeats } = metre;
-  const half = barBeats / 2;
-  const splitsInHalf = Number.isInteger(half);
+  /*
+   * The division a rest may not straddle: the pulse in compound time, the
+   * middle of the bar in simple.
+   *
+   * Half of a bar of 6/8 is a beat and a half, which is not a whole number of
+   * crotchets — so the old test for one gave up and left compound time with
+   * no division to respect at all, and a two-beat rest laid straight across
+   * the dotted-crotchet beat. In compound time the pulse is the answer, and
+   * it always divides the bar exactly.
+   */
+  const division = metre.isCompound ? metre.pulseBeats : barBeats / 2;
+  const respected = metre.isCompound || Number.isInteger(division);
 
   const slots: Slot[] = [];
   let at = from;
@@ -182,8 +192,8 @@ function restsFilling(from: number, beats: number, metre: Metre): Slot[] {
 
   while (left > 1e-9) {
     // How much may be spent before the next division worth respecting.
-    const toBoundary = splitsInHalf ? half - (at % half) : Infinity;
-    const room = Math.min(left, toBoundary > 1e-9 ? toBoundary : half);
+    const toBoundary = respected ? division - (at % division) : Infinity;
+    const room = Math.min(left, toBoundary > 1e-9 ? toBoundary : division);
     const duration = LONGEST_FIRST.find((d) => durationBeats(d) <= room + 1e-9);
     // Nothing writable fits, which cannot happen for any metre on offer; giving
     // up beats looping forever.
@@ -489,12 +499,163 @@ export function patternSpanFor(
  * plain crotchets end to end, so the exercise is about the fingering rather than
  * about reading a rhythm at the same time.
  */
+/**
+ * The values that fit compound time: those that divide the pulse exactly, or
+ * failing that the pulse itself. See the note in `patternSlots`.
+ */
+function dividingThePulse(
+  pool: ReadonlyArray<{ duration: Duration; weight: number }>,
+  metre: Metre,
+): ReadonlyArray<{ duration: Duration; weight: number }> {
+  const divides = pool.filter((r) => {
+    const times = metre.pulseBeats / durationBeats(r.duration);
+    return Math.abs(times - Math.round(times)) < 1e-9;
+  });
+  if (divides.length > 0) return divides;
+  const beat = durationFromBeats(metre.pulseBeats);
+  return beat ? [{ duration: beat, weight: 1 }] : pool;
+}
+
+/**
+ * The ways one pulse of compound time can be filled, drawn from what the
+ * difficulty allows.
+ *
+ * Compound time is not simple time with a different bar length. Its beat is
+ * the dotted crotchet and everything is felt in threes against it, so a bar
+ * of 6/8 filled with whatever happens to fit — three crotchets, say — is a
+ * bar of 3/4 wearing the wrong signature. Notes are therefore chosen a whole
+ * pulse at a time, from figures that fill one exactly: the beat as a single
+ * note, and every ordering of shorter values that adds up to it. Long-short
+ * and short-long are separate figures on purpose, since they are separate
+ * rhythms.
+ *
+ * **The beat itself is always available**, whatever the pool holds. A
+ * beginner's pool is minims and crotchets, neither of which can fill a
+ * dotted-crotchet pulse in any combination — and a beginner meeting 6/8
+ * should be playing the beat, which is exactly what that leaves them with.
+ */
+function compoundFigures(
+  pool: ReadonlyArray<{ duration: Duration; weight: number }>,
+  pulseBeats: number,
+): Array<{ durations: Duration[]; weight: number }> {
+  const usable = pool.filter((r) => durationBeats(r.duration) <= pulseBeats + 1e-9);
+  const figures: Array<{ durations: Duration[]; weight: number }> = [];
+
+  // The pulse as one note. Weighted middlingly — common but not the only
+  // thing anyone plays — and the sole option where nothing else fits.
+  const whole = durationFromBeats(pulseBeats);
+  if (whole) {
+    const mean = pool.reduce((sum, r) => sum + r.weight, 0) / Math.max(1, pool.length);
+    figures.push({ durations: [whole], weight: mean });
+  }
+
+  const build = (left: number, taken: Duration[], weights: number[]): void => {
+    if (Math.abs(left) < 1e-9) {
+      if (taken.length > 1) {
+        // The geometric mean, so a figure of six semiquavers is weighed
+        // against one of two notes rather than being buried by the product.
+        const weight = Math.exp(
+          weights.reduce((sum, w) => sum + Math.log(w), 0) / weights.length,
+        );
+        figures.push({ durations: [...taken], weight });
+      }
+      return;
+    }
+    // Six is a pulse of semiquavers, which is as busy as compound time gets
+    // in any of the pools here.
+    if (taken.length >= 6) return;
+    for (const entry of usable) {
+      const beats = durationBeats(entry.duration);
+      if (beats > left + 1e-9) continue;
+      taken.push(entry.duration);
+      weights.push(entry.weight);
+      build(left - beats, taken, weights);
+      taken.pop();
+      weights.pop();
+    }
+  };
+  build(pulseBeats, [], []);
+
+  return figures;
+}
+
+/**
+ * Slots for a run of bars in compound time, filled a pulse at a time.
+ *
+ * Ties keep working and keep their meaning: the figure that crosses a bar
+ * line here is the beat held over it, written as a dotted crotchet on each
+ * side of the line and joined — which is what a part actually prints, and
+ * the only overrun compound time has any use for.
+ */
+function compoundRhythm(
+  rng: Rng,
+  options: GenerateOptions,
+  metre: Metre,
+  pattern: boolean,
+): Slot[] {
+  const { difficulty } = options;
+  const pool = (pattern && difficulty.patterns.rhythms) || difficulty.rhythms;
+  const restChance =
+    pattern && difficulty.patterns.restChance !== undefined
+      ? difficulty.patterns.restChance
+      : difficulty.restChance;
+  const tieChance = pattern ? 0 : difficulty.tieChance;
+
+  const { pulseBeats, barBeats } = metre;
+  const figures = compoundFigures(pool, pulseBeats);
+  const held = durationFromBeats(pulseBeats);
+  const totalBeats = options.bars * barBeats;
+  const slots: Slot[] = [];
+
+  // Nothing can fill a pulse, which no shipped difficulty manages; a bar of
+  // rests beats a loop that never advances.
+  if (figures.length === 0) return restsFilling(0, totalBeats, metre);
+
+  let beat = 0;
+  while (beat < totalBeats - 1e-9) {
+    const lastPulseOfBar = Math.abs((beat % barBeats) - (barBeats - pulseBeats)) < 1e-9;
+    const roomBeyond = beat + pulseBeats * 2 <= totalBeats + 1e-9;
+
+    if (held && lastPulseOfBar && roomBeyond && tieChance > 0 && rng.chance(tieChance)) {
+      slots.push({ startBeat: beat, duration: held, isRest: false, tiedFromPrevious: false });
+      slots.push({
+        startBeat: beat + pulseBeats,
+        duration: held,
+        isRest: false,
+        tiedFromPrevious: true,
+      });
+      beat += pulseBeats * 2;
+      continue;
+    }
+
+    const figure = rng.weighted(figures, (f) => f.weight);
+    for (const duration of figure.durations) {
+      // Rests stay off the downbeat, and off the beat itself: a rest where
+      // the pulse falls is the one thing that makes compound time unreadable.
+      const onPulse = Math.abs(beat % pulseBeats) < 1e-9;
+      slots.push({
+        startBeat: beat,
+        duration,
+        isRest: !onPulse && rng.chance(restChance),
+        tiedFromPrevious: false,
+      });
+      beat += durationBeats(duration);
+    }
+  }
+
+  return slots;
+}
+
 function generateRhythm(
   rng: Rng,
   options: GenerateOptions,
   metre: Metre,
   pattern: boolean,
 ): Slot[] {
+  // Compound time is felt in threes against a dotted beat and is filled a
+  // whole pulse at a time; see `compoundRhythm`.
+  if (metre.isCompound) return compoundRhythm(rng, options, metre, pattern);
+
   const slots: Slot[] = [];
   const { difficulty } = options;
   // Crotchets in a bar, which is the numerator only in simple time.
@@ -718,24 +879,48 @@ function patternSlots(
   const slots: Slot[] = [];
   const cycleStarts: number[] = [];
   const { barBeats } = metre;
-  const pool = options.difficulty.patterns.rhythms ?? options.difficulty.rhythms;
+  const declared = options.difficulty.patterns.rhythms ?? options.difficulty.rhythms;
+
+  /*
+   * In compound time a pattern may only use values that divide the pulse.
+   *
+   * A scale in crotchets is fine in 4/4 and nonsense in 6/8, where the second
+   * one straddles the dotted-crotchet beat — the same fault the free material
+   * had, arriving by a different door, because a pattern lays its notes end to
+   * end without ever asking where the beat is. Quavers three to a beat are how
+   * a method book writes a scale in six, and where a difficulty's pool holds
+   * nothing that divides the pulse, the beat itself always does.
+   */
+  const pool = metre.isCompound ? dividingThePulse(declared, metre) : declared;
   let beat = 0;
   let chosenBeats: number | undefined;
 
   const roomInBar = () => barBeats - (beat % barBeats);
+  /*
+   * How much a note may take from here.
+   *
+   * The bar, and in compound time the pulse as well — values that divide the
+   * beat are not enough on their own, because a run of them lands wherever it
+   * lands: a quaver beginning a semiquaver late crosses the beat as surely as
+   * a crotchet does. The pulse is a ceiling, not just a vocabulary.
+   */
+  const roomNow = () =>
+    metre.isCompound
+      ? Math.min(roomInBar(), metre.pulseBeats - (beat % metre.pulseBeats))
+      : roomInBar();
   const fitting = (room: number) =>
     pool.filter((r) => durationBeats(r.duration) <= room + 1e-9);
 
   const emitNote = () => {
-    let affordable = fitting(roomInBar());
+    let affordable = fitting(roomNow());
     if (affordable.length === 0) {
-      // Nothing in the pool fits what is left of this bar. Rest it out and
-      // start the note on the next downbeat rather than overrunning: a
-      // pattern is never tied, so there is no honest way to spill.
-      const room = roomInBar();
+      // Nothing in the pool fits what is left. Rest it out and start the note
+      // on the next boundary rather than overrunning: a pattern is never
+      // tied, so there is no honest way to spill.
+      const room = roomNow();
       slots.push(...restsFilling(beat, room, metre));
       beat += room;
-      affordable = fitting(roomInBar());
+      affordable = fitting(roomNow());
     }
 
     const duration = rng.weighted(affordable, (r) => r.weight).duration;

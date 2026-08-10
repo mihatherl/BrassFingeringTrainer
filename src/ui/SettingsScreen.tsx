@@ -315,6 +315,15 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
                 </option>
               ))}
             </select>
+            {/* Compound time is a different feel rather than a longer bar, and
+                the app counts it the way a band does. Worth saying, because a
+                player who counts six will fight the metronome all the way. */}
+            {settings.beatUnit === 8 && (
+              <p className="field__note muted">
+                Two beats to the bar, not six — the metronome clicks the dotted crotchets and the
+                conductor beats two, as they would in a march.
+              </p>
+            )}
           </label>
 
           {/* A scale is measured in times through rather than in bars: the

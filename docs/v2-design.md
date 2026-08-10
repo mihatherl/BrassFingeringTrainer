@@ -1143,6 +1143,38 @@ rather than hashed from the numbers behind it — the shape changed twice withou
 a single coordinate moving, and a fingerprint of the inputs would have said "no
 change" both times.
 
+### Compound time, offered at last
+
+**6/8 is on the settings screen from v1.24.0.** Everything it needs had been
+built for a long time — `metre.ts` for the pulse, beaming in threes, the
+metronome on the dotted crotchet, the conductor's two-pattern, a committed
+engraving snapshot — and the picker simply never offered it, so none of it
+could be reached. A brass band player meets six-eight in marches before
+almost anything else, which made it the most conspicuous gap on that screen.
+
+Turning it on found four faults, all of the same shape: **code that was
+right about bars and silent about the pulse.**
+
+- *Rhythm was generated to fit the bar*, so 6/8 came out as 3/4 in disguise —
+  crotchets laid straight across the dotted-crotchet beat. Free material now
+  fills a whole pulse at a time from figures derived from the difficulty's own
+  pool, which is why a beginner's 6/8 is the beat and nothing else: minims and
+  crotchets cannot fill a dotted-crotchet pulse in any combination.
+- *Patterns lay their notes end to end* and broke it by a different route — a
+  vocabulary that divides the pulse is not enough, since a run of such values
+  lands wherever it lands. The pulse is a ceiling as well as a vocabulary.
+- *Rests respected the middle of the bar*, tested by whether half a bar was a
+  whole number of crotchets. Half a bar of 6/8 is a beat and a half, so the
+  test failed and compound time got no division to respect at all.
+- *Beams were refused to any pulse containing a rest*, which is the same thing
+  as breaking at the rest while a beat holds two quavers — and visibly wrong
+  once a beat holds three. They now break at the rest itself, which improved
+  simple time too.
+
+The lesson worth keeping: `metre.ts` separated the numerator, the bar and the
+pulse years before anything used the distinction, and every one of these bugs
+was a place that had quietly gone on using the bar where it meant the pulse.
+
 ### Metres we have no pattern for
 
 There will always be some, and imported music guarantees it. **The conductor
