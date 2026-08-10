@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Gesture bench — Brass Fingering Trainer</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf7; --surface: #fff; --text: #16150f;
+        --muted: #6b6960; --border: #ddd9d0; --accent: #2f6fd0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16171b; --surface: #1e2026; --text: #f2f1ec;
+          --muted: #9a9ba3; --border: #333640; --accent: #63a1ff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem
+          max(0.75rem, env(safe-area-inset-bottom));
+        background: var(--bg); color: var(--text);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      h1 { font-size: 1rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--muted); }
+      h2 { font-size: 0.9rem; font-weight: 600; margin: 0 0 0.5rem; }
+      .panel {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; padding: 0.75rem; margin-bottom: 0.75rem;
+      }
+      .ends { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+      @media (min-width: 46rem) { .ends { grid-template-columns: 1fr 1fr; } }
+
+      .dial {
+        display: grid; align-items: center; gap: 0 0.5rem; margin-bottom: 0.5rem;
+        grid-template-columns: 5.5rem 1fr 3rem;
+      }
+      .dial__name { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+      .dial__value { font-size: 0.8rem; text-align: right; }
+      .dial__hint {
+        grid-column: 2 / -1; font-size: 0.72rem; color: var(--muted); line-height: 1.3;
+      }
+      input[type='range'] { width: 100%; min-width: 0; }
+
+      #grid { display: grid; gap: 0.25rem; align-items: center; }
+      .grid__head, .grid__row-head, .grid__corner {
+        font-size: 0.75rem; font-weight: 600; color: var(--muted); text-align: center;
+      }
+      .grid__row-head { text-align: right; padding-right: 0.35rem; }
+      .grid__cell {
+        border: 1px solid var(--border); border-radius: 6px; aspect-ratio: 1 / 0.95;
+      }
+      .grid__cell canvas { display: block; width: 100%; height: 100%; }
+
+      #preview { display: block; width: 100%; height: 34vh; min-height: 200px; }
+      .controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+      .controls > .name { flex: 0 0 4.5rem; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+      .controls input[type='range'] { flex: 1 1 8rem; }
+      select, button {
+        font: inherit; padding: 0.4rem 0.8rem; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      pre {
+        margin: 0; padding: 0.75rem; background: var(--bg); border: 1px solid var(--border);
+        border-radius: 8px; font-size: 0.85rem; overflow-x: auto; white-space: pre;
+      }
+      .hint { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; line-height: 1.45; }
+      .row { display: flex; gap: 0.6rem; align-items: center; justify-content: space-between; }
+    </style>
+  </head>
+  <body>
+    <h1>Gesture bench — set the two ends, read off every pattern</h1>
+
+    <div class="panel">
+      <div class="ends">
+        <div>
+          <h2>Flowing</h2>
+          <div id="dials-flowing"></div>
+        </div>
+        <div>
+          <h2>Marcato</h2>
+          <div id="dials-marcato"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="grid"></div>
+      <p class="hint">
+        Each row is one pattern; each column is a point on the axis, interpolated between the two
+        ends above. Every cell in a row shares one frame, so a shape that shrinks really is
+        shrinking rather than being drawn smaller. The dots are the ictus points.
+      </p>
+    </div>
+
+    <div class="panel">
+      <canvas id="preview"></canvas>
+      <div class="controls" style="margin-top: 0.5rem">
+        <span class="name">Pattern</span>
+        <select id="preview-metre" aria-label="Pattern">
+          <option value="2">two</option>
+          <option value="3">three</option>
+          <option value="4" selected>four</option>
+          <option value="6">six</option>
+        </select>
+        <input id="preview-position" type="range" min="0" max="100" step="5" value="50" aria-label="Position on the axis" />
+        <span id="preview-position-value">50% along</span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <span class="name">Tempo</span>
+        <input id="preview-tempo" type="range" min="40" max="160" step="1" value="80" aria-label="Tempo" />
+        <span id="preview-tempo-value">80 bpm</span>
+      </div>
+      <p class="hint">
+        The lag is the one dial a still picture cannot show, which is what this is for. It runs off
+        the browser's frame clock rather than an audio one — not good enough to play against, fine
+        for judging whether the hand hangs and snaps the way it should.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <h2 style="margin: 0">The configuration</h2>
+        <button id="copy" class="primary" type="button">Copy</button>
+      </div>
+      <pre id="config" style="margin-top: 0.5rem"></pre>
+      <p class="hint">
+        This is the deliverable, not the drawing. Copy it and paste it back into the conversation.
+      </p>
+    </div>
+
+    <div class="panel">
+      <p class="hint" style="margin-top: 0">
+        <strong>Five dials, not thirty.</strong> Every beat of every pattern has an x, a y and a
+        rebound, and the six has five path points on top — a bench exposing all of those would be a
+        coordinate editor and nobody can hold a hundred numbers at once. These five describe how a
+        gesture <em>behaves</em>; the drawn patterns stay as they are.
+      </p>
+      <p class="hint">
+        <strong>Width</strong> is how far the hand travels sideways. <strong>Arcs</strong> is how
+        high it rises between beats. <strong>Downbeat</strong> is the height the downbeat falls
+        from, kept separate because scaling it with the arcs loses the downbeat at the flowing end
+        and gives a baton no arm could hold at the other. <strong>Beat spread</strong> is how far
+        apart the ictus points sit vertically — only the four pattern has its beats on one floor,
+        so this does nothing there and a good deal everywhere else. <strong>Lag</strong> is how much
+        the hand hangs between beats and snaps through them.
+      </p>
+      <p class="hint">
+        <strong>What to watch for.</strong> A beat has to be approached downwards and left upwards,
+        or there is no ictus and nothing to read; and it wants to be moving quicker at the beat than
+        between beats, or the only cue left is the change of direction. The four pattern's second
+        beat is the one that fails first — its long stroke straight across has never had much speed
+        contrast to give — so if any cell looks wrong, look there first.
+      </p>
+      <p class="hint">
+        The other bench, for whether the beat can be found in the motion at all, is at
+        <a href="./conductor.html">conductor.html</a>.
+      </p>
+    </div>
+
+    <script type="module" src="./gesture.js"></script>
+  </body>
+</html>
