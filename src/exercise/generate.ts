@@ -98,8 +98,8 @@ export interface GenerateOptions {
    * The horizon: the music carries on in grey past the length the player
    * asked for, and playing into it turns it white. Only the app passes this —
    * tools, figures and tests ask for exact lengths, which is what keeps every
-   * committed snapshot byte-identical. Free material only for now; patterns
-   * and themes fill to the cap in their own units in a later stage.
+   * committed snapshot byte-identical. Each material fills to the cap in its
+   * own unit: bars of free material, whole cycles of a pattern, whole themes.
    */
   horizonBars?: number;
   /**
@@ -223,6 +223,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
       keys: orderByCloseness(options.fifths, options.keySet ?? [options.fifths]),
       metre,
       count: options.themeCount,
+      horizonBeats: options.horizonBars ? options.horizonBars * metre.barBeats : undefined,
       rng,
     });
     if (stitched) {
@@ -248,6 +249,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
         keys: stitched.keys,
         metre,
         totalBeats: stitched.totalBeats,
+        chosenBeats: stitched.chosenBeats,
         seed: options.seed,
         kind: options.kind,
         tempo,
@@ -293,20 +295,24 @@ export function generateExercise(options: GenerateOptions): Exercise {
   // Every key has to have produced a shape, or the blocks below would fall
   // back mid-exercise and the notes would stop being the pattern.
   const patterned = isPattern(options.kind) && contourFor.size === ordered.length;
-  const cycleKeys = patterned
-    ? Array.from(
-        { length: options.cycles },
-        (_, i) => ordered[Math.floor((i * ordered.length) / options.cycles)],
-      )
-    : [];
 
   /*
-   * The horizon applies to material measured in bars — including a pattern
-   * that failed to fit and fell back to free material, which at that point is
-   * free material like any other. The chosen length stays what the player
-   * asked for; the cap is how far the paper runs.
+   * Which key a cycle is played in: the chosen cycles deal the set out in
+   * contiguous blocks, exactly as before, and the grey beyond the chosen
+   * length wraps the same tour — the next block is the next key, round the
+   * circle again. For any cycle inside the chosen count the modulo changes
+   * nothing.
    */
-  const horizonBars =
+  const dealKey = (cycle: number) =>
+    ordered[Math.floor((cycle * ordered.length) / options.cycles) % ordered.length];
+
+  /*
+   * The horizon, in each material's own unit: bars of free material — a
+   * pattern that failed to fit having fallen back to exactly that — or whole
+   * cycles of a pattern. The chosen length stays what the player asked for;
+   * the cap is how far the paper runs.
+   */
+  const freeHorizonBars =
     !patterned && options.horizonBars && options.horizonBars > options.bars
       ? options.horizonBars
       : undefined;
@@ -316,20 +322,23 @@ export function generateExercise(options: GenerateOptions): Exercise {
         rng,
         options,
         metre,
-        cycleKeys.map((fifths) => contourFor.get(fifths)!.length),
+        (cycle) => contourFor.get(dealKey(cycle))!.length,
+        options.cycles,
+        options.horizonBars ? options.horizonBars * metre.barBeats : undefined,
       )
     : {
         slots: generateRhythm(
           rng,
-          horizonBars ? { ...options, bars: horizonBars } : options,
+          freeHorizonBars ? { ...options, bars: freeHorizonBars } : options,
           metre,
           isPattern(options.kind),
         ),
-        totalBeats: (horizonBars ?? options.bars) * metre.barBeats,
+        totalBeats: (freeHorizonBars ?? options.bars) * metre.barBeats,
         cycleStarts: [] as number[],
+        cycles: 0,
+        chosenBeats: options.bars * metre.barBeats,
       };
-  const { slots, totalBeats } = built;
-  const chosenBeats = horizonBars ? options.bars * metre.barBeats : totalBeats;
+  const { slots, totalBeats, chosenBeats } = built;
 
   /*
    * Where the key changes.
@@ -341,7 +350,10 @@ export function generateExercise(options: GenerateOptions): Exercise {
    * Free material has no such constraint and is spread across its bar lines.
    */
   const keys = patterned
-    ? keysFromCycles(cycleKeys, built.cycleStarts)
+    ? keysFromCycles(
+        Array.from({ length: built.cycles }, (_, i) => dealKey(i)),
+        built.cycleStarts,
+      )
     : planKeyChanges(ordered, totalBeats, barLineCandidates(totalBeats, metre));
 
   // A tie continuation is not a choice of pitch — it is the note before it,
@@ -374,7 +386,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
   const tempo =
     options.variableTempo && options.tempo
       ? planTempo({
-          starts: horizonBars ? [0, chosenBeats] : [0],
+          starts: chosenBeats < totalBeats ? [0, chosenBeats] : [0],
           totalBeats,
           metre,
           bpm: options.tempo,
@@ -693,39 +705,68 @@ function patternSlots(
   rng: Rng,
   options: GenerateOptions,
   metre: Metre,
-  /** Notes in each cycle. One entry per cycle, since a cycle in another key
-      may be a different length. */
-  notesPerCycle: readonly number[],
-): { slots: Slot[]; totalBeats: number; cycleStarts: number[] } {
+  /** Notes in a given cycle, since a cycle in another key may be a different
+      length — asked per cycle because with a horizon the count of cycles is
+      only known once the rhythms have been drawn. */
+  notesFor: (cycle: number) => number,
+  /** Cycles the player asked for; where the white ends. */
+  chosenCycles: number,
+  /** Fill whole cycles at least this far, when the material has a horizon. */
+  minBeats?: number,
+): {
+  slots: Slot[];
+  totalBeats: number;
+  cycleStarts: number[];
+  cycles: number;
+  chosenBeats: number;
+} {
   const slots: Slot[] = [];
   const cycleStarts: number[] = [];
   const { barBeats } = metre;
   const pool = options.difficulty.patterns.rhythms ?? options.difficulty.rhythms;
   let beat = 0;
+  let chosenBeats: number | undefined;
 
   const roomInBar = () => barBeats - (beat % barBeats);
   const fitting = (room: number) =>
     pool.filter((r) => durationBeats(r.duration) <= room + 1e-9);
 
-  for (let cycle = 0; cycle < notesPerCycle.length; cycle++) {
-    cycleStarts.push(beat);
-    const last = cycle === notesPerCycle.length - 1;
-    for (let i = 0; i < notesPerCycle[cycle] + (last ? 1 : 0); i++) {
-      let affordable = fitting(roomInBar());
-      if (affordable.length === 0) {
-        // Nothing in the pool fits what is left of this bar. Rest it out and
-        // start the note on the next downbeat rather than overrunning: a
-        // pattern is never tied, so there is no honest way to spill.
-        const room = roomInBar();
-        slots.push(...restsFilling(beat, room, metre));
-        beat += room;
-        affordable = fitting(roomInBar());
-      }
-
-      const duration = rng.weighted(affordable, (r) => r.weight).duration;
-      slots.push({ startBeat: beat, duration, isRest: false, tiedFromPrevious: false });
-      beat += durationBeats(duration);
+  const emitNote = () => {
+    let affordable = fitting(roomInBar());
+    if (affordable.length === 0) {
+      // Nothing in the pool fits what is left of this bar. Rest it out and
+      // start the note on the next downbeat rather than overrunning: a
+      // pattern is never tied, so there is no honest way to spill.
+      const room = roomInBar();
+      slots.push(...restsFilling(beat, room, metre));
+      beat += room;
+      affordable = fitting(roomInBar());
     }
+
+    const duration = rng.weighted(affordable, (r) => r.weight).duration;
+    slots.push({ startBeat: beat, duration, isRest: false, tiedFromPrevious: false });
+    beat += durationBeats(duration);
+  };
+
+  for (let cycle = 0; ; cycle++) {
+    cycleStarts.push(beat);
+    for (let i = 0; i < notesFor(cycle); i++) emitNote();
+
+    /*
+     * Whether another cycle follows: the chosen count first, then whole
+     * cycles until the cap is met. Judged against where this cycle's bar
+     * line will fall, so a cycle is never started only to cross the cap by
+     * a note — the cap is a floor for whole units, not a ceiling.
+     */
+    const padded = beat + (roomInBar() % barBeats);
+    const more =
+      cycle + 1 < chosenCycles || (minBeats !== undefined && padded < minBeats - 1e-9);
+
+    // The closing tonic: a cycle omits the tonic it would repeat at each
+    // join, which leaves the very last one hanging on the second degree —
+    // so it is added back once, at the true end of the paper, exactly as
+    // the second-time bar of a scale in any method book does.
+    if (!more) emitNote();
 
     // Out to the bar line, so the next cycle starts where a cycle should.
     const leftover = roomInBar() % barBeats;
@@ -733,9 +774,19 @@ function patternSlots(
       slots.push(...restsFilling(beat, leftover, metre));
       beat += leftover;
     }
-  }
 
-  return { slots, totalBeats: beat, cycleStarts };
+    if (!more) {
+      return {
+        slots,
+        totalBeats: beat,
+        cycleStarts,
+        cycles: cycle + 1,
+        chosenBeats: chosenBeats ?? beat,
+      };
+    }
+    // The white ends where the chosen cycles do, on the bar line just laid.
+    if (cycle + 1 === chosenCycles) chosenBeats = beat;
+  }
 }
 
 /**

@@ -982,9 +982,23 @@ describe('the horizon', () => {
     expect(last.kind === 'ramp' && last.toBeat).toBe(48);
   });
 
-  it('leaves patterns at their exact length, for now', () => {
-    const scales = generateExercise(options({ kind: 'scales', cycles: 2, horizonBars: 12 }));
-    expect(scales.chosenBeats).toBe(scales.totalBeats);
+  it('fills whole cycles to the cap, the chosen count ending on a bar line', () => {
+    const scales = generateExercise(options({ kind: 'scales', cycles: 2, horizonBars: 15 }));
+    expect(scales.totalBeats).toBeGreaterThanOrEqual(60);
+    expect(scales.chosenBeats).toBeLessThan(scales.totalBeats);
+    expect(scales.chosenBeats % scales.metre.barBeats).toBe(0);
+    // Without the cap, nothing changes: the old exact-length path survives.
+    const exact = generateExercise(options({ kind: 'scales', cycles: 2 }));
+    expect(exact.chosenBeats).toBe(exact.totalBeats);
+  });
+
+  it('stitches whole themes to the cap', () => {
+    const themes = generateExercise(
+      options({ kind: 'themes', themeCount: 2, horizonBars: 30 }),
+    );
+    expect(themes.totalBeats).toBeGreaterThanOrEqual(120);
+    expect(themes.chosenBeats).toBeLessThan(themes.totalBeats);
+    expect(themes.chosenBeats % themes.metre.barBeats).toBe(0);
   });
 
   it('changes nothing when the chosen length already reaches the cap', () => {

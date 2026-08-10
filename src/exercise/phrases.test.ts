@@ -93,6 +93,24 @@ describe('stitchThemes', () => {
     });
   });
 
+  it('stitches past the chosen count to a horizon, changing nothing before it', () => {
+    const chosen = stitchThemes(stitchOptions({ difficulty: 'medium', count: 2 }))!;
+    const capped = stitchThemes(
+      stitchOptions({ difficulty: 'medium', count: 2, horizonBeats: chosen.totalBeats + 64 }),
+    )!;
+
+    // The chosen span is untouched: same tunes, same notes, and the white
+    // ends exactly where the uncapped exercise would have.
+    expect(capped.used.slice(0, 2)).toEqual(chosen.used);
+    expect(capped.slots.slice(0, chosen.slots.length)).toEqual(chosen.slots);
+    expect(capped.chosenBeats).toBe(chosen.totalBeats);
+
+    // And the grey is whole tunes, at least as far as the cap.
+    expect(capped.totalBeats).toBeGreaterThanOrEqual(chosen.totalBeats + 64);
+    expect(capped.used.length).toBeGreaterThan(2);
+    expect(capped.starts).toHaveLength(capped.used.length);
+  });
+
   it('does not play the same theme twice running where there is a choice', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const stitched = stitchThemes(

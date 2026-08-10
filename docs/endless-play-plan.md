@@ -38,7 +38,7 @@ unplayed ink was burying the bars that mattered. The stop rule's
 open-fingering clause proved itself in the first headless run: a ghost that
 touches nothing still gets bars containing open notes credited as played,
 which for a real player is exactly what stops a bar of open notes ending
-their run. Original stage text follows.** Generation takes a `horizonBars` cap (the app
+their run. Original stage text follows. Generation takes a `horizonBars` cap (the app
 asks for it; tools, figures and tests keep asking for exact lengths, so
 every committed snapshot stays byte-identical). Past the chosen length the
 music draws grey; playing into it turns it white a bar at a time. The
@@ -48,11 +48,17 @@ so fluffing four bars and carrying on survives, per the doc's shape, with
 the thresholds settled against the instrument. The results screen reports
 how far the run reached alongside the windowed score.
 
-**Stage C — the seams.** Themes stitch to the cap rather than the count
-when the horizon is on; patterns fill whole cycles to the cap; the tempo
-plan keeps writing steps and rits across every join the longer material
-has, which it already does by construction. Copy, warnings, and whatever
-playing the thing turns up.
+**Stage C — the seams. Built, v1.20.0.** Themes stitch whole tunes to the
+cap and patterns fill whole cycles to it, each in its own unit, with the
+cap a floor for whole units rather than a ceiling. The key tour wraps
+beyond the chosen count — the next block takes the next key round the
+circle again — and a pattern's closing tonic moved to the true end of the
+paper, where the resolution belongs. The exact-length path is preserved to
+the byte, which the engraving snapshots held still to prove. The theme
+joins in the grey take steps and rits by construction, since the plan
+already reads every join the stitching reports. What remains of this plan
+is playing: the stop rule's patience, the window size, and whatever else
+the instrument turns up.
 
 ## Decisions deliberately left to playing
 

@@ -43,8 +43,15 @@ export interface StitchOptions {
   keys?: readonly number[];
   difficulty: string;
   metre: Metre;
-  /** Whole themes to play, end to end. */
+  /** Whole themes to play, end to end; where the white ends. */
   count: number;
+  /**
+   * Keep stitching whole themes at least this far, when the material has a
+   * horizon. The cap is a floor for whole tunes, not a ceiling: the last
+   * theme finishes wherever it finishes, because a cut-off tune is not a
+   * tune and an approximate total is the agreed price of whole phrases.
+   */
+  horizonBeats?: number;
   rng: Rng;
   /**
    * The themes to draw from. Defaults to the shipped corpus.
@@ -74,6 +81,8 @@ export interface StitchedPhrases {
    * a whole number of bars.
    */
   starts: number[];
+  /** Where the chosen count of themes ends; `totalBeats` without a horizon. */
+  chosenBeats: number;
 }
 
 /** Themes this instrument, difficulty and metre can actually take. */
@@ -110,8 +119,16 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
   let beat = 0;
   let fifths = options.fifths;
   let last: string | undefined;
+  let chosenBeats: number | undefined;
 
-  for (let played = 0; played < options.count; played++) {
+  for (
+    let played = 0;
+    played < options.count ||
+    (options.horizonBeats !== undefined && beat < options.horizonBeats - 1e-9);
+    played++
+  ) {
+    // The white ends where the chosen count did; the grey stitches on.
+    if (played === options.count) chosenBeats = beat;
     /*
      * Which key this theme is played in.
      *
@@ -123,7 +140,10 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
      * changing key inside one that was not written to would be a change of
      * signature laid over somebody else's phrase.
      */
-    fifths = set[Math.floor((played * set.length) / options.count)];
+    // Beyond the chosen count the same tour wraps: the next block of themes
+    // takes the next key round the circle again. Inside it, the modulo
+    // changes nothing.
+    fifths = set[Math.floor((played * set.length) / options.count) % set.length];
 
     const place = (theme: Theme) =>
       realiseTheme(theme, {
@@ -176,5 +196,5 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
   }
 
   if (slots.length === 0) return null;
-  return { slots, pitches, keys, totalBeats: beat, used, starts };
+  return { slots, pitches, keys, totalBeats: beat, used, starts, chosenBeats: chosenBeats ?? beat };
 }
