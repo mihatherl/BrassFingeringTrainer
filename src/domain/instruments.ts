@@ -48,6 +48,19 @@ export interface Instrument {
   sampleSet: SampleSet;
 }
 
+/*
+ * Tops, and why the low brass reach higher than band parts do.
+ *
+ * The three instruments with a fourth valve are written up to C6 in treble
+ * clef — concert Eb4 on an Eb bass, Bb3 on a BBb, Bb4 on a euphonium. That is
+ * above where band parts usually stop, and deliberately: a two-octave scale
+ * takes twenty-four of a compass's semitones, so where the compass is barely
+ * wider than that the scale has nowhere to sit but the very bottom. An Eb
+ * bass capped at written G5 could only ever play its two-octave scales from
+ * four ledger lines below the stave, which is neither where anyone practises
+ * them nor anything anyone wants to read. The top is a practice ceiling, not
+ * a claim about repertoire.
+ */
 export const INSTRUMENTS: readonly Instrument[] = [
   {
     id: 'cornet',
@@ -89,7 +102,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
     id: 'euphonium',
     name: 'Bb Euphonium',
     fundamentalMidi: 34, // Bb1
-    soundingRange: [35, 68], // B1 - Ab4
+    soundingRange: [35, 70], // B1 - Bb4, which is written C6 in treble clef
     transposition: { treble: -14, bass: 0 },
     allowVirtualFourth: true,
     sampleSet: 'trombone',
@@ -98,7 +111,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
     id: 'eb-bass',
     name: 'Eb Bass (Tuba)',
     fundamentalMidi: 27, // Eb1
-    soundingRange: [28, 58], // E1 - Bb3
+    soundingRange: [28, 63], // E1 - Eb4, which is written C6 in treble clef
     transposition: { treble: -21, bass: 0 },
     allowVirtualFourth: true,
     sampleSet: 'tuba',
@@ -107,7 +120,7 @@ export const INSTRUMENTS: readonly Instrument[] = [
     id: 'bb-bass',
     name: 'Bb Bass (Tuba)',
     fundamentalMidi: 22, // Bb0
-    soundingRange: [23, 51], // B0 - Eb3
+    soundingRange: [23, 58], // B0 - Bb3, which is written C6 in treble clef
     transposition: { treble: -26, bass: 0 },
     allowVirtualFourth: true,
     sampleSet: 'tuba',

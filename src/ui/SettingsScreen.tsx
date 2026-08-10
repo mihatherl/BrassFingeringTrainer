@@ -11,6 +11,7 @@ import type { ExerciseKind } from '../exercise/types';
 import {
   BARS_OPTIONS,
   CYCLE_OPTIONS,
+  REGISTERS,
   THEME_OPTIONS,
   MAX_KEYS_IN_PLAY,
   sanitise,
@@ -349,6 +350,26 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             )}
           </label>
         </div>
+
+        {/* Only where the compass leaves a choice to make: a two-octave scale
+            takes most of a brass instrument and usually has one place to go. */}
+        {patternKind && (
+          <div className="field">
+            <span className="field__label">Register</span>
+            <div className="segmented">
+              {REGISTERS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`segmented__option ${settings.register === option.id ? 'is-selected' : ''}`}
+                  onClick={() => update('register', option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <Panel id="reading" title="Reading mode" values={panelValues.reading} open={isOpen('reading')} onToggle={setOpen}>

@@ -34,6 +34,7 @@ import type { Difficulty } from './difficulty';
 import type { Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
 import { assembleExercise, type Slot } from './assemble';
+import { tonicWindow } from './theme';
 import { stitchThemes } from './phrases';
 import { planTempo } from './tempo-plan';
 import type { Exercise, ExerciseKind } from './types';
@@ -47,6 +48,18 @@ import type { Exercise, ExerciseKind } from './types';
  * out without noticing.
  */
 export const HORIZON_BARS = 200;
+
+/**
+ * Which end of the instrument a pattern is practised in.
+ *
+ * Only ever a preference between the starting notes that actually fit: a
+ * two-octave scale takes most of a brass compass and usually has exactly one
+ * place it can go, so asking for it high changes nothing and says nothing
+ * untrue. Where there is a choice — a fifth, an octave — this is the whole
+ * difference between drilling the register you are weak in and drilling the
+ * one that happens to sit nearest the middle.
+ */
+export type PatternRegister = 'low' | 'middle' | 'high';
 
 export interface GenerateOptions {
   instrument: Instrument;
@@ -93,6 +106,11 @@ export interface GenerateOptions {
   tempo?: number;
   /** Whether the tempo moves at the material's boundaries; see `tempo-plan.ts`. */
   variableTempo?: boolean;
+  /**
+   * Where a scale or arpeggio should sit in the instrument, when there is a
+   * choice. Defaults to the middle. See `PatternRegister`.
+   */
+  register?: PatternRegister;
   /**
    * Bars to generate past the chosen length, as a cap on the whole.
    *
@@ -1189,13 +1207,42 @@ function patternContour(
   );
   if (!fitted) return null;
 
-  // Of the roots that fit, the one closest to the middle of the difficulty's own
-  // range, so an easy exercise is not pushed to the bottom of the instrument
-  // merely because that is where the first available root happens to be.
+  /*
+   * Where among the roots that fit the pattern actually starts.
+   *
+   * Asking for low or high means exactly that — the lowest or highest place
+   * the pattern will go — because a player who picks a register has picked
+   * it, and a control that quietly declined to leave the comfortable middle
+   * would be no control at all.
+   *
+   * The middle is where the care goes. At the two easiest levels it is kept
+   * inside the window a theme's tonic uses — written G to G on a treble-clef
+   * tuba part, the octave from just below the stave to just inside it —
+   * because a beginner asked for a scale should be reading the scale rather
+   * than counting ledger lines to find where it starts. A preference rather
+   * than a rule: where nothing in the window fits, the pattern goes where it
+   * can.
+   *
+   * Wide spans often leave exactly one root, and then all three answers are
+   * the same. That is honest: a two-octave scale takes most of a brass
+   * compass and there is genuinely nowhere else to put it.
+   */
+  const register = options.register ?? 'middle';
+  const window = options.difficulty.patterns.keepReadable
+    ? tonicWindow(options.instrument, options.clef)
+    : null;
+  const inside = window ? fitted.roots.filter((r) => r >= window[0] && r <= window[1]) : [];
+  const readable = inside.length > 0 ? inside : fitted.roots;
   const centre = middleOf(candidates);
-  const root = fitted.roots.reduce((best, r) =>
-    Math.abs(r - centre) < Math.abs(best - centre) ? r : best,
-  );
+
+  const root =
+    register === 'low'
+      ? Math.min(...fitted.roots)
+      : register === 'high'
+        ? Math.max(...fitted.roots)
+        : readable.reduce((best, r) =>
+            Math.abs(r - centre) < Math.abs(best - centre) ? r : best,
+          );
 
   // Every degree of the pattern from the root up to the top of the span. Working
   // in semitones rather than whole octaves is what lets a pattern stop on the

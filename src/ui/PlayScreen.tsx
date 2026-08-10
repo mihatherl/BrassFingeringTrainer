@@ -353,6 +353,23 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
    * is meant to finish. A run with nothing judged in it has nothing to
    * report, so that one still simply leaves.
    */
+  /**
+   * What the one button does, whichever job it is currently doing.
+   *
+   * Safe to call twice: `continuePlaying` withdraws the offer as it takes it
+   * and `finishNow` returns once finished, so a browser that manages to fire
+   * both a pointer press and a click buys one block and ends one run.
+   */
+  const press = () => {
+    const session = sessionRef.current;
+    if (!offering || !session) {
+      stopNow();
+      return;
+    }
+    session.continuePlaying();
+    setCommittedBeats(session.endBeat);
+  };
+
   const stopNow = () => {
     const session = sessionRef.current;
     if (!session || session.judgements.length === 0) {
@@ -378,14 +395,26 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         <button
           type="button"
           className={`button play-action ${offering ? 'play-action--continue' : 'play-action--stop'}`}
-          onClick={() => {
-            const session = sessionRef.current;
-            if (!offering || !session) {
-              stopNow();
-              return;
-            }
-            session.continuePlaying();
-            setCommittedBeats(session.endBeat);
+          /*
+           * Pressed on pointerdown, not on click.
+           *
+           * A touchscreen only raises `click` for the *primary* pointer — the
+           * first finger down — so a player already holding valves reaches for
+           * this button with a second finger and no click is ever generated.
+           * The button looked broken exactly when it was most needed, which is
+           * while playing, since that is the only time a hand is already on
+           * the screen. Pointerdown arrives for every finger, and answering it
+           * is also the right feel for a control pressed mid-bar.
+           */
+          onPointerDown={(event) => {
+            event.preventDefault();
+            press();
+          }}
+          /* Keyboard activation still arrives as a click, with no pointer
+             behind it — `detail` is zero for those and non-zero for the
+             compatibility click a mouse would otherwise double up with. */
+          onClick={(event) => {
+            if (event.detail === 0) press();
           }}
         >
           {offering ? 'Continue' : 'Stop'}

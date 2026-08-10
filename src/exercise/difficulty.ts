@@ -24,6 +24,14 @@ export interface RhythmWeight {
  */
 export interface PatternSettings {
   /**
+   * Whether the pattern must start somewhere a learner can comfortably read.
+   *
+   * True at the two easiest levels, where hunting for a note four ledger
+   * lines below the stave is a different skill from the one being practised.
+   * Above them, reading into the corners of the instrument is part of it.
+   */
+  keepReadable?: boolean;
+  /**
    * How far above the tonic the pattern reaches, in semitones — 7 for the first
    * five notes, 12 for an octave, 24 for two. Measured in semitones rather than
    * octaves so that the easiest level can stop at a fifth.
@@ -81,6 +89,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     blurb: 'Steps and thirds over an octave, crotchets and minims. No accidentals.',
     patterns: {
       spanSemitones: 7,
+      keepReadable: true,
       label: 'Fifth',
       blurb: 'The first five notes of the key, up and down, in plain crotchets.',
       rhythms: [{ duration: q('quarter'), weight: 1 }],
@@ -102,6 +111,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
     blurb: 'An octave and a half, quavers, the occasional accidental and tie.',
     patterns: {
       spanSemitones: 12,
+      keepReadable: true,
       label: '1 octave',
       blurb: 'A full octave, up and down, in plain crotchets.',
       rhythms: [{ duration: q('quarter'), weight: 1 }],

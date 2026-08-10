@@ -432,22 +432,29 @@ describe('scales and arpeggios', () => {
   });
 
   it('shrinks the span where the instrument cannot hold it, and says so', () => {
-    // Two octaves needs 24 semitones above the tonic. On an Eb bass, Eb affords
-    // that and C does not — so the app has to be honest about which it will get.
-    const ebBassInstrument = instrumentById('eb-bass');
+    /*
+     * Two octaves needs 24 semitones above the tonic, and where the compass
+     * cannot give them the app has to say which it will get instead. A cornet
+     * is the honest example now: G affords two octaves and D does not, its
+     * only D sitting two semitones too high to reach a second one. The low
+     * brass fit two octaves in every key since their tops were raised, which
+     * is exactly what that was for.
+     */
+    const cornet = instrumentById('cornet');
     const medium = difficultyById('medium');
 
-    expect(patternSpanFor(ebBassInstrument, 'treble', -3, medium)).toBe(24); // Eb
-    expect(patternSpanFor(ebBassInstrument, 'treble', 0, medium)).toBe(12); // C
+    expect(patternSpanFor(cornet, 'treble', 1, medium)).toBe(24); // G
+    expect(patternSpanFor(cornet, 'treble', 2, medium)).toBe(12); // D
+    expect(patternSpanFor(instrumentById('eb-bass'), 'treble', 0, medium)).toBe(24); // C
 
     // And what it reports must be what it actually generates.
     for (const fifths of [-5, -3, -2, 0, 2, 4]) {
       const exercise = generateExercise(
-        options({ kind: 'scales', difficulty: medium, fifths, bars: 16 }),
+        options({ instrument: cornet, kind: 'scales', difficulty: medium, fifths, bars: 16 }),
       );
       const pitches = exercise.notes.map((n) => n.writtenMidi);
       expect(Math.max(...pitches) - Math.min(...pitches), `key ${fifths}`).toBe(
-        patternSpanFor(ebBassInstrument, 'treble', fifths, medium),
+        patternSpanFor(cornet, 'treble', fifths, medium),
       );
     }
   });
@@ -1106,5 +1113,63 @@ describe('compound time', () => {
     expect(before.notes.length).toBeGreaterThan(0);
     // The compound path is entered on the metre alone, so 4/4 never sees it.
     expect(before.notes.some((n) => beatsOf(n.duration) === 1)).toBe(true);
+  });
+});
+
+describe('where a pattern sits in the instrument', () => {
+  const tuba = instrumentById('eb-bass');
+  const easy = difficultyById('easy');
+  const medium = difficultyById('medium');
+  const patternOf = (overrides: Partial<GenerateOptions>) => {
+    const exercise = generateExercise(
+      options({ instrument: tuba, kind: 'scales', cycles: 1, seed: 2, ...overrides }),
+    );
+    const written = exercise.notes.map((n) => n.writtenMidi);
+    return { low: Math.min(...written), high: Math.max(...written) };
+  };
+
+  it('starts an easy pattern where it can be read, not where it merely fits', () => {
+    /*
+     * A beginner asked for a scale should be reading the scale rather than
+     * counting ledger lines to find where it starts. The window is the one a
+     * theme's tonic uses — on a treble-clef tuba part, written G below the
+     * stave up to the G the clef curls around.
+     */
+    const [windowLow, windowHigh] = [55, 67];
+    for (const fifths of [-3, -1, 0, 2]) {
+      const { low } = patternOf({ difficulty: easy, fifths });
+      expect(low, `key ${fifths}`).toBeGreaterThanOrEqual(windowLow);
+      expect(low, `key ${fifths}`).toBeLessThanOrEqual(windowHigh);
+    }
+  });
+
+  it('goes where the player asks, window or no window', () => {
+    // Asking for a register is asking to leave the comfortable middle.
+    const low = patternOf({ difficulty: easy, register: 'low' });
+    const middle = patternOf({ difficulty: easy, register: 'middle' });
+    const high = patternOf({ difficulty: easy, register: 'high' });
+
+    expect(low.low).toBeLessThan(middle.low);
+    expect(high.low).toBeGreaterThanOrEqual(middle.low);
+    // And each is still a whole octave of the same shape.
+    for (const range of [low, middle, high]) expect(range.high - range.low).toBe(12);
+  });
+
+  it('says the same thing three times where there is only one place to go', () => {
+    // Two octaves takes most of a brass compass; a register cannot conjure
+    // room that is not there, and must not pretend to.
+    const spans = (['low', 'middle', 'high'] as const).map((register) =>
+      patternOf({ difficulty: medium, register }),
+    );
+    expect(spans[0]).toEqual(spans[1]);
+    expect(spans[1]).toEqual(spans[2]);
+  });
+
+  it('reaches the top the raised compass bought it', () => {
+    // Two octaves in C used not to fit an Eb bass at all; it now starts on
+    // middle C, which is a ledger line rather than four of them.
+    const { low, high } = patternOf({ difficulty: medium, fifths: 0 });
+    expect(high - low).toBe(24);
+    expect(low).toBe(60);
   });
 });

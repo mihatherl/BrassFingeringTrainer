@@ -15,6 +15,7 @@ import { DIFFICULTIES } from '../exercise/difficulty';
 import { MAJOR_KEYS } from '../domain/keys';
 import { TEMPO_RANGE } from '../domain/tempo';
 import type { ExerciseKind } from '../exercise/types';
+import type { PatternRegister } from '../exercise/generate';
 
 // Re-exported from the domain, where the tempo plan clamps against the same
 // figures; the settings screen was this range's first customer, not its owner.
@@ -58,6 +59,11 @@ export interface Settings {
    * stopping half way up.
    */
   cycles: number;
+  /**
+   * Which end of the instrument scales and arpeggios are practised in, where
+   * the compass leaves a choice. Ignored by everything else.
+   */
+  register: PatternRegister;
   beatsPerBar: number;
   beatUnit: number;
   countInBars: number;
@@ -139,6 +145,7 @@ export const DEFAULT_SETTINGS: Settings = {
   themeCount: 2,
   bars: 8,
   cycles: 4,
+  register: 'middle',
   beatsPerBar: 4,
   beatUnit: 4,
   countInBars: 1,
@@ -163,6 +170,12 @@ export const BARS_OPTIONS = [4, 8, 12, 16, 24] as const;
  * substantial exercise rather than a short one.
  */
 export const CYCLE_OPTIONS = [1, 2, 4, 8] as const;
+
+export const REGISTERS: ReadonlyArray<{ id: PatternRegister; label: string }> = [
+  { id: 'low', label: 'Low' },
+  { id: 'middle', label: 'Middle' },
+  { id: 'high', label: 'High' },
+];
 
 /**
  * How many themes a Themes exercise plays, end to end.
@@ -286,6 +299,9 @@ export function sanitise(settings: Settings): Settings {
     variableTempo: settings.variableTempo === true,
     bars: clamp(settings.bars, 1, 64),
     cycles: clamp(settings.cycles, 1, 16),
+    register: REGISTERS.some((r) => r.id === settings.register)
+      ? settings.register
+      : DEFAULT_SETTINGS.register,
     themeCount: clamp(settings.themeCount, 1, 8),
     countInBars: clamp(settings.countInBars, 0, 2),
     scrollSpeed: clamp(settings.scrollSpeed, SCROLL_SPEED_RANGE.min, SCROLL_SPEED_RANGE.max),

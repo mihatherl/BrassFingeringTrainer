@@ -96,6 +96,7 @@ export function App() {
         bars: settings.bars,
         themeCount: settings.themeCount,
         cycles: settings.cycles,
+        register: settings.register,
         metre: metreFor(settings.beatsPerBar, settings.beatUnit),
         seed,
         tempo: settings.tempo,
