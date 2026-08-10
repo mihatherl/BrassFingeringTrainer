@@ -31,6 +31,17 @@
         border-radius: 12px; padding: 0.75rem; margin-bottom: 0.75rem;
       }
       .controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+      /*
+       * Every slider says what it is.
+       *
+       * There were eight of them on this page carrying nothing but an
+       * aria-label, which is invisible — so "try smooth against marcato" meant
+       * guessing which unlabelled slider was the style one. A bench nobody can
+       * aim is not a bench.
+       */
+      .controls > .name {
+        flex: 0 0 4.5rem; font-size: 0.8rem; font-weight: 600; color: var(--muted);
+      }
       button, select {
         font: inherit; padding: 0.5rem 0.9rem; border-radius: 8px;
         border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -74,28 +85,34 @@
         <label><input id="plain" type="checkbox" /> Hide the pattern</label>
       </div>
       <div class="controls" style="margin-top: 0.6rem">
+        <span class="name">Tempo</span>
         <input id="tempo" type="range" min="40" max="200" step="1" value="80" aria-label="Tempo" />
         <span id="tempo-value"><strong>80 bpm</strong></span>
       </div>
       <div class="controls" style="margin-top: 0.4rem">
+        <span class="name">Size</span>
         <input id="spread" type="range" min="20" max="100" step="5" value="100" aria-label="Horizontal extent" />
         <input id="height" type="range" min="20" max="100" step="5" value="100" aria-label="Vertical extent" />
         <span id="extent">100% wide, 100% tall</span>
       </div>
       <div class="controls" style="margin-top: 0.4rem">
+        <span class="name">Grip</span>
         <input id="travel" type="range" min="5" max="70" step="5" value="30" aria-label="Grip travel" />
         <span id="travel-value">grip travels 30%</span>
       </div>
       <div class="controls" style="margin-top: 0.4rem">
+        <span class="name">Style</span>
         <input id="rebound" type="range" min="20" max="90" step="5" value="55" aria-label="Rebound" />
         <span><strong id="ratio">—</strong></span>
       </div>
       <div class="controls" style="margin-top: 0.4rem">
+        <span class="name">Arcs</span>
         <input id="bounce" type="range" min="15" max="150" step="5" value="100" aria-label="Arc height" />
         <span id="bounce-value">arcs 100%</span>
         <label><input id="shape-with-style" type="checkbox" checked /> Style shapes the arcs too</label>
       </div>
       <div class="controls" style="margin-top: 0.4rem" id="compound-controls">
+        <span class="name">Compound</span>
         <input id="compound-lag" type="range" min="0" max="30" step="1" value="0" aria-label="Compound extra lag" />
         <input id="compound-lift" type="range" min="100" max="180" step="5" value="100" aria-label="Compound extra lift" />
         <span id="compound-value">compound: no difference</span>
