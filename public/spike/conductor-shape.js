@@ -140,6 +140,51 @@ export const PATTERNS = {
     { x: -0.78, y: 1, rebound: 0.34 },
     { x: -0.16, y: 1, rebound: 1.15 },
   ],
+  /*
+   * The subdivided six, for a compound bar too slow to be beaten in two.
+   *
+   * Read off the player's diagram — a 6-beat German-style espressivo-legato
+   * pattern — and mirrored, as every published diagram must be. Its structure
+   * is two groups of three: a main beat, a small hook beside it, and a large
+   * gesture *away* from the next main beat. That last is the reference's rule
+   * exactly, "the rebound of beat one moves away from the next big beat", and
+   * it is why three swings right while four is away to the left.
+   *
+   * Unlike the four, the beats do not share a floor. Three and six sit well
+   * above the rest, each being the lift into the main beat that follows, and
+   * six is the highest because what follows it is the downbeat.
+   *
+   * Beats two and five carry paths for the same reason the two pattern does:
+   * the hand travels past and turns back, and one apex out there would flatten
+   * the hook it is supposed to be curling.
+   */
+  6: [
+    { x: 0, y: 1, rebound: 0.55 },
+    {
+      x: -0.23,
+      y: 0.93,
+      // Documentary, as in the two pattern: the path is what draws this stroke.
+      rebound: 0.52,
+      /*
+       * The long sweep out to three, which overshoots it and comes back down.
+       *
+       * The turn sits *above* beat three rather than below it, which is a
+       * departure from the diagram as read. Passing under three and arriving
+       * from beneath leaves that beat approached upwards, with no downward
+       * ictus and nothing to read the beat from — and the ictus wins over a
+       * drawing every time. The overshoot is kept: it is what makes three read
+       * as the lift into four rather than a point passed through.
+       */
+      path: [
+        { x: 0.46, y: 0.27 },
+        { x: 1.02, y: 0.42 },
+      ],
+    },
+    { x: 0.67, y: 0.63, rebound: 0.53 },
+    { x: -0.63, y: 0.91, rebound: 0.34 },
+    { x: -1.03, y: 0.81, rebound: 0.51 },
+    { x: -0.85, y: 0.51, rebound: 1.26 },
+  ],
 };
 /** Middle of a pattern, which the grip's damped travel is measured from. */
 function centreOf(pattern) {

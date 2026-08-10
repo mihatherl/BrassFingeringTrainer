@@ -442,6 +442,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
             transport={transport}
             metre={exercise.metre}
             style={settings.conductorStyle}
+            tempo={settings.tempo}
           />
         )}
       </div>

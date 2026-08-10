@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { metreFor } from '../domain/metre';
-import { CONDUCTOR_STYLE_RANGE, extentOf, gripFor, patternFor, styleName, tipAt } from './conductor';
+import {
+  CONDUCTOR_STYLE_RANGE,
+  extentOf,
+  gripFor,
+  patternFor,
+  placeInPattern,
+  styleName,
+  SUBDIVIDE_BELOW_BPM,
+  tipAt,
+} from './conductor';
+import { pulseAt } from '../domain/metre';
 
 /**
  * The style axis, sampled end to end.
@@ -31,6 +41,43 @@ describe('choosing a pattern', () => {
     expect(beats(12, 8)).toBe(4);
   });
 
+  it('subdivides compound time when it is slow enough, and only then', () => {
+    /*
+     * The reference's fast/slow rule: above Andante the conductor shows the
+     * overall beat structure, below it they show each division, because that
+     * is where the ensemble needs the beat clarified. So 6/8 is beaten in two
+     * at a march and in six at a largo — the same metre, a different gesture.
+     */
+    const slow = SUBDIVIDE_BELOW_BPM - 1;
+    const quick = SUBDIVIDE_BELOW_BPM;
+
+    expect(patternFor(metreFor(6, 8), quick)!.length).toBe(2);
+    expect(patternFor(metreFor(6, 8), slow)!.length).toBe(6);
+
+    // No tempo at all is the fast shape, which keeps every caller that has not
+    // been told the speed drawing what it always drew.
+    expect(patternFor(metreFor(6, 8))!.length).toBe(2);
+  });
+
+  it('never subdivides simple time, however slow', () => {
+    // A slow 3/4 is beaten in three. Reading the numerator without checking
+    // for compound would find the three pattern and appear to work, and a slow
+    // 2/4 would quietly become a two — right by accident, for the wrong reason.
+    const slow = SUBDIVIDE_BELOW_BPM - 1;
+    expect(patternFor(metreFor(3, 4), slow)!.length).toBe(3);
+    expect(patternFor(metreFor(2, 4), slow)!.length).toBe(2);
+    expect(patternFor(metreFor(4, 4), slow)!.length).toBe(4);
+  });
+
+  it('keeps the fast shape where no subdivided one is drawn yet', () => {
+    // 9/8 and 12/8 would want nine and twelve patterns. Until those exist the
+    // honest answer is the one that is taught for a quicker tempo, not silence
+    // and not a six borrowed from a metre with a different bar.
+    const slow = SUBDIVIDE_BELOW_BPM - 1;
+    expect(patternFor(metreFor(9, 8), slow)!.length).toBe(3);
+    expect(patternFor(metreFor(12, 8), slow)!.length).toBe(4);
+  });
+
   it('has no pattern for a metre it was never taught', () => {
     /*
      * Null switches the conductor off and leaves the metronome running. A
@@ -41,6 +88,42 @@ describe('choosing a pattern', () => {
     expect(patternFor(metreFor(5, 4))).toBeNull();
     expect(patternFor(metreFor(7, 8))).toBeNull();
     expect(patternFor(metreFor(11, 8))).toBeNull();
+  });
+});
+
+describe('placing a beat in its pattern', () => {
+  it('agrees with the pulse wherever the pulses are what is beaten', () => {
+    // Which is every metre but a slow compound one. If these two ever parted
+    // company here, the conductor would be beating a bar of a different length
+    // from the one the metronome is clicking.
+    for (const [top, unit] of [[4, 4], [3, 4], [2, 4], [6, 8], [9, 8], [12, 8]] as const) {
+      const metre = metreFor(top, unit);
+      const pattern = patternFor(metre)!;
+      for (const beat of [0, 0.5, 1, 2.25, 7]) {
+        expect(placeInPattern(metre, pattern, beat), `${top}/${unit} at beat ${beat}`).toBeCloseTo(
+          pulseAt(metre, beat),
+          12,
+        );
+      }
+    }
+  });
+
+  it('runs six positions to the bar in a subdivided six', () => {
+    const metre = metreFor(6, 8);
+    const pattern = patternFor(metre, SUBDIVIDE_BELOW_BPM - 1)!;
+    // A bar of 6/8 is three crotchets, so each quaver is half a crotchet and
+    // each is one position of the pattern. Asking `pulseAt` here would return
+    // two across the whole bar and the hand would crawl round at a third speed.
+    expect(placeInPattern(metre, pattern, 0)).toBe(0);
+    expect(placeInPattern(metre, pattern, 0.5)).toBeCloseTo(1, 12);
+    expect(placeInPattern(metre, pattern, 1.5)).toBeCloseTo(3, 12);
+    expect(placeInPattern(metre, pattern, 3)).toBeCloseTo(6, 12);
+  });
+
+  it('goes negative through the count-in, as the gesture expects', () => {
+    const metre = metreFor(4, 4);
+    const pattern = patternFor(metre)!;
+    expect(placeInPattern(metre, pattern, -4)).toBeCloseTo(-4, 12);
   });
 });
 
@@ -60,7 +143,13 @@ describe('naming a style', () => {
 });
 
 describe.each(STYLES)('the gesture, at style %s', (STYLE) => {
-  const patterns = [2, 3, 4].map((n) => ({ n, pattern: patternFor(metreFor(n, 4))! }));
+  const patterns = [
+    ...[2, 3, 4].map((n) => ({ n, pattern: patternFor(metreFor(n, 4))! })),
+    // The subdivided six is held to every property the others are. It is the
+    // most convoluted shape here — two elevated beats and a stroke that loops
+    // back on itself — so it is the one most likely to lose an ictus.
+    { n: 6, pattern: patternFor(metreFor(6, 8), SUBDIVIDE_BELOW_BPM - 1)! },
+  ];
 
   it('turns no corners at the beats', () => {
     /*

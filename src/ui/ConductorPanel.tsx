@@ -15,12 +15,12 @@
 
 import { useEffect, useRef } from 'react';
 import type { Metre } from '../domain/metre';
-import { pulseAt } from '../domain/metre';
 import type { Transport } from '../engine/clock';
 import {
   extentOf,
   gripFor,
   patternFor,
+  placeInPattern,
   tipAt,
   type ConductorPoint,
 } from '../render/conductor';
@@ -34,6 +34,16 @@ interface ConductorPanelProps {
    * setting; `render/conductor.ts` owns what the number means.
    */
   style: number;
+  /**
+   * The tempo as set, in conducted beats per minute — which decides whether a
+   * compound bar is beaten in its pulses or in its divisions.
+   *
+   * The *nominal* tempo, deliberately, and not whatever the map is doing at
+   * this instant: a conductor does not change pattern half way through a rit,
+   * and a shape that reorganised itself as the music broadened would be
+   * unfollowable exactly where following matters most.
+   */
+  tempo: number;
 }
 
 /**
@@ -69,9 +79,9 @@ const COOL_RGB = '59, 130, 246';
 const WARM_RGB = '192, 38, 211';
 const ORB_FULL_AT = 0.35;
 
-export function ConductorPanel({ transport, metre, style }: ConductorPanelProps) {
+export function ConductorPanel({ transport, metre, style, tempo }: ConductorPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pattern = patternFor(metre);
+  const pattern = patternFor(metre, tempo);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -121,8 +131,8 @@ export function ConductorPanel({ transport, metre, style }: ConductorPanelProps)
       // Interpolated rather than raw, so the gesture is smooth between audio
       // ticks — the same reading the notation is positioned from.
       const beat = transport.visualBeat();
-      const pulse = pulseAt(metre, beat);
-      const tip = tipAt(pattern, pulse, style);
+      const place = placeInPattern(metre, pattern, beat);
+      const tip = tipAt(pattern, place, style);
       const grip = gripFor(pattern, tip);
       const tipPx = px(tip);
 

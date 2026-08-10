@@ -14,7 +14,11 @@
  * published diagram — those are all from the conductor's own side.
  *
  * **They are keyed by pulses, never by the numerator.** 6/8 is beaten in two,
- * 9/8 in three, 12/8 in four, so compound time needs no pattern of its own.
+ * 9/8 in three, 12/8 in four, so compound time needs no pattern of its own —
+ * until it is slow enough that the pulses are too far apart to be followed,
+ * where the taught shape subdivides and 6/8 really is beaten in six. That is
+ * the one case where the numerator picks the pattern, and it is a property of
+ * the tempo rather than of the metre; see `patternFor`.
  *
  * **The bar is one closed curve and the beat is a point on it.** Drawing each
  * stroke as its own curve makes every ictus a seam where two tangents
@@ -82,7 +86,67 @@ const PATTERNS: Record<number, ConductorPattern> = {
     { x: -0.78, y: 1, rebound: 0.34 },
     { x: -0.16, y: 1, rebound: 1.15 },
   ],
+  /*
+   * The subdivided six, for a compound bar too slow to be beaten in two.
+   *
+   * Read off a 6-beat German-style espressivo-legato diagram the player
+   * supplied, and mirrored as every published diagram must be. Two groups of
+   * three, each being a main beat, a small hook beside it, and a large gesture
+   * *away* from the next main beat — which is the reference's own rule, "the
+   * rebound of beat one moves away from the next big beat", and why three
+   * swings one way while four is away to the other.
+   *
+   * Unlike the four, these beats share no floor. Three and six sit well above
+   * the rest, each being the lift into the main beat after it, and six highest
+   * of all because what follows it is the downbeat.
+   */
+  6: [
+    { x: 0, y: 1, rebound: 0.55 },
+    {
+      x: -0.23,
+      y: 0.93,
+      // Documentary, as in the two pattern: the path is what draws this stroke.
+      rebound: 0.52,
+      /*
+       * The long sweep out to three, which overshoots it and comes back down.
+       *
+       * **The turn is above beat three, not below it**, and that is a
+       * departure from the diagram as read rather than a copy of it. The
+       * drawn loop appears to pass under three and arrive from beneath, which
+       * would leave that beat approached upwards — no downward ictus, and
+       * nothing for a player to read the beat from. Every other pattern here
+       * is held to the same rule and so is this one; where a diagram and the
+       * ictus disagree, the ictus wins, because it is the thing a beat *is*.
+       * The overshoot itself is kept: it is what makes three read as the lift
+       * into four rather than as a point passed through.
+       */
+      path: [
+        { x: 0.46, y: 0.27 },
+        { x: 1.02, y: 0.42 },
+      ],
+    },
+    { x: 0.67, y: 0.63, rebound: 0.53 },
+    { x: -0.63, y: 0.91, rebound: 0.34 },
+    { x: -1.03, y: 0.81, rebound: 0.51 },
+    { x: -0.85, y: 0.51, rebound: 1.26 },
+  ],
 };
+
+/**
+ * Below this many conducted beats a minute, compound time is beaten in its
+ * divisions rather than its pulses.
+ *
+ * The reference draws the line at Andante: "tempos that exceed Andante would
+ * use the 'fast' pattern shape… slower than Andante, such as Largo or Grave
+ * should use the 'slow' pattern shapes", the reason being that the ensemble
+ * needs the beat clarified when there is that much time between pulses.
+ *
+ * A guess until played, like the rest of the numbers in this app that describe
+ * musical judgement rather than arithmetic. It sits below the default tempo on
+ * purpose: turning the setting down should be what reaches the six, not
+ * leaving everything alone.
+ */
+export const SUBDIVIDE_BELOW_BPM = 76;
 
 /**
  * The pattern for a metre, or null when there is none.
@@ -94,8 +158,32 @@ const PATTERNS: Record<number, ConductorPattern> = {
  * bring metres we have no pattern for, and silence from the conductor is honest
  * where a plausible-looking wrong pattern is not.
  */
-export function patternFor(metre: Metre): ConductorPattern | null {
+export function patternFor(metre: Metre, bpm?: number): ConductorPattern | null {
+  if (metre.isCompound && bpm !== undefined && bpm < SUBDIVIDE_BELOW_BPM) {
+    const subdivided = PATTERNS[metre.beatsPerBar];
+    if (subdivided) return subdivided;
+  }
   return PATTERNS[metre.pulsesPerBar] ?? null;
+}
+
+/**
+ * Where in its pattern a beat falls, counting from zero at the bar line.
+ *
+ * Not `pulseAt`, which answers a different question: the pulse is a property
+ * of the metre, and this is a property of the *gesture*. They agree wherever
+ * the conductor is beating the pulses — which is everywhere except a slow
+ * compound bar, where the pattern has six positions to a bar of two pulses and
+ * asking about pulses would run the hand round three times too slowly.
+ *
+ * Fractional between positions, and negative before the music starts, both of
+ * which `tipAt` expects.
+ */
+export function placeInPattern(
+  metre: Metre,
+  pattern: ConductorPattern,
+  beat: number,
+): number {
+  return (beat / metre.barBeats) * pattern.length;
 }
 
 /** How far the departing arc swings outward, away from the pattern's middle. */
