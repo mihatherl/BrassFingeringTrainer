@@ -28,6 +28,10 @@ dist-ssr
 
 # Claude Code machine-local settings, including its transient writes
 .claude/settings.local.json*
+# Written by the agent as tool approvals accumulate, and full of paths that
+# only mean anything inside one session. Shared project settings, if there ever
+# are any, want a deliberate commit rather than whatever this happens to hold.
+.claude/settings.json
 
 # Reference material dropped in for reading — not part of the app.
 input/
