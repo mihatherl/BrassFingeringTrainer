@@ -319,6 +319,38 @@ body {
   height: 100%;
 }
 
+/*
+ * A setting this copy cannot use.
+ *
+ * Its own class rather than a `:disabled` rule, because `disabled` already
+ * carries two unrelated meanings on the key chips — the starting key can never
+ * be removed, and beyond the cap only what is chosen can be undone. Fading
+ * those would say "unavailable" about a control that is simply already doing
+ * its job, and the starting key is *selected*, so it would read as broken.
+ *
+ * Faded rather than hidden: hiding makes the app look smaller than it is and
+ * gives nobody a reason to want the rest.
+ */
+.is-locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/*
+ * The one line saying what is withheld. Quiet: it is information, not an
+ * advertisement, and it is read once and then scrolled past forever.
+ */
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .recent {
   /*
    * A definite share, and deliberately not `1 1 auto`.

@@ -158,7 +158,24 @@ export function App() {
       );
     }
 
-    return <SettingsScreen settings={chosen} onChange={updateSettings} onStart={startNew} />;
+    /*
+     * The player's *own* settings, not the constrained copy.
+     *
+     * Deliberately: a choice made before unlocking should survive it, so that a
+     * purchase restores what was picked rather than leaving the substitute in
+     * place. The screen is given the entitlements instead, and shows what this
+     * copy cannot use — where before it silently accepted the choice and let
+     * `constrainToEntitlements` swap it out at build time, which is how asking
+     * for Expert in D major produced Easy in C with nothing on screen saying so.
+     */
+    return (
+      <SettingsScreen
+        settings={chosen}
+        entitlements={entitlements}
+        onChange={updateSettings}
+        onStart={startNew}
+      />
+    );
   }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings]);
 
   return <div className="app">{content}</div>;

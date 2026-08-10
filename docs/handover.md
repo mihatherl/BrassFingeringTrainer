@@ -101,8 +101,8 @@ reads a length, ask which one it means.**
   style one.
 
 **The roadmap, from `v2-design.md`:** the microphone (the big one, and the
-fermata's second hand), the gated settings screen (the selling blocker), My
-Music via MusicXML import, then a server only if that shows demand.
+fermata's second hand), My Music via MusicXML import, then a server only if that
+shows demand. The gated settings screen — the selling blocker — is built.
 
 **Numbers that are guesses until played:** `GRACE_BEATS` and `VALVED_BEATS`
 (4 each), `OFFER_BEATS` (4), `SCORE_WINDOW_BARS` (16), `HORIZON_BARS` (200),

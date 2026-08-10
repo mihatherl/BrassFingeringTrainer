@@ -62,7 +62,6 @@ describe('constraining settings', () => {
     expect(FREE_TIER.difficultyIds).toContain(limited.difficultyId);
     expect(FREE_TIER.kinds).toContain(limited.kind);
     expect(limited.readingMode).toBe('scrolling');
-    expect(limited.playbackMode).toBe('reference');
     expect(limited.weakNoteDrilling).toBe(false);
   });
 
@@ -87,6 +86,11 @@ describe('constraining settings', () => {
   });
 
   it('leaves the silent option alone, which is not a paid feature', () => {
+    // There is no playback entitlement and `FREE_TIER` no longer carries a
+    // playback mode. It used to, unread, which is the sort of thing that has
+    // people believing sound is behind the paywall when it never was — and the
+    // line above this one asserted a value `constrainToEntitlements` simply
+    // never touches, reading as if playback were pulled back with the rest.
     const silent = { ...DEFAULT_SETTINGS, playbackMode: 'off' as const };
     expect(constrainToEntitlements(silent, FREE).playbackMode).toBe('off');
   });

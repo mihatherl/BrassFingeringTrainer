@@ -168,3 +168,78 @@ describe('the app', () => {
     }
   });
 });
+
+describe('a copy that withholds things', () => {
+  /*
+   * The fault this covers, which shipped for a long time behind a build flag
+   * nobody sets: the settings screen offered everything, accepted the choice,
+   * showed it as selected — and then `constrainToEntitlements` substituted at
+   * exercise-build time with nothing on screen admitting it. Asking for Expert
+   * in D major produced Easy in C. Silently ignoring a choice is worse than
+   * refusing it, because a player concludes the app is broken rather than
+   * limited.
+   *
+   * `?tier=free` forces the free tier in any build; see `licence.ts`.
+   */
+  const asFreeTier = () => {
+    window.history.replaceState({}, '', '/?tier=free');
+  };
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('says once what it is limited to, and says nothing when it is not', () => {
+    render(<App />);
+    expect(screen.queryByText(/this copy is limited to/i)).toBeNull();
+    cleanup();
+
+    asFreeTier();
+    render(<App />);
+    // Built from FREE_TIER rather than written out, so the wording cannot drift
+    // away from what is actually enforced.
+    expect(screen.getByText(/this copy is limited to/i).textContent).toContain('C major');
+  });
+
+  it('will not let a withheld setting be chosen', () => {
+    asFreeTier();
+    render(<App />);
+    fireEvent.click(screen.getByText('Exercise'));
+
+    // A key, a material and a difficulty the free tier does not include.
+    expect(screen.getByRole('button', { name: 'D' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: /Arpeggios/ })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Expert' })).toHaveProperty('disabled', true);
+    // And one of each that it does.
+    expect(screen.getByRole('button', { name: /Scales/ })).toHaveProperty('disabled', false);
+    expect(screen.getByRole('button', { name: 'Easy' })).toHaveProperty('disabled', false);
+  });
+
+  it('shows what will be played, not what was once asked for', () => {
+    /*
+     * The half of this that disabling alone does not fix. A fresh install
+     * defaults to E flat, which no free player ever chose — so the screen sat
+     * there saying "Eb major" while the generator built the exercise in C.
+     * Disabling the chips stops a *new* locked choice; it does nothing about
+     * one already held.
+     */
+    asFreeTier();
+    render(<App />);
+    const summary = screen.getByText('Exercise').closest('summary');
+    expect(summary?.textContent).toContain('C major');
+    expect(summary?.textContent).not.toContain('Eb major');
+  });
+
+  it('keeps the choice underneath, so unlocking gives it back', () => {
+    // Stored settings outlive a licence. The screen showing C must not be the
+    // thing that overwrites a player's E flat.
+    asFreeTier();
+    render(<App />);
+    expect(screen.getByText('Exercise').closest('summary')?.textContent).toContain('C major');
+    cleanup();
+
+    window.history.replaceState({}, '', '/');
+    render(<App />);
+    expect(screen.getByText('Exercise').closest('summary')?.textContent).toContain('Eb major');
+  });
+});

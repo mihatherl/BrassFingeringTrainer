@@ -1347,24 +1347,43 @@ means selling once rather than by subscription, no hosting to fund, nothing to
 keep running, and no privacy policy to write. Worth weighing before anything
 proposes a server.
 
-### The gated settings screen — the blocker, and how to fix it
+### The gated settings screen — built
 
-**The fault.** On a gated build the settings screen offers everything, accepts
-the choice, shows it as selected — and then something else happens. `App.tsx`
-hands *unconstrained* settings to `SettingsScreen` (`App.tsx:131` passes
-`chosen`, while only `build` and `PlayScreen` get the constrained copy), and
-`SettingsScreen` never imports entitlements at all. `constrainToEntitlements`
-substitutes at exercise-build time instead, silently. Verified in a browser
-against `VITE_GATED=true`: asking for 24 bars of Expert in D major produced
-four bars of Easy in C major with nothing on screen admitting it. `isLimited`
-in `entitlements.ts` exists for precisely this and is called nowhere.
+**The fault, now fixed.** On a gated build the settings screen offered
+everything, accepted the choice, showed it as selected — and then something else
+happened. `App.tsx` handed *unconstrained* settings to `SettingsScreen`, which
+never imported entitlements at all, and `constrainToEntitlements` substituted at
+exercise-build time instead, silently. Asking for 24 bars of Expert in D major
+produced four bars of Easy in C major with nothing on screen admitting it.
+`isLimited` existed for precisely this and was called nowhere.
 
-Nobody is affected today — the shipped build is ungated and withholds nothing —
-and CI compiling the gated app cannot catch this, because it compiles fine. But
-it must be fixed before anything is sold. Silently ignoring a choice is worse
-than refusing it: a player who picks D major and is given C will conclude the
-app is broken, not that it is limited, and that is the worst possible first
-impression for something asking to be paid for.
+Silently ignoring a choice is worse than refusing it: a player who picks D major
+and is given C concludes the app is broken, not that it is limited.
+
+**What was built.** `App` passes `entitlements` alongside the player's own
+settings — not the constrained copy, so a choice survives unlocking and a
+purchase restores what was picked. The screen disables rather than hides what
+this copy cannot use, marked with `.is-locked` so the fade never lands on the
+key chips already disabled for other reasons. One `.notice` at the top names
+what the copy *has*, assembled from `FREE_TIER` so it cannot drift, and says
+nothing about buying: there is no price yet, and a screen that nags before there
+is one is the wrong first impression.
+
+**And a second half the original plan missed.** Disabling the controls stops a
+withheld choice being *made*; it does nothing about one already held. A fresh
+install defaults to E flat, so a free copy still sat there reading "Eb major"
+while the generator built in C — the same dishonesty in a quieter place. The
+screen now reads every gated value from `constrainToEntitlements(settings,
+entitlements)` and writes every change to the stored settings underneath. What
+is shown is what will be played; what is stored is what was asked for.
+
+`FREE_TIER.playbackMode` is gone. It was declared and never read, and an
+assertion beside it implied playback was pulled back with the rest when
+`constrainToEntitlements` never touched it.
+
+**Still true, and the reason the rest of this section stays:** the free tier's
+limits are values rather than booleans, which is what lets a withheld control be
+shown in its place.
 
 **What is gated, and which control each maps to.** Six capabilities in
 `Entitlements`, each already enforced in `constrainToEntitlements`

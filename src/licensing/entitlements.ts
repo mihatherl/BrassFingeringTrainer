@@ -13,7 +13,6 @@
  * material, and the modes that make it a practice tool rather than a demo.
  */
 
-import type { PlaybackMode } from '../engine/session';
 import type { ExerciseKind } from '../exercise/types';
 import type { ReadingMode } from '../render/surface';
 
@@ -63,7 +62,6 @@ export const FREE_TIER: {
   difficultyIds: readonly string[];
   kinds: readonly ExerciseKind[];
   readingMode: ReadingMode;
-  playbackMode: PlaybackMode;
 } = {
   /** C major: no sharps or flats, and the natural key to start a brass player in. */
   fifths: 0,
@@ -71,7 +69,6 @@ export const FREE_TIER: {
   difficultyIds: ['beginner', 'easy'],
   kinds: ['random', 'scales'],
   readingMode: 'scrolling',
-  playbackMode: 'reference',
 };
 
 export function entitlementsFor(unlocked: boolean): Entitlements {
