@@ -49,6 +49,9 @@ const ui = {
   extent: el('extent'),
   rebound: el('rebound'),
   ratio: el('ratio'),
+  bounce: el('bounce'),
+  bounceValue: el('bounce-value'),
+  shapeWithStyle: el('shape-with-style'),
   compoundLag: el('compound-lag'),
   compoundLift: el('compound-lift'),
   compoundValue: el('compound-value'),
@@ -135,7 +138,39 @@ const currentMetre = () => {
 const extraLag = () => (currentMetre().compound ? Number(ui.compoundLag.value) / 100 : 0);
 
 /** How much higher the arcs rise in compound time. 1 is no difference. */
-const lift = () => (currentMetre().compound ? Number(ui.compoundLift.value) / 100 : 1);
+const compoundLift = () => (currentMetre().compound ? Number(ui.compoundLift.value) / 100 : 1);
+
+/**
+ * How high the arcs rise, against what the pattern draws.
+ *
+ * Two questions live here, both raised by watching the thing rather than by
+ * reading it.
+ *
+ * **The baseline is too tall.** A conductor put it plainly: the horizontal
+ * motion barely goes up and down at all. Ours rises about three quarters of
+ * its own width, which is a hand bouncing nearly as far as it travels — and
+ * "extremely lively" is the verdict on it. The slider is how far down that
+ * wants to come.
+ *
+ * **And the style axis never touched it.** The axis was always documented as
+ * "little rebound" for a lyrical phrase against "a sharp ictus and the hand
+ * stopping" for a march — two halves, timing and shape — and only the timing
+ * half was ever built, though the variable carrying it is still called
+ * `rebound`. That is why smooth and marcato are hard to tell apart: at every
+ * setting the slowest frame moves less than a pixel, so the hand reads as
+ * stopped throughout, and the fastest frame differs by under a fifth. All the
+ * axis really varies is *how long* the pause lasts. With the checkbox on it
+ * varies the shape as well, which is what a conductor changes.
+ */
+const ARCS_AT_SMOOTH = 0.3;
+const arcScale = () => {
+  let scale = Number(ui.bounce.value) / 100;
+  if (ui.shapeWithStyle.checked) {
+    const style = Number(ui.rebound.value) / 100;
+    scale *= ARCS_AT_SMOOTH + (1 - ARCS_AT_SMOOTH) * style;
+  }
+  return scale * compoundLift();
+};
 
 /**
  * The pattern as currently set: the metre's shape, cut down to the extent the
@@ -147,7 +182,7 @@ const currentPattern = () =>
     PATTERNS[currentMetre().pulses],
     Number(ui.spread.value) / 100,
     Number(ui.height.value) / 100,
-    lift(),
+    arcScale(),
   );
 
 const showRatio = () => {
@@ -201,11 +236,21 @@ const showTravel = () => {
 ui.travel.addEventListener('input', showTravel);
 showTravel();
 
-ui.rebound.addEventListener('input', showRatio);
+const showBounce = () => {
+  ui.bounceValue.textContent = ui.shapeWithStyle.checked
+    ? `arcs ${ui.bounce.value}% × style = ${Math.round(arcScale() * 100)}%`
+    : `arcs ${ui.bounce.value}%`;
+  showRatio();
+};
+ui.bounce.addEventListener('input', showBounce);
+ui.shapeWithStyle.addEventListener('change', showBounce);
+
+ui.rebound.addEventListener('input', showBounce);
 ui.beats.addEventListener('change', showCompound);
 ui.compoundLag.addEventListener('input', showCompound);
 ui.compoundLift.addEventListener('input', showCompound);
 showCompound();
+showBounce();
 ui.spread.addEventListener('input', showExtent);
 ui.height.addEventListener('input', showExtent);
 showExtent();

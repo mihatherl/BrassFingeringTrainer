@@ -90,6 +90,11 @@
         <input id="rebound" type="range" min="20" max="90" step="5" value="55" aria-label="Rebound" />
         <span><strong id="ratio">—</strong></span>
       </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <input id="bounce" type="range" min="15" max="150" step="5" value="100" aria-label="Arc height" />
+        <span id="bounce-value">arcs 100%</span>
+        <label><input id="shape-with-style" type="checkbox" checked /> Style shapes the arcs too</label>
+      </div>
       <div class="controls" style="margin-top: 0.4rem" id="compound-controls">
         <input id="compound-lag" type="range" min="0" max="30" step="1" value="0" aria-label="Compound extra lag" />
         <input id="compound-lift" type="range" min="100" max="180" step="5" value="100" aria-label="Compound extra lift" />
@@ -116,6 +121,19 @@
         actually is. Second, and the doubtful one: drag the tempo while playing. That is a rit., and
         it is the thing a metronome can never teach. If you cannot follow it here, the conductor is
         a nice touch for steady playing and no more.
+      </p>
+      <p class="hint">
+        <strong>How high should the arcs be, and should the style decide?</strong> A conductor's
+        verdict on this gesture was that the horizontal motion barely goes up and down at all,
+        and that ours is extremely lively — it rises about three quarters of its own width, a
+        hand bouncing nearly as far as it travels. <strong>The arc slider</strong> is how far
+        that comes down. And the style axis never touched the arcs at all: it has only ever
+        changed the <em>timing</em>, which is why smooth and marcato are hard to tell apart. At
+        every setting the slowest frame moves less than a pixel, so the hand reads as stopped
+        throughout, and the quickest frame differs by under a fifth — all that really varies is
+        how long the pause lasts. <strong>The checkbox</strong> makes the axis change the shape
+        as well, low arcs for legato and high flicks for marcato, which is what the axis was
+        always described as doing. Turn it off to see the app's present behaviour.
       </p>
       <p class="hint">
         <strong>The compound question, which is what the two extra sliders are for.</strong>
