@@ -359,7 +359,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
         Array.from({ length: built.cycles }, (_, i) => dealKey(i)),
         built.cycleStarts,
       )
-    : planKeyChanges(ordered, totalBeats, barLineCandidates(totalBeats, metre));
+    : planKeyChanges(ordered, chosenBeats, totalBeats, metre);
 
   // A tie continuation is not a choice of pitch — it is the note before it,
   // held — so the pitch generators are asked for one fewer note per tie.
@@ -736,43 +736,6 @@ function generateRhythm(
 const MIN_BARS_PER_KEY = 4;
 
 /**
- * Where the key changes, and to what.
- *
- * One segment per key, in the order they were given, spread as evenly across
- * the exercise as the candidate positions allow. Candidates are the only beats
- * a change may legally land on: bar lines for free material, and for a pattern
- * the start of a cycle, which is why a cycle is padded out to its bar line in
- * the first place.
- *
- * An exercise too short to give every key its minimum simply uses fewer of
- * them. Dropping the tail rather than crowding the changes keeps what does
- * happen musical, which matters more than using everything that was ticked.
- */
-function planKeyChanges(
-  ordered: readonly number[],
-  totalBeats: number,
-  candidates: readonly number[],
-): KeyChange[] {
-  const opening: KeyChange = { fromBeat: 0, fifths: ordered[0] };
-  if (ordered.length < 2 || candidates.length === 0) return [opening];
-
-  const segments = Math.min(ordered.length, candidates.length + 1);
-  const changes: KeyChange[] = [opening];
-
-  for (let i = 1; i < segments; i++) {
-    const target = (totalBeats * i) / segments;
-    const free = candidates.filter((beat) => !changes.some((c) => c.fromBeat === beat));
-    if (free.length === 0) break;
-    const at = free.reduce((best, beat) =>
-      Math.abs(beat - target) < Math.abs(best - target) ? beat : best,
-    );
-    changes.push({ fromBeat: at, fifths: ordered[i] });
-  }
-
-  return changes.sort((a, b) => a.fromBeat - b.fromBeat);
-}
-
-/**
  * Pitches for a pattern: each note from the contour of the key it falls in.
  *
  * The index restarts when the key does, so a block of cycles in one key runs
@@ -824,15 +787,41 @@ function keysFromCycles(
   return changes;
 }
 
-/** Bar lines a change may land on, keeping every key its minimum stretch. */
-function barLineCandidates(totalBeats: number, metre: Metre): number[] {
+/**
+ * Where the key changes, and to what.
+ *
+ * Each key holds for an equal share of **the length the player asked for**,
+ * never less than `MIN_BARS_PER_KEY`, and the tour then carries on round the
+ * set for as far as the paper runs. Sharing out the paper instead is what
+ * this did when the paper was the exercise, and the horizon quietly broke
+ * it: two keys across two hundred generated bars put the change at bar a
+ * hundred, so a player who asked for sixteen bars in two keys never saw a
+ * second one — not in the white, and not in any grey they were likely to
+ * reach either.
+ *
+ * A set too large for the chosen length still simply uses fewer of its keys
+ * rather than hurrying through them; the rest arrive if the player carries
+ * on, which is the same bargain `tourKey` makes for cycles and themes.
+ */
+function planKeyChanges(
+  ordered: readonly number[],
+  chosenBeats: number,
+  totalBeats: number,
+  metre: Metre,
+): KeyChange[] {
+  const opening: KeyChange = { fromBeat: 0, fifths: ordered[0] };
+  if (ordered.length < 2) return [opening];
+
   const { barBeats } = metre;
-  const totalBars = Math.round(totalBeats / barBeats);
-  const beats: number[] = [];
-  for (let bar = MIN_BARS_PER_KEY; bar <= totalBars - MIN_BARS_PER_KEY; bar += 1) {
-    beats.push(bar * barBeats);
+  const chosenBars = Math.max(1, Math.round(chosenBeats / barBeats));
+  const totalBars = Math.max(1, Math.round(totalBeats / barBeats));
+  const barsPerKey = Math.max(MIN_BARS_PER_KEY, Math.floor(chosenBars / ordered.length));
+
+  const changes: KeyChange[] = [opening];
+  for (let bar = barsPerKey, i = 1; bar < totalBars; bar += barsPerKey, i++) {
+    changes.push({ fromBeat: bar * barBeats, fifths: ordered[i % ordered.length] });
   }
-  return beats;
+  return changes;
 }
 
 /**

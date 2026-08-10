@@ -1009,6 +1009,55 @@ describe('the horizon', () => {
   });
 });
 
+describe('key changes against the horizon', () => {
+  const metre = metreFor(2, 4);
+  const withHorizon = (keySet: number[], bars: number) =>
+    generateExercise(
+      options({ kind: 'phrases', fifths: 0, keySet, bars, metre, seed: 1, horizonBars: 200 }),
+    );
+
+  it('changes key inside the length the player asked for', () => {
+    /*
+     * The regression this exists for: key changes were spread across the
+     * whole generated paper, which the horizon grew to two hundred bars. Two
+     * keys over sixteen bars put the second one at bar a hundred, so a player
+     * who asked for two keys got one — and saw nothing in the grey either,
+     * since they would have had to carry on six times over to reach it.
+     */
+    const exercise = withHorizon([0, 1], 16);
+    const chosenBars = exercise.chosenBeats / metre.barBeats;
+    const inside = exercise.keys.filter(
+      (k) => k.fromBeat > 0 && k.fromBeat < exercise.chosenBeats,
+    );
+    expect(inside.length, `a change within the chosen ${chosenBars} bars`).toBeGreaterThan(0);
+    expect(inside[0].fifths).toBe(1);
+  });
+
+  it('keeps touring the set through the grey', () => {
+    const exercise = withHorizon([0, 1], 16);
+    const used = new Set(exercise.keys.map((k) => k.fifths));
+    expect(used).toEqual(new Set([0, 1]));
+    // Alternating for as long as the paper lasts, rather than settling.
+    expect(exercise.keys.length).toBeGreaterThan(10);
+  });
+
+  it('never gives a key less than its minimum stretch', () => {
+    for (const [keys, bars] of [[[0, 1], 16], [[0, 1, 2, 3], 16], [[0, 1, 2, 3], 8]] as const) {
+      const exercise = withHorizon([...keys], bars);
+      for (let i = 1; i < exercise.keys.length; i++) {
+        const barsHeld = (exercise.keys[i].fromBeat - exercise.keys[i - 1].fromBeat) / metre.barBeats;
+        expect(barsHeld, `${keys.length} keys over ${bars} bars`).toBeGreaterThanOrEqual(4);
+      }
+    }
+  });
+
+  it('lands every change on a bar line', () => {
+    for (const k of withHorizon([0, 1, 2], 16).keys) {
+      expect(k.fromBeat % metre.barBeats).toBe(0);
+    }
+  });
+});
+
 describe('compound time', () => {
   const metre = metreFor(6, 8);
   const beatsOf = (d: { value: string; dotted?: boolean }) =>
