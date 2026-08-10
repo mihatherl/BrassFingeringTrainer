@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { metreFor } from '../domain/metre';
-import { extentOf, gripFor, patternFor, tipAt } from './conductor';
+import { CONDUCTOR_STYLE_RANGE, extentOf, gripFor, patternFor, styleName, tipAt } from './conductor';
 
-const STYLE = 0.55;
+/**
+ * The style axis, sampled end to end.
+ *
+ * Every one of these used to run at the single value the panel had hardcoded.
+ * Now that the player sets it, each of the properties below — no corners at the
+ * beats, a real ictus, a readable speed contrast, a fittable extent — has to
+ * hold everywhere on the axis, not at one point on it. A style that turned the
+ * gesture into an even crawl or a stutter would be a setting that quietly
+ * stopped being conducting.
+ */
+const STYLES = [CONDUCTOR_STYLE_RANGE.min, 0.55, 0.8, CONDUCTOR_STYLE_RANGE.max];
 
 describe('choosing a pattern', () => {
   it('beats a bar by its pulses, not by its numerator', () => {
@@ -34,7 +44,22 @@ describe('choosing a pattern', () => {
   });
 });
 
-describe('the gesture', () => {
+describe('naming a style', () => {
+  it('has a word for every point the player can set', () => {
+    // The slider shows the name, not the number, so a gap would put a settings
+    // screen in front of someone with nothing written where the value goes.
+    for (let style = CONDUCTOR_STYLE_RANGE.min; style <= CONDUCTOR_STYLE_RANGE.max; style += 0.05) {
+      expect(styleName(style), `style ${style.toFixed(2)}`).toBeTruthy();
+    }
+  });
+
+  it('runs from smooth to marcato', () => {
+    expect(styleName(CONDUCTOR_STYLE_RANGE.min)).toBe('smooth');
+    expect(styleName(CONDUCTOR_STYLE_RANGE.max)).toBe('marcato');
+  });
+});
+
+describe.each(STYLES)('the gesture, at style %s', (STYLE) => {
   const patterns = [2, 3, 4].map((n) => ({ n, pattern: patternFor(metreFor(n, 4))! }));
 
   it('turns no corners at the beats', () => {

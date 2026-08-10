@@ -8,8 +8,10 @@ import { isPattern, patternSpanFor } from '../exercise/generate';
 import { EXERCISE_KINDS } from '../exercise/types';
 import { toleranceFor } from '../engine/judge';
 import type { ExerciseKind } from '../exercise/types';
+import { styleName } from '../render/conductor';
 import {
   BARS_OPTIONS,
+  CONDUCTOR_STYLE_RANGE,
   CYCLE_OPTIONS,
   REGISTERS,
   THEME_OPTIONS,
@@ -479,6 +481,28 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           />
           <span>Conductor</span>
         </label>
+
+        {/* Only when there is a conductor to have a style. The screen was
+            quietened on purpose, and a slider shaping something switched off
+            is exactly the noise that was taken out of it. */}
+        {settings.conductorEnabled && (
+          <label className="field">
+            <span className="field__label">
+              Conductor style <strong>{styleName(settings.conductorStyle)}</strong>
+            </span>
+            <input
+              type="range"
+              min={CONDUCTOR_STYLE_RANGE.min}
+              max={CONDUCTOR_STYLE_RANGE.max}
+              step={0.05}
+              value={settings.conductorStyle}
+              onChange={(event) => update('conductorStyle', Number(event.target.value))}
+            />
+            <p className="field__note muted">
+              How sharply the beat lands. Smooth is harder to follow, and meant to be.
+            </p>
+          </label>
+        )}
 
         <label className="field field--inline">
           <input

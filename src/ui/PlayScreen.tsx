@@ -438,7 +438,11 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       <div className="play-aside">
         <RecentNotes notes={recent} />
         {settings.conductorEnabled && transport && (
-          <ConductorPanel transport={transport} metre={exercise.metre} />
+          <ConductorPanel
+            transport={transport}
+            metre={exercise.metre}
+            style={settings.conductorStyle}
+          />
         )}
       </div>
 

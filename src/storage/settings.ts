@@ -14,12 +14,16 @@ import { FREE_TIER, type Entitlements } from '../licensing/entitlements';
 import { DIFFICULTIES } from '../exercise/difficulty';
 import { MAJOR_KEYS } from '../domain/keys';
 import { TEMPO_RANGE } from '../domain/tempo';
+import { CONDUCTOR_STYLE_RANGE } from '../render/conductor';
 import type { ExerciseKind } from '../exercise/types';
 import type { PatternRegister } from '../exercise/generate';
 
 // Re-exported from the domain, where the tempo plan clamps against the same
 // figures; the settings screen was this range's first customer, not its owner.
 export { TEMPO_RANGE };
+// The same arrangement for the conductor's style: `render/conductor.ts` decides
+// what the number means, and this is where it gets stored.
+export { CONDUCTOR_STYLE_RANGE };
 
 export interface Settings {
   instrumentId: string;
@@ -76,6 +80,17 @@ export interface Settings {
    * anyone who wants it can ask for it, as with the metronome.
    */
   conductorEnabled: boolean;
+  /**
+   * How lively the conductor's gesture is, from smooth through to marcato.
+   *
+   * A difficulty axis as much as a style one, which is why it is a setting and
+   * not a constant. A conductor beating a lyrical phrase uses a smooth,
+   * continuous gesture with little rebound; one driving a march gives a sharp
+   * ictus and lets the hand stop between beats. Both are correct conducting and
+   * a player has to read either — and the smooth one is markedly harder,
+   * because finding the beat in a vague gesture is a skill in itself.
+   */
+  conductorStyle: number;
   playbackMode: PlaybackMode;
   /**
    * Multiplies the window either side of the beat within which a fingering
@@ -151,6 +166,9 @@ export const DEFAULT_SETTINGS: Settings = {
   countInBars: 1,
   metronomeEnabled: true,
   conductorEnabled: false,
+  // What the spike's slider calls "lively", which is where the fixed value sat
+  // for as long as there was one: clearly beaten, without being a march.
+  conductorStyle: 0.55,
   playbackMode: 'reference',
   timingTolerance: 1.5,
   weakNoteDrilling: true,
@@ -315,6 +333,11 @@ export function sanitise(settings: Settings): Settings {
       settings.timingTolerance,
       TIMING_TOLERANCE_RANGE.min,
       TIMING_TOLERANCE_RANGE.max,
+    ),
+    conductorStyle: clamp(
+      settings.conductorStyle,
+      CONDUCTOR_STYLE_RANGE.min,
+      CONDUCTOR_STYLE_RANGE.max,
     ),
   };
 }

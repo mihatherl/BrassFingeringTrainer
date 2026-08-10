@@ -180,6 +180,47 @@ function lagFor(style: number): number {
 }
 
 /**
+ * The ends of the legato-to-marcato axis.
+ *
+ * Defined here rather than in the settings, because this is the module that
+ * decides what the number means — the settings screen is the range's first
+ * customer, not its owner, as with `TEMPO_RANGE` in `domain/tempo.ts`.
+ *
+ * **The floor is not zero, and it is measured rather than chosen.** Below about
+ * 0.24 the four pattern's second beat stops being quicker at the ictus than in
+ * the stroke either side of it: its long travel across the width of the pattern
+ * covers so much ground that a shallow warp cannot outpace it, and the beat is
+ * left with only its change of direction. That is real legato conducting and a
+ * player can read it, but it is not something to offer as a *setting* in the
+ * app's default metre — the smooth end is meant to be harder to follow, not to
+ * have thrown the speed cue away. 0.3 keeps a margin over the crossover while
+ * still landing inside the "smooth" band, so the smoothest style on offer is
+ * genuinely smooth. `conductor.test.ts` holds the property at both ends.
+ */
+export const CONDUCTOR_STYLE_RANGE = { min: 0.3, max: 1 } as const;
+
+/**
+ * What to call a point on the axis.
+ *
+ * A number from zero to one is meaningless to a player and the underlying
+ * quantity — how far the beat runs ahead of even progress round the loop — is
+ * not something anyone should have to think in. The words are the ones a
+ * musician already has for the same axis, and the bands are the spike's, where
+ * they were set by watching each one move.
+ */
+const STYLE_NAMES: ReadonlyArray<{ upTo: number; name: string }> = [
+  { upTo: 0.32, name: 'smooth' },
+  { upTo: 0.47, name: 'flowing' },
+  { upTo: 0.62, name: 'lively' },
+  { upTo: 0.77, name: 'crisp' },
+  { upTo: 1, name: 'marcato' },
+];
+
+export function styleName(style: number): string {
+  return (STYLE_NAMES.find((band) => style <= band.upTo) ?? STYLE_NAMES.at(-1)!).name;
+}
+
+/**
  * Where the tip is, given a position in the bar measured in pulses.
  *
  * Named for the tip and not the hand: the pattern is the path the far end of

@@ -29,18 +29,12 @@ import { currentTheme, type StaveTheme } from '../render/surface';
 interface ConductorPanelProps {
   transport: Transport;
   metre: Metre;
+  /**
+   * How lively the gesture is, from smooth through to marcato. The player's
+   * setting; `render/conductor.ts` owns what the number means.
+   */
+  style: number;
 }
-
-/**
- * How lively the gesture is, from smooth through to marcato.
- *
- * Fixed for now at what the spike's slider calls "lively". It wants to become a
- * setting — it is a genuine difficulty axis, since a smooth conductor is
- * markedly harder to follow and learning to find the beat in a vague gesture is
- * a real skill — but that is a separate decision from whether the thing appears
- * at all.
- */
-const STYLE = 0.55;
 
 /**
  * How long the tail behind the tip lasts, in seconds.
@@ -75,7 +69,7 @@ const COOL_RGB = '59, 130, 246';
 const WARM_RGB = '192, 38, 211';
 const ORB_FULL_AT = 0.35;
 
-export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
+export function ConductorPanel({ transport, metre, style }: ConductorPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pattern = patternFor(metre);
 
@@ -94,7 +88,7 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
 
     // The gesture's own bounds, so the panel fits the pattern rather than the
     // pattern being drawn at whatever size a guessed aspect ratio allows.
-    const extent = extentOf(pattern, STYLE);
+    const extent = extentOf(pattern, style);
     const trail: Array<ConductorPoint & { at: number }> = [];
     let frame: number | null = null;
 
@@ -128,7 +122,7 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
       // ticks — the same reading the notation is positioned from.
       const beat = transport.visualBeat();
       const pulse = pulseAt(metre, beat);
-      const tip = tipAt(pattern, pulse, STYLE);
+      const tip = tipAt(pattern, pulse, style);
       const grip = gripFor(pattern, tip);
       const tipPx = px(tip);
 
@@ -189,7 +183,7 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
       if (frame !== null) cancelAnimationFrame(frame);
       colourScheme?.removeEventListener('change', onSchemeChange);
     };
-  }, [transport, metre, pattern]);
+  }, [transport, metre, pattern, style]);
 
   // No pattern for this metre means no conductor, and the metronome carries on
   // alone. Guessing a shape would teach a gesture no conductor will ever make.
@@ -207,7 +201,7 @@ export function ConductorPanel({ transport, metre }: ConductorPanelProps) {
    * The draw loop already fits the gesture to whatever box it is given, so
    * this only has to stop the box lying about the shape it holds.
    */
-  const extent = extentOf(pattern, STYLE);
+  const extent = extentOf(pattern, style);
 
   return (
     <div
