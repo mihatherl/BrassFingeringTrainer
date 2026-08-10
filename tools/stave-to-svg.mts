@@ -12,6 +12,7 @@
  *   npm run svg -- --difficulty hard --seed 3 --out out.svg
  *   npm run svg -- --theme list
  *   npm run svg -- --theme lift-a-fifth --fifths -1 --out theme.svg
+ *   npm run svg -- --beats 6 --unit 8 --variable on --out six-eight.svg
  */
 
 import { writeFileSync } from 'node:fs';
@@ -75,6 +76,11 @@ const exercise = arg('theme', '')
   themeCount: Number(arg('themes', '2')),
   metre: metreFor(Number(arg('beats', '4')), Number(arg('unit', '4'))),
   seed: Number(arg('seed', '1')),
+  // Off unless asked for, as in the app. Without these the printed metronome
+  // marks could not be looked at here at all, which is the one thing this
+  // file exists for — and the mark's note value depends on the metre.
+  tempo: Number(arg('tempo', '80')),
+  variableTempo: arg('variable', '') === 'on',
     });
 
 const ties = exercise.notes.filter((n) => n.tiedToNext).length;

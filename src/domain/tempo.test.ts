@@ -186,6 +186,52 @@ describe('the ramp ratio, which is what the orb reads', () => {
   });
 });
 
+describe('a beat that is not a crotchet', () => {
+  /*
+   * The compound case. A tempo names the beat that is conducted — a dotted
+   * crotchet in 6/8 — while every beat the map is *asked* about is a crotchet,
+   * because that is what note lengths are written in. `crotchetsPerBeat` is
+   * the whole of the difference between the two.
+   */
+  const DOTTED = 1.5;
+
+  it('makes the setting mean the beat the player counts', () => {
+    const map = compileTempo(80, [], DOTTED);
+    // Eighty dotted crotchets a minute is one every 0.75s, and a bar of 6/8
+    // is two of them.
+    expect(timeAt(map, DOTTED)).toBeCloseTo(0.75, 12);
+    expect(timeAt(map, 3)).toBeCloseTo(1.5, 12);
+  });
+
+  it('leaves simple time exactly where it was', () => {
+    // The default is 1, so every existing caller compiles the same map it did
+    // before the parameter existed.
+    expect(timeAt(compileTempo(80, []), 4)).toBe(timeAt(compileTempo(80, [], 1), 4));
+  });
+
+  it('carries the beat into every event, not just the nominal', () => {
+    // A step written as 120 means 120 of the conducted beat too. Compiled
+    // against a plain crotchet it would run half again too slow from there on,
+    // which is the failure that would have survived converting only the
+    // nominal tempo.
+    const events: TempoEvent[] = [{ kind: 'tempo', atBeat: 3, bpm: 120 }];
+    const map = compileTempo(80, events, DOTTED);
+    const afterStep = timeAt(map, 3 + DOTTED) - timeAt(map, 3);
+    expect(afterStep).toBeCloseTo(0.5, 12);
+  });
+
+  it('bends a ramp in the player’s beat as well', () => {
+    const events: TempoEvent[] = [{ kind: 'ramp', fromBeat: 3, toBeat: 6, toBpm: 40 }];
+    const map = compileTempo(80, events, DOTTED);
+    // Half the speed by the end of the rit, so the last beat of it takes
+    // longer than the first — measured against the integral, which knows
+    // nothing about the unit it was compiled in.
+    const bpmAt = (b: number) =>
+      b <= 3 ? 120 : b >= 6 ? 60 : 120 + ((b - 3) / 3) * (60 - 120);
+    expect(timeAt(map, 6)).toBeCloseTo(integrated(bpmAt, 0, 6), 6);
+  });
+});
+
 describe('what the compiler refuses', () => {
   it('an event on or before the music starts', () => {
     expect(() => compileTempo(120, [{ kind: 'tempo', atBeat: 0, bpm: 90 }])).toThrow(/start/);

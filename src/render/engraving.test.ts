@@ -153,6 +153,11 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
     exercise: () => generated(TEMPO_STEP_AT_JOIN),
   },
   {
+    name: 'tempo-mark-compound',
+    why: 'The same mark in 6/8, where the beat it names is a dotted crotchet — the number counts those, so the note printed beside it has to be one. A plain crotchet here would misquote the clock by half again.',
+    exercise: () => generated({ ...TEMPO_STEP_AT_JOIN, metre: metreFor(6, 8) }),
+  },
+  {
     name: 'bass-clef',
     why: 'The other clef, and the only figure here that draws an F clef at all.',
     exercise: () =>

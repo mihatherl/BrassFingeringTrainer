@@ -68,10 +68,24 @@ export class Transport {
   private anchorAudioTime = Number.NaN;
   private anchorPerfTime = 0;
 
-  constructor(context: AudioContext, tempo: number, events: readonly TempoEvent[] = []) {
+  /**
+   * `tempo` and every event count the **conducted** beat; `crotchetsPerBeat`
+   * says how long one of those is, which is `metre.pulseBeats`. It defaults to
+   * 1 because that is every simple metre, where the two have always been the
+   * same thing and nothing here changes.
+   */
+  constructor(
+    context: AudioContext,
+    tempo: number,
+    events: readonly TempoEvent[] = [],
+    crotchetsPerBeat = 1,
+  ) {
     this.context = context;
-    this.nominalSecondsPerBeat = 60 / tempo;
-    this.map = compileTempo(tempo, events);
+    // Still seconds per *crotchet*, whatever the beat is: its customer is the
+    // scrolling surface, which measures the page in the same crotchets every
+    // note length is written in.
+    this.nominalSecondsPerBeat = 60 / (tempo * crotchetsPerBeat);
+    this.map = compileTempo(tempo, events, crotchetsPerBeat);
   }
 
   get isRunning(): boolean {

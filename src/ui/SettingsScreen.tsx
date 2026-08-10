@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { INSTRUMENTS, availableClefs, instrumentById, writtenRange } from '../domain/instruments';
 import { describeFifths, MAJOR_KEYS, orderByCloseness } from '../domain/keys';
+import { metreFor } from '../domain/metre';
 import { formatPitch } from '../domain/pitch';
 import { spellInKey } from '../domain/keys';
 import { DIFFICULTIES } from '../exercise/difficulty';
@@ -87,6 +88,10 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
 
   // Scales and arpeggios are described by their reach rather than by a level
   // name, and that reach depends on whether the key's tonic leaves room for it.
+  // What the tempo number counts, among other things: the beat is the pulse,
+  // which is not the crotchet in compound time.
+  const metre = metreFor(settings.beatsPerBar, settings.beatUnit);
+
   const patternKind = isPattern(settings.kind);
   const actualSpan = patternSpanFor(instrument, settings.clef, settings.fifths, difficulty);
   const shortenedSpan =
@@ -422,6 +427,15 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             value={settings.tempo}
             onChange={(event) => update('tempo', Number(event.target.value))}
           />
+          {/* Said out loud only where it is not obvious. In 4/4 the beat is
+              the crotchet and nobody needs telling; in 6/8 the number counts
+              dotted crotchets, two to the bar, which is the beat conducted
+              and the one a march is quoted in. */}
+          {metre.isCompound && (
+            <p className="field__note muted">
+              Dotted crotchets — {metre.pulsesPerBar} to the bar, the beat you count.
+            </p>
+          )}
         </label>
 
         <label className="field field--inline">

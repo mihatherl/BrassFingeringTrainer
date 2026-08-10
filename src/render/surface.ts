@@ -875,6 +875,7 @@ export class StaveRenderer {
         x - BAR_LINE_SETBACK * this.metrics.staveSpace,
         event,
         theme.note,
+        exercise.metre.isCompound,
       );
     }
 

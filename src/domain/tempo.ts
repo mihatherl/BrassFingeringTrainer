@@ -45,9 +45,19 @@
  */
 export const TEMPO_RANGE = { min: 40, max: 220 } as const;
 
-/** A change of tempo, a rit./accel., or a fermata's dwell. Beats > 0 only. */
+/**
+ * A change of tempo, a rit./accel., or a fermata's dwell. Beats > 0 only.
+ *
+ * **Every bpm here counts the beat that is conducted**, not the crotchet — a
+ * dotted crotchet in 6/8, a crotchet in 4/4. That is the beat a player means
+ * when they say a speed, the one a printed metronome mark names, and the one
+ * the conductor's hand actually shows. The crotchet is the app's unit of
+ * *duration* and remains so everywhere; it is not the unit of *tempo*, and
+ * conflating the two is what left 6/8 at a setting of 80 being conducted at
+ * 53. `compileTempo` is the one place the two meet.
+ */
 export type TempoEvent =
-  /** A step: this many crotchets per minute from this beat on. */
+  /** A step: this many conducted beats per minute from this beat on. */
   | { kind: 'tempo'; atBeat: number; bpm: number }
   /**
    * A linear glide from the tempo in force at `fromBeat` to `toBpm` at
@@ -127,10 +137,28 @@ function beatsAcross(bpm0: number, slope: number, seconds: number): number {
 export function compileTempo(
   nominalBpm: number,
   events: readonly TempoEvent[] = [],
+  crotchetsPerBeat = 1,
 ): TempoMap {
   if (!Number.isFinite(nominalBpm) || nominalBpm <= 0) {
     throw new Error(`A tempo must be a positive number of bpm, not ${nominalBpm}`);
   }
+  if (!Number.isFinite(crotchetsPerBeat) || crotchetsPerBeat <= 0) {
+    throw new Error(`A beat must be a positive number of crotchets, not ${crotchetsPerBeat}`);
+  }
+
+  /*
+   * The one place the two units meet.
+   *
+   * Everything above compiles in the beat the player and the conductor count;
+   * everything below measures beats in crotchets, because that is what
+   * `timeAt` is asked about and what every note length in the app is written
+   * in. A dotted-crotchet beat is 1.5 crotchets, so 80 of them a minute is 120
+   * crotchets a minute — and multiplying here is all that difference amounts
+   * to. Defaulting to 1 keeps every simple metre, and every existing caller,
+   * exactly as it was.
+   */
+  const inCrotchets = (bpm: number) => bpm * crotchetsPerBeat;
+  nominalBpm = inCrotchets(nominalBpm);
 
   const beatOf = (event: TempoEvent) => ('atBeat' in event ? event.atBeat : event.fromBeat);
   // Holds before steps before ramps at the same beat; see above.
@@ -163,7 +191,7 @@ export function compileTempo(
         if (!Number.isFinite(event.bpm) || event.bpm <= 0) {
           throw new Error(`A tempo must be a positive number of bpm, not ${event.bpm}`);
         }
-        bpm = event.bpm;
+        bpm = inCrotchets(event.bpm);
         break;
       }
       case 'ramp': {
@@ -173,11 +201,12 @@ export function compileTempo(
         if (!(event.toBeat > event.fromBeat + EPSILON)) {
           throw new Error(`A ramp from beat ${event.fromBeat} to ${event.toBeat} has no width`);
         }
-        const slope = (event.toBpm - bpm) / (event.toBeat - beat);
+        const toBpm = inCrotchets(event.toBpm);
+        const slope = (toBpm - bpm) / (event.toBeat - beat);
         segments.push({ kind: 'span', fromBeat: beat, t0: t, bpm0: bpm, slope });
         t += secondsAcross(bpm, slope, event.toBeat - beat);
         beat = event.toBeat;
-        bpm = event.toBpm;
+        bpm = toBpm;
         break;
       }
       case 'hold': {

@@ -154,8 +154,11 @@ export class Session {
     this.noticed = new Array(options.exercise.notes.length).fill(false);
     const { context, exercise, tempo, countInBars } = options;
     // The exercise's own tempo events, so a step written on the page is a
-    // step the clock actually takes; an empty list is the constant tempo.
-    this.transport = new Transport(context, tempo, exercise.tempo);
+    // step the clock actually takes; an empty list is the constant tempo. The
+    // metre's pulse is what turns the player's beat into crotchets — in 6/8
+    // the number they set is dotted crotchets, and 1.5 crotchets is what one
+    // of those lasts.
+    this.transport = new Transport(context, tempo, exercise.tempo, exercise.metre.pulseBeats);
     this.input = new ValveInput(() => context.currentTime);
     this.synth = options.brassVoice ?? new BrassSynth(context);
     this.metronome = new Metronome(context);

@@ -149,6 +149,12 @@ const ANNOTATION_OFFSET = 4.6;
  * instruction about the music, not a note of it.
  */
 const MARK_SCALE = 0.75;
+/**
+ * Gap between the mark's notehead and its dot, in stave spaces before the
+ * mark's own scaling. The same 0.3 the stave uses behind a notehead, so a
+ * dotted crotchet in the mark is spaced like a dotted crotchet in the music.
+ */
+const MARK_DOT_GAP = 0.3;
 const MARK_RISE = 2.5;
 
 /**
@@ -167,14 +173,19 @@ export function tempoMarkBeat(event: TempoEvent): number | null {
 }
 
 /**
- * A tempo event's mark above the stave: a cue-sized crotchet with "= 96" for
+ * A tempo event's mark above the stave: a cue-sized beat note with "= 96" for
  * a step, "rit." for a ramp.
  *
  * Drawn from the exercise's own tempo events and nowhere else: the mark is
  * the page stating what the clock will actually do, and both read the same
- * data so neither can lie about the other. The crotchet is the notehead glyph
+ * data so neither can lie about the other. The note is the notehead glyph
  * with a stem, not font text, because the music fonts are embedded as paths
  * and a ♩ from the system font would render differently on every device.
+ *
+ * **The note is the beat the number counts, which in compound time is a dotted
+ * crotchet.** Printing a plain crotchet against a dotted-crotchet number is
+ * the page misquoting its own clock by half again, and it is the same mistake
+ * in ink that the tempo setting used to make in seconds.
  *
  * A ramp prints "rit." unconditionally because the plan writes no accels;
  * the day it does, the label needs the tempo in force, which is the map's to
@@ -189,6 +200,7 @@ export function drawTempoEvent(
   x: number,
   event: TempoEvent,
   colour: string,
+  dotted = false,
 ): void {
   const { staveSpace } = metrics;
   const y = metrics.topLineY - staveSpace * MARK_RISE;
@@ -208,8 +220,23 @@ export function drawTempoEvent(
     // Up on the right of the head, as every stem this size is.
     ctx.fillRect(x + headWidth - stemWidth, y - stemRise, stemWidth, stemRise);
 
+    /*
+     * The dot sits after the head at the head's own height, exactly as it does
+     * on the stave — and it is the same `augmentationDot` glyph the notes use,
+     * not a drawn circle. Two reasons: a mark that quotes a dotted crotchet
+     * should be printing the dot the reader has just seen on the page, and the
+     * glyph is a path from the embedded font, so it renders identically
+     * everywhere and through the SVG shim the engraving snapshots draw with.
+     */
+    let width = headWidth;
+    if (dotted) {
+      const gap = MARK_DOT_GAP * staveSpace * MARK_SCALE;
+      drawGlyph(ctx, 'augmentationDot', x + headWidth + gap, y, staveSpace * MARK_SCALE);
+      width = headWidth + gap + glyphWidth('augmentationDot') * staveSpace * MARK_SCALE;
+    }
+
     ctx.font = `600 ${Math.round(staveSpace * 1.25)}px system-ui, sans-serif`;
-    ctx.fillText(`= ${event.bpm}`, x + headWidth + staveSpace * 0.5, textY);
+    ctx.fillText(`= ${event.bpm}`, x + width + staveSpace * 0.5, textY);
   } else if (event.kind === 'ramp') {
     // Italic, as every printed part sets it.
     ctx.font = `italic 600 ${Math.round(staveSpace * 1.25)}px system-ui, sans-serif`;
@@ -304,6 +331,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
       xForBeat(beat) - BAR_LINE_SETBACK * staveSpace,
       event,
       theme.note,
+      exercise.metre.isCompound,
     );
   }
 

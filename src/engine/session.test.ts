@@ -619,8 +619,17 @@ describe('the metronome in compound time', () => {
 
   it('clicks twice a bar in 6/8, on the dotted crotchets', () => {
     const clicks = clicksFor(metreFor(6, 8), 2);
-    // Two bars of three crotchets: beats 0, 1.5, 3, 4.5.
-    expect(clicks.filter((t) => t >= 0 && t <= 4.5)).toEqual([0, 1.5, 3, 4.5]);
+    /*
+     * At a setting of 60 the clicks are a second apart, because the number
+     * counts the beat that is conducted — sixty dotted crotchets a minute,
+     * two to the bar, so a bar lasts two seconds.
+     *
+     * These used to be 1.5s apart: the setting named the crotchet, so 60 in
+     * 6/8 was conducted at 40 and a march was unreachable at any slider
+     * position. Same clicks, same places in the music; the rate is what the
+     * player asked for now.
+     */
+    expect(clicks.filter((t) => t >= 0 && t <= 4)).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('still clicks every crotchet in 4/4', () => {
