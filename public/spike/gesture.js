@@ -59,10 +59,20 @@ const DIALS = [
   },
 ];
 
-/** Where the axis starts and ends. Everything between is a straight line. */
+/**
+ * Where the axis starts and ends. Everything between is a straight line.
+ *
+ * **These are what the app ships**, and they must be kept in step with
+ * `FLOWING` and `MARCATO` in `src/render/conductor.ts`. Left at the values this
+ * page was first written with, the bench opened on a gesture nobody had chosen
+ * — width unchanging from one end to the other, when the shipped axis narrows
+ * from 110% to 58% — so the first thing it showed was a contradiction of the
+ * app it exists to tune. A bench that does not start from what is running is
+ * worse than no bench: every judgement made on it is against the wrong thing.
+ */
 const ENDS = {
-  flowing: { width: 100, arcs: 25, downbeat: 36, beats: 45, lag: 42 },
-  marcato: { width: 100, arcs: 100, downbeat: 100, beats: 100, lag: 86 },
+  flowing: { width: 110, arcs: 32, downbeat: 35, beats: 40, lag: 10 },
+  marcato: { width: 58, arcs: 54, downbeat: 65, beats: 69, lag: 64 },
 };
 
 const el = (id) => document.getElementById(id);

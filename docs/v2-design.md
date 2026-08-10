@@ -992,14 +992,38 @@ one was the doubtful question and the reason for building a spike at all.
 
 ### Still open on it
 
-- **The style is fixed at "lively"** with no control in the app. It wants to be a
-  setting, and specifically a *difficulty* one: a smooth conductor is markedly
-  harder to follow, and finding the beat in a vague gesture is a real skill no
-  metronome can teach. Imported music could carry it, alongside the tempo marks.
+- **The gesture is scaled to fill its panel, so absolute size cannot be shown.**
+  `extentOf` is measured per shape and the draw loop fits it to the box, which
+  means a uniformly smaller gesture draws at exactly the same size — halving the
+  geometry gives 190×88px, as does leaving it alone. Relative *proportion*
+  survives, because the panel takes the gesture's aspect ratio; magnitude does
+  not. This blocks anything that wants to say "smaller", and it is the first
+  thing to fix if either idea below is taken up: the panel would need one
+  reference scale, fitted to the largest gesture the settings can produce, with
+  everything else drawn against it.
+
+- **Size should probably fall as the tempo rises**, raised by the player: there
+  is a maximum speed a hand can move at, and a conductor beating 160 does not
+  make the excursion they make at 60. The geometry is a pure function of style
+  today; it would become a function of style *and* tempo, which `patternFor`
+  already takes. Blocked on the fixed scale above — without it the panel would
+  simply re-inflate whatever was taken away.
+
+- **The pattern itself may depend on tempo, not only its size.** From
+  conductors: a 2/4 fast enough stops being the double-J with both ictuses on
+  the floor and becomes plain up-down — the second beat at the *top*. A 6/8 goes
+  the other way at speed and is beaten in one rather than two. The mechanism for
+  this exists and is proven: `patternFor(metre, bpm)` already chooses between
+  the two and the six for compound time by tempo, so a fast variant is another
+  entry in `PATTERNS` and another threshold, not new machinery. What it needs is
+  a drawn shape and a threshold, both of which want a conductor's eye rather
+  than a guess — the same way the six pattern was settled.
+
 - **Five and seven patterns** are drawn on the reference sheet in `input/` and can
   be added from it. Until then those metres get no conductor.
-- Only 2, 3 and 4 pulse patterns exist, which covers every metre the settings
-  screen offers plus 6/8, 9/8 and 12/8.
+
+- **9/8 and 12/8 have no subdivided pattern**, so they keep their fast shape at
+  any tempo. Nine and twelve are drawn in the compound chapter.
 
 **The reason it is worth building**: a click tells you where the beat *is*; a
 conductor tells you where it is going to be. Players who only practise to a
