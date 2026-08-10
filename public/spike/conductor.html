@@ -108,8 +108,9 @@
       <div class="controls" style="margin-top: 0.4rem">
         <span class="name">Arcs</span>
         <input id="bounce" type="range" min="15" max="150" step="5" value="100" aria-label="Arc height" />
+        <input id="prep" type="range" min="0" max="100" step="5" value="35" aria-label="How closely the downbeat follows the arcs" />
         <span id="bounce-value">arcs 100%</span>
-        <label><input id="shape-with-style" type="checkbox" checked /> Style shapes the arcs too</label>
+        <label><input id="shape-with-style" type="checkbox" checked /> Style shapes the gesture</label>
       </div>
       <div class="controls" style="margin-top: 0.4rem" id="compound-controls">
         <span class="name">Compound</span>
@@ -140,17 +141,24 @@
         a nice touch for steady playing and no more.
       </p>
       <p class="hint">
-        <strong>How high should the arcs be, and should the style decide?</strong> A conductor's
-        verdict on this gesture was that the horizontal motion barely goes up and down at all,
-        and that ours is extremely lively — it rises about three quarters of its own width, a
-        hand bouncing nearly as far as it travels. <strong>The arc slider</strong> is how far
-        that comes down. And the style axis never touched the arcs at all: it has only ever
-        changed the <em>timing</em>, which is why smooth and marcato are hard to tell apart. At
-        every setting the slowest frame moves less than a pixel, so the hand reads as stopped
-        throughout, and the quickest frame differs by under a fifth — all that really varies is
-        how long the pause lasts. <strong>The checkbox</strong> makes the axis change the shape
-        as well, low arcs for legato and high flicks for marcato, which is what the axis was
-        always described as doing. Turn it off to see the app's present behaviour.
+        <strong>The Arcs row is the shape half of the style axis, which did not exist until
+        recently.</strong> The axis has always been described as little rebound for a lyrical
+        phrase against a sharp ictus for a march — timing <em>and</em> shape — but only the
+        timing was ever built. With the checkbox off, the drawn curve at smooth and at marcato
+        is not merely similar, it is <em>identical</em>: the only difference is that the hand
+        pauses longer, and at both ends the slowest frame moves under a pixel. There was
+        nothing to see. Tick it and the style sets the shape as well.
+      </p>
+      <p class="hint">
+        <strong>The second slider on that row is the downbeat, and it is on its own curve
+        deliberately.</strong> Scaled with the other arcs it fails twice over: the downbeat
+        vanishes at the smooth end, where a legato phrase still needs a recognisable one, and
+        it grows past any length an arm could hold a baton at when the arcs go up. At 0 the
+        downbeat holds its height whatever the arcs do; at 100 it is just another arc, which is
+        what it used to be. <strong>Smoothing also brings the beats themselves closer
+        together</strong> now — every pattern but the four has two ictus points at different
+        heights, and leaving that gap fixed left a bounce in the gesture that the style setting
+        was supposed to have taken out.
       </p>
       <p class="hint">
         <strong>The compound question, which is what the two extra sliders are for.</strong>

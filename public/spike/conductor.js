@@ -51,6 +51,7 @@ const ui = {
   ratio: el('ratio'),
   bounce: el('bounce'),
   bounceValue: el('bounce-value'),
+  prep: el('prep'),
   shapeWithStyle: el('shape-with-style'),
   compoundLag: el('compound-lag'),
   compoundLift: el('compound-lift'),
@@ -140,36 +141,68 @@ const extraLag = () => (currentMetre().compound ? Number(ui.compoundLag.value) /
 /** How much higher the arcs rise in compound time. 1 is no difference. */
 const compoundLift = () => (currentMetre().compound ? Number(ui.compoundLift.value) / 100 : 1);
 
-/**
- * How high the arcs rise, against what the pattern draws.
+/*
+ * The shape half of the style axis, which never existed until now.
  *
- * Two questions live here, both raised by watching the thing rather than by
- * reading it.
+ * The axis was always documented as "little rebound" for a lyrical phrase
+ * against "a sharp ictus and the hand stopping" for a march — timing *and*
+ * shape — and only the timing half was ever built, though the variable
+ * carrying it is still called `rebound`. That is why smooth and marcato were
+ * indistinguishable: at every setting the slowest frame moves less than a
+ * pixel, so the hand reads as stopped throughout and the quickest frame
+ * differs by under a fifth. The drawn curve was identical at both ends.
  *
- * **The baseline is too tall.** A conductor put it plainly: the horizontal
- * motion barely goes up and down at all. Ours rises about three quarters of
- * its own width, which is a hand bouncing nearly as far as it travels — and
- * "extremely lively" is the verdict on it. The slider is how far down that
- * wants to come.
- *
- * **And the style axis never touched it.** The axis was always documented as
- * "little rebound" for a lyrical phrase against "a sharp ictus and the hand
- * stopping" for a march — two halves, timing and shape — and only the timing
- * half was ever built, though the variable carrying it is still called
- * `rebound`. That is why smooth and marcato are hard to tell apart: at every
- * setting the slowest frame moves less than a pixel, so the hand reads as
- * stopped throughout, and the fastest frame differs by under a fifth. All the
- * axis really varies is *how long* the pause lasts. With the checkbox on it
- * varies the shape as well, which is what a conductor changes.
+ * The baseline was too tall as well. A conductor's verdict was that the
+ * horizontal motion barely goes up and down at all, where ours rose about
+ * three quarters of its own width.
  */
-const ARCS_AT_SMOOTH = 0.3;
-const arcScale = () => {
-  let scale = Number(ui.bounce.value) / 100;
+
+/**
+ * How low the arcs go at the smooth end, as a fraction of what is drawn.
+ *
+ * The player's floor, found by dragging: on a four pattern even the smoothest
+ * gesture wants no less than a quarter of the drawn arc, or the beats stop
+ * being beats.
+ */
+const ARCS_AT_SMOOTH = 0.25;
+
+/**
+ * How far the beats themselves converge at the smooth end.
+ *
+ * Only the four pattern already has its beats on one floor. Everywhere else two
+ * ictus points sit at different heights, and until now that separation was
+ * fixed however smooth the gesture got — so a legato two pattern still had its
+ * second beat riding well above the first, which reads as a bounce the style
+ * setting was supposedly taking out.
+ */
+const BEATS_AT_SMOOTH = 0.45;
+
+/**
+ * The gesture's shape at the current settings.
+ *
+ * The preparatory stroke is deliberately *not* on the same curve as the rest,
+ * and that is the whole of this function's reason for existing. Scaled with the
+ * other arcs it does two wrong things at once: it disappears at the smooth end,
+ * where a recognisable downbeat is wanted however legato the phrase, and it
+ * grows past any length an arm could hold a baton at when the arcs go up. So it
+ * *follows* the arcs rather than matching them, and how closely is the slider.
+ */
+const shapeNow = () => {
+  const bounce = Number(ui.bounce.value) / 100;
+  const follow = Number(ui.prep.value) / 100;
+
+  let arcs = bounce;
+  let flatten = 1;
   if (ui.shapeWithStyle.checked) {
     const style = Number(ui.rebound.value) / 100;
-    scale *= ARCS_AT_SMOOTH + (1 - ARCS_AT_SMOOTH) * style;
+    arcs *= ARCS_AT_SMOOTH + (1 - ARCS_AT_SMOOTH) * style;
+    flatten = BEATS_AT_SMOOTH + (1 - BEATS_AT_SMOOTH) * style;
   }
-  return scale * compoundLift();
+  arcs *= compoundLift();
+
+  // At follow = 1 the prep is just another arc, which is what it was. At 0 it
+  // holds its drawn height whatever the arcs do, so the downbeat is a constant.
+  return { arcs, prep: 1 + follow * (arcs - 1), flatten };
 };
 
 /**
@@ -182,7 +215,7 @@ const currentPattern = () =>
     PATTERNS[currentMetre().pulses],
     Number(ui.spread.value) / 100,
     Number(ui.height.value) / 100,
-    arcScale(),
+    shapeNow(),
   );
 
 const showRatio = () => {
@@ -237,12 +270,14 @@ ui.travel.addEventListener('input', showTravel);
 showTravel();
 
 const showBounce = () => {
-  ui.bounceValue.textContent = ui.shapeWithStyle.checked
-    ? `arcs ${ui.bounce.value}% × style = ${Math.round(arcScale() * 100)}%`
-    : `arcs ${ui.bounce.value}%`;
+  const { arcs, prep, flatten } = shapeNow();
+  ui.bounceValue.textContent =
+    `arcs ${Math.round(arcs * 100)}%, downbeat ${Math.round(prep * 100)}%` +
+    (flatten < 1 ? `, beats ${Math.round(flatten * 100)}% apart` : '');
   showRatio();
 };
 ui.bounce.addEventListener('input', showBounce);
+ui.prep.addEventListener('input', showBounce);
 ui.shapeWithStyle.addEventListener('change', showBounce);
 
 ui.rebound.addEventListener('input', showBounce);

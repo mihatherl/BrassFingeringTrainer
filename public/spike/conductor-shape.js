@@ -209,8 +209,28 @@ function centreOf(pattern) {
  * there. It is here so the compound question is not settled by assuming which
  * of the two the sentence means.
  */
-export function scaledPattern(pattern, spread, height, lift = 1) {
+export function scaledPattern(pattern, spread, height, shape = {}) {
+  /*
+   * `shape` is the style's business, where `spread` and `height` are the
+   * dynamic's. Three separate things, because playing with them proved they
+   * are not one:
+   *
+   *   `arcs`     how high the rebounds between beats rise.
+   *   `prep`     how high the *last* one rises, which is a different question:
+   *              it is the height the downbeat falls from, so it is what makes
+   *              the downbeat recognisable. Flattening it with the rest loses
+   *              the downbeat long before the gesture is as legato as it wants
+   *              to be, and raising it with the rest gives a baton no arm could
+   *              hold. Defaults to `arcs`, which is the old single-knob shape.
+   *   `flatten`  how far the beats converge towards one another vertically.
+   *              Only the four pattern has its beats on one floor already; in
+   *              every other one two ictus points sit at different heights, and
+   *              a legato gesture wants those closer together rather than the
+   *              arcs alone coming down around them.
+   */
+  const { arcs = 1, prep = arcs, flatten = 1 } = shape;
   const centre = centreOf(pattern);
+  const last = pattern.length - 1;
   /*
    * The last beat's rebound and the downbeat's drop are one gesture.
    *
@@ -218,18 +238,20 @@ export function scaledPattern(pattern, spread, height, lift = 1) {
    * other one in the bar: it "must return to the starting point of the
    * downbeat". So its height is not a free number — it *is* the height the
    * downbeat falls from, and the two were drifting apart by a fifth while both
-   * were tuned by hand. Tied together here so they cannot.
+   * were tuned by hand. Tied together here so they cannot — which is also why
+   * `prep` can be given its own scaling without the drop and the lift parting
+   * company.
    */
-  return pattern.map((p) => ({
+  return pattern.map((p, index) => ({
     x: centre.x + spread * (p.x - centre.x),
-    y: centre.y + height * (p.y - centre.y),
+    y: centre.y + height * flatten * (p.y - centre.y),
     // The lifts are most of the pattern's vertical extent now that the beats
     // all sit along the bottom, so they shrink with it rather than towering
     // over a flattened shape.
-    rebound: p.rebound * height * lift,
+    rebound: p.rebound * height * (index === last ? prep : arcs),
     path: p.path?.map((via) => ({
       x: centre.x + spread * (via.x - centre.x),
-      y: centre.y + height * (via.y - centre.y),
+      y: centre.y + height * flatten * (via.y - centre.y),
     })),
   }));
 }
