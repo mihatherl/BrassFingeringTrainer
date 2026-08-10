@@ -179,15 +179,15 @@ release.
    sight-reading. Written tunes stored as scale degrees, agnostic of key and
    tempo. The corpus is the work that remains. See *Themes, and playing for as
    long as you like*.
-4. **Windowed scoring** — the score covers the last so many bars rather than
-   the whole session. Small, independent, and useful on its own.
-5. **Endless play, with a grey horizon** — music continues past the chosen
-   length in grey; play on and it goes white. The invasive one, and cheaper
-   after 3, since a theme boundary is already a bar line.
-6. **A tempo map** — step changes first. The only thing between here and a
-   fermata, and the conductor's best argument: a metronome cannot teach anyone
-   to follow a rit. by definition. It slots either side of 3–5; it decides only
-   whether a theme's rit. breathes.
+4. ~~**Windowed scoring**~~ — built. The score covers the last sixteen bars.
+5. ~~**Endless play, with a grey horizon**~~ — built. Music continues past the
+   chosen length in grey and a green button buys another block of it. See
+   `endless-play-plan.md`, and note that the hard question — stopped or
+   resting? — was answered by asking rather than by inferring.
+6. ~~**A tempo map**~~ — built: step changes at boundaries, rits into every
+   ending, printed marks, and the conductor's orb cooling through a rit.
+   **The fermata is parked**, on the ruling that it needs a second hand; see
+   *Fermata* and `tempo-map-plan.md`.
 7. **The microphone as input**, instead of the buttons. Proven in a spike and
    parked; see *The microphone, parked*. It also answers the one hard question
    in 5 — it can hear that you have stopped.
