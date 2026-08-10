@@ -263,44 +263,114 @@ function warp(t: number, lag: number): number {
   return t + (lag * Math.sin(2 * Math.PI * t)) / (2 * Math.PI);
 }
 
-function lagFor(style: number): number {
-  return Math.min(0.92, 0.3 + 0.62 * style);
+/**
+ * The two ends of the style axis, as complete gestures.
+ *
+ * Not a coupling curve any more. Every attempt to derive the whole axis from
+ * one knob failed the same way — the player could not hold two settings side by
+ * side to compare them — so the ends are stated outright and everything between
+ * is a straight line. These five numbers came off `/spike/gesture.html`, chosen
+ * by eye against every pattern at once.
+ *
+ * **The width runs the other way**, which is the part no reasoning would have
+ * produced: a marcato gesture is *narrower* than a flowing one, not larger. A
+ * march is beaten tight and close; a lyrical phrase is broad. Everything else —
+ * the arcs, the downbeat, the vertical spread of the beats, the lag — grows
+ * from flowing to marcato, and the width alone shrinks.
+ *
+ * Both ends sit well under the drawn pattern. The shapes in `PATTERNS` are
+ * diagram-faithful, and a diagram exaggerates to teach: read literally they
+ * gave a hand bouncing three quarters of its own width, which a conductor
+ * watching it called extremely lively. Nothing here changes what is drawn; this
+ * is how much of it is used.
+ */
+export interface GestureShape {
+  /** How far the hand travels sideways, against the drawn pattern. */
+  width: number;
+  /** How high it rises between beats. */
+  arcs: number;
+  /** The height the downbeat falls from — its own number, not one of the arcs. */
+  downbeat: number;
+  /** How far apart the ictus points sit vertically. */
+  beats: number;
+  /** How much the tip hangs between beats and snaps through them. */
+  lag: number;
+}
+
+const FLOWING: GestureShape = { width: 1.1, arcs: 0.32, downbeat: 0.35, beats: 0.4, lag: 0.1 };
+const MARCATO: GestureShape = { width: 0.58, arcs: 0.54, downbeat: 0.65, beats: 0.69, lag: 0.64 };
+
+/** The gesture a style setting asks for. */
+export function shapeFor(style: number): GestureShape {
+  const t = Math.min(1, Math.max(0, style));
+  const between = (from: number, to: number) => from + (to - from) * t;
+  return {
+    width: between(FLOWING.width, MARCATO.width),
+    arcs: between(FLOWING.arcs, MARCATO.arcs),
+    downbeat: between(FLOWING.downbeat, MARCATO.downbeat),
+    beats: between(FLOWING.beats, MARCATO.beats),
+    lag: between(FLOWING.lag, MARCATO.lag),
+  };
+}
+
+/**
+ * A drawn pattern at a given gesture, scaled about its own centre.
+ *
+ * The downbeat's rebound is scaled apart from the others deliberately. Mann
+ * ties it to the drop that follows — "the final rebound must return to the
+ * starting point of the downbeat" — so it is the height the downbeat falls
+ * from rather than another arc, and treating it as one fails at both ends: the
+ * downbeat vanishes where the gesture is most legato, exactly where a player
+ * most needs to find it, and grows to a length no arm could hold a baton at
+ * where it is most marcato.
+ */
+export function shapedPattern(pattern: ConductorPattern, shape: GestureShape): ConductorPattern {
+  const centre = centreOf(pattern);
+  const last = pattern.length - 1;
+  const place = (p: ConductorPoint): ConductorPoint => ({
+    x: centre.x + shape.width * (p.x - centre.x),
+    y: centre.y + shape.beats * (p.y - centre.y),
+  });
+  return pattern.map((beat, index) => ({
+    ...place(beat),
+    /*
+     * Scaled by the arcs alone, and deliberately *not* by `beats` as well.
+     *
+     * The two are separate quantities: how far apart the ictus points sit and
+     * how high the hand rises between them. Applying both to a rebound compounds
+     * them — at the flowing end that is 0.4 × 0.32, an arc an eighth of what is
+     * drawn — which is not the gesture that was chosen on the bench, where the
+     * beats' compression never touched the arcs. It flattened the three
+     * pattern's first rebound to about ten microns of normalised space, at which
+     * point the beat has no ictus left at all.
+     */
+    rebound: beat.rebound * (index === last ? shape.downbeat : shape.arcs),
+    path: beat.path?.map(place),
+  }));
 }
 
 /**
  * The ends of the legato-to-marcato axis.
  *
- * Defined here rather than in the settings, because this is the module that
- * decides what the number means — the settings screen is the range's first
- * customer, not its owner, as with `TEMPO_RANGE` in `domain/tempo.ts`.
- *
- * **The floor is not zero, and it is measured rather than chosen.** Below about
- * 0.24 the four pattern's second beat stops being quicker at the ictus than in
- * the stroke either side of it: its long travel across the width of the pattern
- * covers so much ground that a shallow warp cannot outpace it, and the beat is
- * left with only its change of direction. That is real legato conducting and a
- * player can read it, but it is not something to offer as a *setting* in the
- * app's default metre — the smooth end is meant to be harder to follow, not to
- * have thrown the speed cue away. 0.3 keeps a margin over the crossover while
- * still landing inside the "smooth" band, so the smoothest style on offer is
- * genuinely smooth. `conductor.test.ts` holds the property at both ends.
+ * The whole of it, unlike before. The floor used to sit at 0.3 because below
+ * that the four pattern's second beat lost its speed cue — but that was a
+ * property of one fixed geometry, and the geometry now moves with the style.
+ * Both ends are gestures somebody chose by eye, so both are worth offering.
  */
-export const CONDUCTOR_STYLE_RANGE = { min: 0.3, max: 1 } as const;
+export const CONDUCTOR_STYLE_RANGE = { min: 0, max: 1 } as const;
 
 /**
  * What to call a point on the axis.
  *
- * A number from zero to one is meaningless to a player and the underlying
- * quantity — how far the beat runs ahead of even progress round the loop — is
- * not something anyone should have to think in. The words are the ones a
- * musician already has for the same axis, and the bands are the spike's, where
- * they were set by watching each one move.
+ * A number from zero to one is meaningless to a player, and the quantities
+ * underneath — arc heights, a phase lag — are not things anyone should have to
+ * think in. The words are the ones a musician already has for the same axis.
  */
 const STYLE_NAMES: ReadonlyArray<{ upTo: number; name: string }> = [
-  { upTo: 0.32, name: 'smooth' },
-  { upTo: 0.47, name: 'flowing' },
-  { upTo: 0.62, name: 'lively' },
-  { upTo: 0.77, name: 'crisp' },
+  { upTo: 0.2, name: 'smooth' },
+  { upTo: 0.4, name: 'flowing' },
+  { upTo: 0.6, name: 'lively' },
+  { upTo: 0.8, name: 'crisp' },
   { upTo: 1, name: 'marcato' },
 ];
 
@@ -317,7 +387,7 @@ export function styleName(style: number): string {
 export function tipAt(
   pattern: ConductorPattern,
   pulseInBar: number,
-  style: number,
+  lag: number,
 ): ConductorPoint {
   const count = pattern.length;
   // Wrapped both ways: a count-in sits at negative beats, and JavaScript's
@@ -330,7 +400,7 @@ export function tipAt(
   const start = starts[index];
   const span = ((((starts[(index + 1) % count] ?? 0) - start) % total) + total) % total || total;
 
-  const along = warp(t, lagFor(style)) * span;
+  const along = warp(t, lag) * span;
   const segment = Math.min(span - 1, Math.floor(along));
   const step = Math.min(1, Math.max(0, along - segment));
 
@@ -364,14 +434,14 @@ export function gripFor(pattern: ConductorPattern, tip: ConductorPoint): Conduct
  * themselves. Computed once per pattern so a panel can be fitted to it without
  * knowing anything about conducting.
  */
-export function extentOf(pattern: ConductorPattern, style: number) {
+export function extentOf(pattern: ConductorPattern, lag: number) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
   const steps = 60 * pattern.length;
   for (let i = 0; i <= steps; i++) {
-    const tip = tipAt(pattern, (i / steps) * pattern.length, style);
+    const tip = tipAt(pattern, (i / steps) * pattern.length, lag);
     minX = Math.min(minX, tip.x);
     maxX = Math.max(maxX, tip.x);
     minY = Math.min(minY, tip.y);

@@ -21,6 +21,8 @@ import {
   gripFor,
   patternFor,
   placeInPattern,
+  shapeFor,
+  shapedPattern,
   tipAt,
   type ConductorPoint,
 } from '../render/conductor';
@@ -81,7 +83,16 @@ const ORB_FULL_AT = 0.35;
 
 export function ConductorPanel({ transport, metre, style, tempo }: ConductorPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pattern = patternFor(metre, tempo);
+  const drawn = patternFor(metre, tempo);
+  /*
+   * The gesture, worked out once rather than per frame.
+   *
+   * `shapeFor` reads the style setting and `shapedPattern` applies it, so what
+   * the rest of this component handles is already the shape that will be drawn
+   * — the raw entry in `PATTERNS` is a diagram and never reaches the canvas.
+   */
+  const shape = shapeFor(style);
+  const pattern = drawn && shapedPattern(drawn, shape);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -98,7 +109,7 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
 
     // The gesture's own bounds, so the panel fits the pattern rather than the
     // pattern being drawn at whatever size a guessed aspect ratio allows.
-    const extent = extentOf(pattern, style);
+    const extent = extentOf(pattern, shape.lag);
     const trail: Array<ConductorPoint & { at: number }> = [];
     let frame: number | null = null;
 
@@ -132,7 +143,7 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
       // ticks — the same reading the notation is positioned from.
       const beat = transport.visualBeat();
       const place = placeInPattern(metre, pattern, beat);
-      const tip = tipAt(pattern, place, style);
+      const tip = tipAt(pattern, place, shape.lag);
       const grip = gripFor(pattern, tip);
       const tipPx = px(tip);
 
@@ -193,7 +204,7 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
       if (frame !== null) cancelAnimationFrame(frame);
       colourScheme?.removeEventListener('change', onSchemeChange);
     };
-  }, [transport, metre, pattern, style]);
+  }, [transport, metre, pattern, shape.lag]);
 
   // No pattern for this metre means no conductor, and the metronome carries on
   // alone. Guessing a shape would teach a gesture no conductor will ever make.
@@ -211,7 +222,7 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
    * The draw loop already fits the gesture to whatever box it is given, so
    * this only has to stop the box lying about the shape it holds.
    */
-  const extent = extentOf(pattern, style);
+  const extent = extentOf(pattern, shape.lag);
 
   return (
     <div
