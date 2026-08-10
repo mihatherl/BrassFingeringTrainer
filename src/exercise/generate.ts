@@ -31,7 +31,7 @@ import {
 } from '../domain/rhythm';
 import { pitchClass } from '../domain/pitch';
 import type { Difficulty } from './difficulty';
-import type { Metre } from '../domain/metre';
+import { metreFor, type Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
 import { assembleExercise, type Slot } from './assemble';
 import { tonicWindow } from './theme';
@@ -227,7 +227,22 @@ function restsFilling(from: number, beats: number, metre: Metre): Slot[] {
 
 export function generateExercise(options: GenerateOptions): Exercise {
   const rng = createRng(options.seed);
-  const { metre } = options;
+  /*
+   * Scales and arpeggios are practised in four-four, whatever else is set.
+   *
+   * A scale is not a piece of music with a metre; it is a shape played
+   * against a click, and every method book prints it in four with the
+   * barlines falling where they fall. Reading one in three or in six adds a
+   * metre the exercise does not have and takes attention from the fingering,
+   * which is the whole point of it — and it comes out even besides, two
+   * cycles of an octave being seven bars of four-four exactly.
+   *
+   * Forced here rather than on the settings screen alone, so a stored
+   * setting or a change of material cannot leave a pattern in a metre it
+   * never wanted. The player's chosen signature is untouched and comes back
+   * the moment they choose material that has one.
+   */
+  const metre = isPattern(options.kind) ? metreFor(4, 4) : options.metre;
 
   /*
    * Themes are their own kind rather than a better sight-reading.
@@ -347,6 +362,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
         metre,
         (cycle) => contourFor.get(dealKey(cycle))!.length,
         options.cycles,
+        (cycle) => dealKey(cycle + 1) !== dealKey(cycle),
         options.horizonBars ? options.horizonBars * metre.barBeats : undefined,
       )
     : {
@@ -874,6 +890,8 @@ function patternSlots(
   notesFor: (cycle: number) => number,
   /** Cycles the player asked for; where the white ends. */
   chosenCycles: number,
+  /** Whether the cycle after this one is in a different key. */
+  changesKeyAfter: (cycle: number) => boolean,
   /** Fill whole cycles at least this far, when the material has a horizon. */
   minBeats?: number,
 ): {
@@ -949,17 +967,47 @@ function patternSlots(
     const more =
       cycle + 1 < chosenCycles || (minBeats !== undefined && padded < minBeats - 1e-9);
 
-    // The closing tonic: a cycle omits the tonic it would repeat at each
-    // join, which leaves the very last one hanging on the second degree —
-    // so it is added back once, at the true end of the paper, exactly as
-    // the second-time bar of a scale in any method book does.
-    if (!more) emitNote();
-
-    // Out to the bar line, so the next cycle starts where a cycle should.
-    const leftover = roomInBar() % barBeats;
-    if (leftover > 1e-9) {
-      slots.push(...restsFilling(beat, leftover, metre));
-      beat += leftover;
+    if (!more) {
+      /*
+       * The closing tonic, held to the bar line.
+       *
+       * A cycle omits the tonic it would repeat at each join, which leaves
+       * the last one hanging on the second degree — so it is added back
+       * once, exactly as the second-time bar of a scale in any method book
+       * does. Held rather than played short and rested after: a scale that
+       * ends on a long tonic is how every method book prints one, and it is
+       * what leaves the exercise with no rest in it anywhere.
+       */
+      const room = roomInBar() % barBeats;
+      const held = durationFromBeats(room > 1e-9 ? room : barBeats);
+      if (held) {
+        slots.push({ startBeat: beat, duration: held, isRest: false, tiedFromPrevious: false });
+        beat += durationBeats(held);
+      } else {
+        emitNote();
+        const leftover = roomInBar() % barBeats;
+        if (leftover > 1e-9) {
+          slots.push(...restsFilling(beat, leftover, metre));
+          beat += leftover;
+        }
+      }
+    } else if (changesKeyAfter(cycle)) {
+      /*
+       * Out to the bar line, but only where the next cycle is in a new key.
+       *
+       * That padding is what makes a cycle boundary a bar line, and a key
+       * change may land nowhere else. Where the key does not move there is
+       * nothing to protect and a rest in the middle of a scale is simply a
+       * gap in it: two cycles of an octave are twenty-eight crotchets, which
+       * is seven bars of four-four exactly, and running them together is
+       * both what a player does against a metronome and what makes the
+       * arithmetic come out.
+       */
+      const leftover = roomInBar() % barBeats;
+      if (leftover > 1e-9) {
+        slots.push(...restsFilling(beat, leftover, metre));
+        beat += leftover;
+      }
     }
 
     if (!more) {

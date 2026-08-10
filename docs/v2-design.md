@@ -409,6 +409,18 @@ own tonic — a scale in B flat is a different set of notes, not the same shape
 under a new signature. This is what pattern cycles were for: a cycle boundary
 is a bar line, so a change never lands mid-scale.
 
+*Refined in v1.27.0.* A cycle boundary is padded out to a bar line **where
+the key moves across it**, which is all the padding was ever for. Where the
+key holds, cycles run straight on: a rest in the middle of a scale is a gap
+in the scale, and two cycles of an octave are twenty-eight crotchets, which
+is seven bars of four-four exactly. The closing tonic is then held out to the
+last bar line rather than played short and rested after, as the second-time
+bar of any method book's scale is — so a pattern now contains no rests at
+all. Patterns are also fixed in **four-four** whatever signature is set: a
+scale is a shape played against a click, not a piece with a metre, and the
+player's own choice is untouched and returns with the next material that has
+one.
+
 **Two things worth knowing that are not obvious from the code.**
 
 - *`Candidate.diatonic` had to go.* It was computed once for the whole exercise,

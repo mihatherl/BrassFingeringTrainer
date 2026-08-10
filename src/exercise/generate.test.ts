@@ -169,25 +169,43 @@ describe('scales and arpeggios', () => {
       }
     });
 
-    it.each(PATTERNS)('starts every cycle on a downbeat (%s)', (kind) => {
-      // What the padding is for, and what makes a cycle boundary a bar line —
-      // which is in turn what lets the key change between two of them.
+    it.each(PATTERNS)('lands every key change on a bar line (%s)', (kind) => {
+      /*
+       * What the padding is for, and all it is for. A cycle boundary is made
+       * a bar line exactly where the key moves across it, because that is the
+       * only place a key change may land; where the key holds, cycles run
+       * straight on into one another.
+       */
       for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
-        const cycles = 3;
         const exercise = generateExercise(
-          options({ kind, cycles, difficulty: difficultyById(difficultyId), seed: 11 }),
+          options({
+            kind,
+            cycles: 4,
+            keySet: [-3, -1],
+            difficulty: difficultyById(difficultyId),
+            seed: 11,
+          }),
         );
         const { barBeats } = exercise.metre;
-        const perCycle = (exercise.notes.length - 1) / cycles;
-
-        for (let c = 0; c < cycles; c++) {
-          const opening = exercise.notes[c * perCycle];
+        expect(exercise.keys.length, `${kind} ${difficultyId}: no change to check`).toBeGreaterThan(
+          1,
+        );
+        for (const change of exercise.keys) {
           expect(
-            opening.startBeat % barBeats,
-            `${kind} ${difficultyId}: cycle ${c + 1} starts off the beat`,
+            change.fromBeat % barBeats,
+            `${kind} ${difficultyId}: a key change off the bar line`,
           ).toBeCloseTo(0, 9);
         }
       }
+    });
+
+    it.each(PATTERNS)('runs cycles together where the key holds (%s)', (kind) => {
+      // Two cycles of an octave are twenty-eight crotchets — seven bars of
+      // four-four — and the tonic held at the end fills the eighth. A rest in
+      // the middle of a scale is a gap in the scale.
+      const exercise = generateExercise(options({ kind, cycles: 2, seed: 11 }));
+      expect(exercise.rests).toEqual([]);
+      expect(exercise.totalBeats % exercise.metre.barBeats).toBe(0);
     });
 
     it.each(PATTERNS)('runs to a whole number of bars (%s)', (kind) => {
@@ -347,14 +365,15 @@ describe('scales and arpeggios', () => {
     'uses nothing but plain crotchets at Beginner and Easy (%s)',
     (kind) => {
       // At these levels the exercise is about the fingering, not about reading a
-      // rhythm at the same time.
+      // rhythm at the same time. The closing tonic is the exception, held out
+      // to the bar line as the second-time bar of any method book's scale is.
       for (const difficultyId of ['beginner', 'easy']) {
         for (let seed = 1; seed <= 6; seed++) {
           const exercise = generateExercise(
             options({ kind, difficulty: difficultyById(difficultyId), seed, bars: 8 }),
           );
 
-          for (const note of exercise.notes) {
+          for (const note of exercise.notes.slice(0, -1)) {
             expect(note.duration.value, difficultyId).toBe('quarter');
             expect(note.duration.dotted, difficultyId).toBe(false);
           }
@@ -1090,12 +1109,19 @@ describe('compound time', () => {
     }
   });
 
-  it('keeps patterns inside the pulse too, by their own route', () => {
+  it('gives a pattern four-four whatever metre was asked for', () => {
+    /*
+     * A scale is a shape played against a click rather than a piece with a
+     * metre, so it is always in four — which also means the compound rules
+     * above never apply to one. The player's own signature is untouched and
+     * returns with the next material that has one.
+     */
     for (const difficulty of DIFFICULTIES) {
-      const exercise = generateExercise(
-        options({ difficulty, metre, kind: 'scales', cycles: 2, seed: 4 }),
-      );
-      expect(straddles(exercise), difficulty.id).toEqual([]);
+      for (const kind of ['scales', 'arpeggios'] as const) {
+        const exercise = generateExercise(options({ difficulty, metre, kind, cycles: 2, seed: 4 }));
+        expect(exercise.metre.beatsPerBar, `${kind} ${difficulty.id}`).toBe(4);
+        expect(exercise.metre.beatUnit, `${kind} ${difficulty.id}`).toBe(4);
+      }
     }
   });
 

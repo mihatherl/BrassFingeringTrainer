@@ -112,7 +112,7 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
   },
   {
     name: 'scale-cycles',
-    why: 'Each cycle padded out to its bar line, which is what makes a cycle boundary a bar line.',
+    why: 'Cycles running straight on into one another, with the tonic held at the end — no gap in the middle of a scale.',
     exercise: () => generated({ kind: 'scales', cycles: 2 }),
   },
   {

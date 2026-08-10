@@ -294,8 +294,12 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
         <div className="field-row">
           <label className="field">
             <span className="field__label">Time signature</span>
+            {/* A scale is a shape played against a click rather than a piece
+                with a metre, so it is always four-four; the choice is kept
+                and comes back with the next material that has one. */}
             <select
-              value={`${settings.beatsPerBar}/${settings.beatUnit}`}
+              value={patternKind ? '4/4' : `${settings.beatsPerBar}/${settings.beatUnit}`}
+              disabled={patternKind}
               onChange={(event) => {
                 const [beatsPerBar, beatUnit] = event.target.value.split('/').map(Number);
                 onChange({ ...settings, beatsPerBar, beatUnit });
