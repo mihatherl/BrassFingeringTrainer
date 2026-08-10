@@ -1035,6 +1035,63 @@ describe('the horizon', () => {
   });
 });
 
+describe('somewhere to put a valve down, past every boundary', () => {
+  /*
+   * Carrying on playing is how a player takes the offer of more music, and
+   * with buttons a valve going down is the only unambiguous way to say so —
+   * an open note and an abandoned instrument are the same input. So the few
+   * beats past each block boundary keep open notes out of the way where the
+   * material is free to answer, and it turns out that even where it is not —
+   * a pattern's contour is fixed, a theme's notes are somebody's tune — a
+   * whole window is never open by accident.
+   */
+  const metre = metreFor(4, 4);
+  const windows = (kind: 'random' | 'phrases' | 'scales' | 'themes', seed: number) => {
+    const exercise = generateExercise(
+      options({ kind, metre, bars: 8, cycles: 2, themeCount: 2, seed, horizonBars: 60 }),
+    );
+    const block = exercise.chosenBeats;
+    const found: Array<typeof exercise.notes> = [];
+    for (let beat = block; beat < exercise.totalBeats; beat += block) {
+      const inWindow = exercise.notes.filter(
+        (n) => n.startBeat >= beat - 1e-9 && n.startBeat < beat + 4 - 1e-9,
+      );
+      if (inWindow.length > 0) found.push(inWindow);
+    }
+    return found;
+  };
+
+  it('never opens a boundary with nothing but open notes', () => {
+    for (const kind of ['random', 'phrases', 'scales', 'themes'] as const) {
+      for (let seed = 1; seed <= 8; seed++) {
+        for (const inWindow of windows(kind, seed)) {
+          expect(
+            inWindow.some((n) => !n.acceptedMasks.includes(0)),
+            `${kind} seed ${seed}: a whole window playable open`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('steers free material away from open notes there', () => {
+    // Where the material can answer, it mostly does — a preference rather
+    // than a rule, since a stepwise line may have only one note to offer.
+    let open = 0;
+    let total = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      for (const inWindow of windows('random', seed)) {
+        for (const note of inWindow) {
+          total++;
+          if (note.acceptedMasks.includes(0)) open++;
+        }
+      }
+    }
+    expect(total).toBeGreaterThan(50);
+    expect(open / total, 'open notes just past a boundary').toBeLessThan(0.1);
+  });
+});
+
 describe('key changes against the horizon', () => {
   const metre = metreFor(2, 4);
   const withHorizon = (keySet: number[], bars: number) =>

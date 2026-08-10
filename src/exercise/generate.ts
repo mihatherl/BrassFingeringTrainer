@@ -50,6 +50,22 @@ import type { Exercise, ExerciseKind } from './types';
 export const HORIZON_BARS = 200;
 
 /**
+ * How far past a block boundary the music keeps open notes out of the way.
+ *
+ * Carrying on playing is how a player takes the offer of more music without
+ * lifting a hand off the instrument — and with buttons, an open note is
+ * indistinguishable from an abandoned one, so a boundary that opened with
+ * open notes would leave them pressing a button after all. A preference
+ * rather than a rule: a pattern's notes are fixed by its contour and a
+ * theme's by whoever wrote it, so this can only ask where the material is
+ * free to answer.
+ *
+ * Matches `GRACE_BEATS` in `session.ts`, which is how long the offer stays
+ * open; the two are the same stretch of music seen from either end.
+ */
+const VALVED_BEATS = 4;
+
+/**
  * Which end of the instrument a pattern is practised in.
  *
  * Only ever a preference between the starting notes that actually fit: a
@@ -409,6 +425,23 @@ export function generateExercise(options: GenerateOptions): Exercise {
         soundedSlots.length,
         freshStarts(slots),
         keyForNote,
+        /*
+         * The notes just past each block boundary, which is where a player
+         * carrying on into the grey needs a valve to put down; see
+         * `VALVED_BEATS`. Empty without a horizon, since then there is no
+         * boundary to play through.
+         */
+        new Set(
+          chosenBeats >= totalBeats
+            ? []
+            : soundedSlots
+                .map((slot, index) => ({ slot, index }))
+                .filter(({ slot }) => {
+                  const past = slot.startBeat % chosenBeats;
+                  return slot.startBeat >= chosenBeats - 1e-9 && past < VALVED_BEATS - 1e-9;
+                })
+                .map(({ index }) => index),
+        ),
       );
 
   /*
@@ -1073,6 +1106,8 @@ function generatePitches(
   count: number,
   freshStarts: ReadonlySet<number>,
   keyFor: (noteIndex: number) => number,
+  /** Notes just past a block boundary, which should not be open. */
+  needValve: ReadonlySet<number>,
 ): number[] {
   // Scales and arpeggios never arrive here: their notes come from a contour
   // settled before the rhythm was built, since the rhythm is shaped around it.
@@ -1080,9 +1115,9 @@ function generatePitches(
   // free-material path below, like anything else.
   switch (options.kind) {
     case 'phrases':
-      return phrasePitches(rng, options, candidates, count, freshStarts, keyFor);
+      return phrasePitches(rng, options, candidates, count, freshStarts, keyFor, needValve);
     default:
-      return randomPitches(rng, options, candidates, count, freshStarts, keyFor);
+      return randomPitches(rng, options, candidates, count, freshStarts, keyFor, needValve);
   }
 }
 
@@ -1100,6 +1135,7 @@ function randomPitches(
   count: number,
   freshStarts: ReadonlySet<number>,
   keyFor: (noteIndex: number) => number,
+  needValve: ReadonlySet<number>,
 ): number[] {
   const pitches: number[] = [];
   let previous = nearestCandidate(candidates, middleOf(candidates)).midi;
@@ -1114,7 +1150,7 @@ function randomPitches(
       previous,
       wantChromatic,
       i === 0,
-      { previousMask, freshStart: freshStarts.has(i) },
+      { previousMask, freshStart: freshStarts.has(i), needsValve: needValve.has(i) },
       keyFor(i),
     );
     pitches.push(next.midi);
@@ -1135,6 +1171,7 @@ function phrasePitches(
   count: number,
   freshStarts: ReadonlySet<number>,
   keyFor: (noteIndex: number) => number,
+  needValve: ReadonlySet<number>,
 ): number[] {
   const pitches: number[] = [];
   const centre = middleOf(candidates);
@@ -1160,7 +1197,11 @@ function phrasePitches(
       direction = drift > 0 ? -1 : 1;
     }
 
-    const rules = { previousMask, freshStart: freshStarts.has(i) };
+    const rules = {
+      previousMask,
+      freshStart: freshStarts.has(i),
+      needsValve: needValve.has(i),
+    };
 
     // Candidates lying in the phrase's current direction, within one step or
     // leap — except at a fresh start, where a line coming out of a rest is under
@@ -1314,7 +1355,7 @@ function chooseNext(
   previous: number,
   wantChromatic: boolean,
   first: boolean,
-  fingering: { previousMask: number; freshStart: boolean },
+  fingering: { previousMask: number; freshStart: boolean; needsValve?: boolean },
   /** The key in force at this note, which decides what counts as chromatic. */
   fifths: number,
 ): Candidate {
@@ -1338,16 +1379,22 @@ function chooseNext(
  * **Not open at a fresh start.** Beginning the exercise, or coming out of a
  * rest, on a note that needs no valves is indistinguishable from not having
  * started. Better to begin on something the hand has to do.
+ *
+ * **Not open just past a block boundary.** The same thought, for the moment
+ * it matters most: carrying on playing into the grey is how the offer of
+ * more music is taken, and a valve going down is the only unambiguous way a
+ * set of buttons can say so. Open notes there would leave a player who *is*
+ * playing looking exactly like one who has stopped.
  */
 function applyFingeringRules(
   pool: Candidate[],
-  fingering: { previousMask: number; freshStart: boolean },
+  fingering: { previousMask: number; freshStart: boolean; needsValve?: boolean },
 ): Candidate[] {
   let narrowed = pool;
   if (fingering.previousMask >= 0) {
     narrowed = prefer(narrowed, (c) => c.mask !== fingering.previousMask);
   }
-  if (fingering.freshStart) {
+  if (fingering.freshStart || fingering.needsValve) {
     narrowed = prefer(narrowed, (c) => c.mask !== 0);
   }
   return narrowed;

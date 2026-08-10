@@ -92,7 +92,29 @@ reading ahead is always reading grey. `horizon.ts` holds the arithmetic,
 clamped at both ends and tested against absurd beats, so the number the
 renderer greys against can never run past the paper.
 
-**Then the whole inference was abandoned, and it should have been sooner.**
+**Playing on came back, in v1.28.0, once the ambiguity could be removed at
+source.** The button stays and is still the plainest way to say yes, but the
+music no longer stops dead at the committed end: it plays on into the grey
+for four beats, and **a valve going down in that stretch takes the offer**
+exactly as pressing does — because a player in the middle of a phrase should
+not have to lift a hand off the instrument to say they have not finished.
+
+What makes it honest this time is that the question changed direction.
+Reading *silence* as leaving could never work, for the reason below. Reading
+*playing* as staying has no such problem: a valve down is unambiguous. The
+one gap was a boundary that opened with open notes, where a player who *is*
+playing holds nothing — so the generator now keeps open notes out of the few
+beats past each block boundary, as a preference where the material is free to
+answer. Measured across thousands of boundaries, no window is entirely open
+in any material, including the ones that cannot be steered at all: a
+pattern's contour is fixed and a theme's notes are somebody's tune.
+
+And music offered but not taken is **not scored**. The notes past the
+committed end sounded and were drawn grey; a player who let them pass never
+agreed to play them, and a run ended by declining more music should not be
+marked down for declining it.
+
+**The inference was abandoned once, and that was right at the time.**
 Two rounds of fixing a rule that read intent from silence produced a rule
 that worked and still decided *for* the player, from evidence that never
 quite meant what it appeared to. So the guessing is gone. The music runs to

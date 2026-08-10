@@ -101,6 +101,25 @@ const OFFER_BEATS = 4;
  */
 const OFFER_VOLUME = 0.5;
 
+/**
+ * How far past the committed end the music keeps going while it waits to
+ * hear whether the player is coming with it.
+ *
+ * Carrying on *is* the answer, and always was the natural one: a player in
+ * the middle of a phrase should not have to take a hand off the instrument
+ * to say they have not finished. So the music does not stop dead at the
+ * boundary — it plays on into the grey for a few beats, and a valve going
+ * down in that stretch takes the offer exactly as the button does.
+ *
+ * What the first attempt at this got wrong was reading *silence* as leaving:
+ * with buttons an open note and an abandoned instrument are the same input,
+ * so nothing could be concluded. Reading *playing* as staying has no such
+ * problem — a valve down is unambiguous — and the generator keeps open
+ * notes out of this stretch so there is always a valve to put down. See
+ * `VALVED_BEATS` in `generate.ts`.
+ */
+const GRACE_BEATS = 4;
+
 
 export class Session {
   readonly transport: Transport;
@@ -157,6 +176,17 @@ export class Session {
   }
 
   /**
+   * How far the music actually sounds: the committed end, plus the grace the
+   * offer is open for. Nothing past it is scheduled, drawn white or judged.
+   */
+  private get soundUntil(): number {
+    const { exercise } = this.options;
+    return this.canContinue
+      ? Math.min(exercise.totalBeats, this.playUntil + GRACE_BEATS)
+      : this.playUntil;
+  }
+
+  /**
    * Takes up the offer: another block of music, the same length as the one
    * the player chose, clamped to what was generated.
    *
@@ -172,10 +202,7 @@ export class Session {
    * run reaches its committed end.
    */
   finishNow(): void {
-    if (this.finished) return;
-    this.finished = true;
-    this.stop();
-    this.options.onFinish?.(summarise(this.options.exercise.notes, this.judgements));
+    this.finish();
   }
 
   continuePlaying(): void {
@@ -245,7 +272,7 @@ export class Session {
       const firstPulse = Math.ceil(fromBeat / pulseBeats);
       for (let pulse = firstPulse; pulse * pulseBeats < toBeat; pulse++) {
         const beat = pulse * pulseBeats;
-        if (beat > this.playUntil) break;
+        if (beat > this.soundUntil) break;
         const positionInBar = ((pulse % pulsesPerBar) + pulsesPerBar) % pulsesPerBar;
         this.metronome.click(this.transport.timeForBeat(beat), positionInBar === 0);
       }
@@ -257,10 +284,10 @@ export class Session {
       const index = this.nextNoteToSchedule;
       const note = exercise.notes[index];
       if (note.startBeat >= toBeat) break;
-      // Never sound music that has not been asked for. The pointer stays put
-      // rather than advancing, so accepting the offer picks these up on the
-      // next pass instead of losing them.
-      if (note.startBeat >= this.playUntil - 1e-9) break;
+      // Never sound music that has not been offered. The pointer stays put
+      // rather than advancing, so accepting the offer picks the rest up on
+      // the next pass instead of losing them.
+      if (note.startBeat >= this.soundUntil - 1e-9) break;
       this.nextNoteToSchedule++;
 
       // The far end of a tie is already sounding, played by the note it is tied
@@ -349,23 +376,54 @@ export class Session {
     if (this.finished) return;
 
     this.makeTheOffer(now);
+    this.hearThePlayerOn(now);
 
     /*
-     * The run ends where it is committed to, not where the paper does.
+     * The run ends where the offer runs out, not where the paper does.
      *
-     * Every note this side of the committed end has been judged and its tail
-     * has rung, so there is nothing left to wait for. Past it the music
-     * exists and is drawn grey, and it stays that way unless the player asks
-     * for it — see `continuePlaying`.
+     * Everything this side of it has been judged and its tail has rung, so
+     * there is nothing left to wait for. What was played past the committed
+     * end and never taken up is dropped rather than scored — see `finish`.
      */
-    const endTime = this.transport.timeForBeat(this.playUntil + TAIL_BEATS);
+    const endTime = this.transport.timeForBeat(this.soundUntil + TAIL_BEATS);
     const next = exercise.notes[this.nextNoteToResolve];
-    const allJudged = next === undefined || next.startBeat >= this.playUntil - 1e-9;
-    if (allJudged && now >= endTime) {
-      this.finished = true;
-      this.stop();
-      this.options.onFinish?.(summarise(exercise.notes, this.judgements));
-    }
+    const allJudged = next === undefined || next.startBeat >= this.soundUntil - 1e-9;
+    if (allJudged && now >= endTime) this.finish();
+  }
+
+  /**
+   * Takes the offer on the player's behalf when they simply carry on.
+   *
+   * A valve down past the committed end says everything the button says, and
+   * says it without taking a hand off the instrument. Only past the end:
+   * inside the music they asked for, playing means playing, and reading it as
+   * a request for more would make the length setting impossible to obey.
+   */
+  private hearThePlayerOn(now: number): void {
+    if (!this.offering || !this.canContinue) return;
+    if (this.transport.beatForTime(now) < this.playUntil) return;
+    if (this.input.maskAt(now) === 0) return;
+    this.continuePlaying();
+  }
+
+  /**
+   * Ends the run, scoring what was asked for and no more.
+   *
+   * Notes past the committed end were on offer rather than set: they sounded,
+   * they were drawn grey, and if the offer was let pass then the player never
+   * agreed to play them. Scoring them would mean a run ended by declining
+   * more music was punished for declining it.
+   */
+  private finish(): void {
+    if (this.finished) return;
+    this.finished = true;
+    this.stop();
+
+    const { exercise } = this.options;
+    const asked = this.judgements.filter(
+      (j) => exercise.notes[j.noteIndex].startBeat < this.playUntil - 1e-9,
+    );
+    this.options.onFinish?.(summarise(exercise.notes, asked));
   }
 
   /**

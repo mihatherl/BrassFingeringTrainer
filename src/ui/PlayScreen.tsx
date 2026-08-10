@@ -145,7 +145,15 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         setRecent((current) => [describeNote(exercise, judgement), ...current].slice(0, RECENT_NOTES));
       },
       onFinish: (summary) => finishRef.current(summary),
-      onOffer: setOffering,
+      /*
+       * The offer opening and closing is also when the committed length can
+       * have moved — the player may have taken it by playing on rather than
+       * by pressing, and the counter has to follow either way.
+       */
+      onOffer: (open) => {
+        setOffering(open);
+        setCommittedBeats(session.endBeat);
+      },
     });
     sessionRef.current = session;
     setTransport(session.transport);

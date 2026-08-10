@@ -298,15 +298,16 @@ describe('the offer to carry on', () => {
     return { session, offers, ended: () => endedAt };
   }
 
-  it('ends at the length asked for when the offer is let pass', () => {
+  it('ends when the offer is let pass, a few beats past the length asked for', () => {
     const { session, ended } = watched(horizonExercise());
     session.start();
-    run(0, 14);
+    run(0, 16);
     session.stop();
 
-    // Eight beats chosen out of twenty-four on the paper, plus the tail.
-    expect(ended()).toBeGreaterThanOrEqual(9);
-    expect(ended()).toBeLessThan(10);
+    // Eight beats chosen, four more played on offer, then the tail. The
+    // music does not stop dead at the boundary: it waits to be joined.
+    expect(ended()).toBeGreaterThanOrEqual(13);
+    expect(ended()).toBeLessThan(14);
   });
 
   it('offers a few beats before the music runs out, once', () => {
@@ -337,10 +338,11 @@ describe('the offer to carry on', () => {
     ]);
     expect(ended(), 'still going').toBe(0);
 
-    run(13, 20);
+    run(13, 24);
     session.stop();
-    expect(ended()).toBeGreaterThanOrEqual(17);
-    expect(ended()).toBeLessThan(18);
+    // Sixteen committed, four on offer, then the tail.
+    expect(ended()).toBeGreaterThanOrEqual(21);
+    expect(ended()).toBeLessThan(22);
   });
 
   it('sounds nothing that has not been asked for, then sounds it when it is', () => {
@@ -383,6 +385,70 @@ describe('the offer to carry on', () => {
     session.stop();
     expect(offers).toEqual([]);
     expect(session.canContinue).toBe(false);
+  });
+
+  it('takes the offer from a player who simply carries on', () => {
+    /*
+     * The button is not the only way to say yes. A player in the middle of a
+     * phrase should not have to lift a hand off the instrument to ask for
+     * more, so a valve down past the committed end takes the offer exactly
+     * as pressing does.
+     */
+    const { session, ended } = watched(horizonExercise());
+    session.input.pointerDown(1, 1);
+    session.start();
+    run(0, 10);
+
+    expect(session.endBeat, 'playing on bought another block').toBe(16);
+    expect(ended(), 'and the run is still going').toBe(0);
+    session.stop();
+  });
+
+  it('leaves the chosen length alone while the player is inside it', () => {
+    // Playing means playing until the music runs out. Reading it as a request
+    // for more before then would make the length setting impossible to obey.
+    const { session } = watched(horizonExercise());
+    session.input.pointerDown(1, 1);
+    session.start();
+    run(0, 6);
+    expect(session.endBeat).toBe(8);
+    session.stop();
+  });
+
+  it('scores what was asked for, not what was offered and declined', () => {
+    /*
+     * The music plays on past the committed end while it waits to hear. A
+     * player who lets it pass never agreed to those notes, so they are
+     * dropped rather than counted as missed — otherwise declining more music
+     * would cost you marks for declining it.
+     */
+    let summary: SessionSummary | null = null;
+    const s = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: (result) => {
+        summary = result;
+      },
+    });
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+    s.start();
+    run(0, 7.5);
+    // Hands off just before the boundary: the offer passes unanswered.
+    s.input.releaseAll();
+    run(7.5, 20);
+    s.stop();
+
+    const finished = summary as unknown as SessionSummary;
+    expect(finished, 'the run ended').not.toBeNull();
+    // Eight beats of chosen music, all played correctly, and nothing beyond.
+    expect(finished.total).toBe(8);
+    expect(finished.correct).toBe(8);
   });
 
   it('drops the reference tone while the offer stands, and restores it', () => {
