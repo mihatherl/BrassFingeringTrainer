@@ -66,6 +66,16 @@ export interface SessionOptions {
 const RESOLVE_INTERVAL_MS = 10;
 const TAIL_BEATS = 1;
 
+/**
+ * Consecutive silent bars past the chosen length that end a run.
+ *
+ * Two rather than one, because a player who loses their place and drops out
+ * to find it again is resting, not finished — and a brass player does
+ * exactly that. At an ordinary tempo this is around five seconds of holding
+ * nothing while the music goes past, which nobody does by accident.
+ */
+const SILENT_BARS_TO_STOP = 2;
+
 
 export class Session {
   readonly transport: Transport;
@@ -80,6 +90,8 @@ export class Session {
   private nextNoteToResolve = 0;
   /** Bar the stop rule examines next; starts where the chosen length ends. */
   private nextStopBar: number;
+  /** Consecutive bars that asked for a valve and got nothing. */
+  private silentBars = 0;
   /** Notes already confirmed as right, so each is announced only once. */
   private readonly noticed: boolean[];
   private finished = false;
@@ -260,15 +272,23 @@ export class Session {
     if (this.finished) return;
 
     /*
-     * Stopped, or resting? From the chosen end onwards, a whole bar that
-     * contains notes and saw no playing ends the run. "No playing" means no
-     * valve down at any instant of the bar and no note in it judged correct —
-     * the second clause because open is a real fingering, and a bar of open
-     * notes played perfectly involves touching nothing. Wrong notes are
-     * playing, so fluffing four bars and carrying on survives; bars of rests
-     * prove nothing either way and are passed over. The rule is the simplest
-     * one that works, written to be replaced by the microphone — which can
-     * simply hear that you have stopped — rather than refined.
+     * Stopped, or resting? Past the chosen length, consecutive bars that ask
+     * for a valve and get nothing end the run.
+     *
+     * **A bar every note of which could be played open proves nothing** and is
+     * passed over, exactly like a bar of rests. With buttons, playing an open
+     * note and having put the instrument down are the same input — the design
+     * doc says so outright — so a bar that never demands a valve cannot tell
+     * the two apart, and asking it to was this rule's first and worst bug: it
+     * credited such a bar as played, and since four bars in five contain an
+     * open note, a player who stopped was carried on for bar after bar.
+     * Scales, every bar of which has one, were never stopped at all.
+     *
+     * Wrong valves are playing, so fluffing and carrying on survives — the
+     * evidence wanted is a valve down at some instant, not a correct answer.
+     * The whole rule remains the simplest one that works, written to be
+     * replaced by the microphone — which can simply hear that you have
+     * stopped — rather than refined.
      */
     if (this.stoppedPlaying(now)) {
       this.finished = true;
@@ -297,15 +317,18 @@ export class Session {
       if (now < this.transport.timeForBeat(barEnd)) return false;
 
       const inBar = (beat: number) => beat >= barStart - 1e-9 && beat < barEnd - 1e-9;
-      if (exercise.notes.some((note) => inBar(note.startBeat))) {
-        const touched =
-          this.input
-            .statesDuring(this.transport.timeForBeat(barStart), this.transport.timeForBeat(barEnd))
-            .some((state) => state.mask !== 0) ||
-          this.judgements.some(
-            (j) => j.verdict === 'correct' && inBar(exercise.notes[j.noteIndex].startBeat),
-          );
-        if (!touched) return true;
+      // Only a note that cannot be played open asks a question silence can
+      // answer. Bars of rests, and bars a bugle could play, are transparent:
+      // they neither end a run nor forgive one.
+      const demanding = exercise.notes.some(
+        (note) => inBar(note.startBeat) && !note.acceptedMasks.includes(0),
+      );
+      if (demanding) {
+        const touched = this.input
+          .statesDuring(this.transport.timeForBeat(barStart), this.transport.timeForBeat(barEnd))
+          .some((state) => state.mask !== 0);
+        this.silentBars = touched ? 0 : this.silentBars + 1;
+        if (this.silentBars >= SILENT_BARS_TO_STOP) return true;
       }
       this.nextStopBar++;
     }

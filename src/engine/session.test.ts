@@ -268,7 +268,7 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     }
   }
 
-  it('ends the run after a whole silent bar, and not a moment sooner', () => {
+  it('ends the run after two silent bars, and not a moment sooner', () => {
     let summary: SessionSummary | null = null;
     let endedAt = 0;
     const s = new Session({
@@ -292,11 +292,12 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     run(6, 12);
     s.stop();
 
-    // Bars one to three had input; the bar from beat 6 was silent, so the
-    // run ends at its bar line rather than at the end of the paper.
+    // Playing stops at beat 6; the bars from 6 and from 8 are both silent,
+    // so the run ends at the second one's bar line rather than at the end of
+    // the paper — one bar out being resting rather than stopping.
     expect(summary).not.toBeNull();
-    expect(endedAt).toBeGreaterThanOrEqual(8);
-    expect(endedAt).toBeLessThan(10);
+    expect(endedAt).toBeGreaterThanOrEqual(10);
+    expect(endedAt).toBeLessThan(11);
     const finished = summary as unknown as SessionSummary;
     expect(finished.total).toBeLessThan(12);
   });
@@ -324,6 +325,80 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     expect(finished.total, 'fluffing to the end is still a whole run').toBe(12);
   });
 
+  it('is not fooled by open notes, which silence and playing share', () => {
+    /*
+     * The bug this rule shipped with. A player holding nothing *is* holding
+     * "open", so every open note past the chosen end was judged correct and
+     * the bar counted as played — and four bars in five contain one. Bars
+     * that never demand a valve must therefore prove nothing at all.
+     */
+    const openNote = (startBeat: number): NoteEvent => ({
+      ...note(startBeat, 1),
+      acceptedMasks: [0],
+      primaryMask: 0,
+    });
+    const ended = { at: 0 };
+    const exercise: Exercise = {
+      ...horizonExercise(),
+      // Bars three and four are all open; bars five and six demand valves.
+      notes: [
+        ...[0, 1, 2, 3].map((b) => note(b, 1)),
+        ...[4, 5, 6, 7].map(openNote),
+        ...[8, 9, 10, 11].map((b) => note(b, 1)),
+      ],
+    };
+    const s = new Session({
+      context,
+      exercise,
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: () => {
+        ended.at = audioTime;
+      },
+    });
+    s.start();
+    run(0, 14);
+    s.stop();
+
+    // The open bars neither end the run nor rescue it; the two demanding
+    // bars that follow do, and the run ends at the second one's bar line.
+    expect(ended.at).toBeGreaterThanOrEqual(12);
+    expect(ended.at).toBeLessThan(13);
+  });
+
+  it('forgives one bar out, and ends on the second', () => {
+    // A player who loses their place and drops out for a bar is resting.
+    let endedAt = 0;
+    const s = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: () => {
+        endedAt = audioTime;
+      },
+    });
+    s.start();
+    s.input.pointerDown(1, 1);
+    run(0, 4);
+    s.input.pointerUp(1); // out for the bar from beat 4
+    run(4, 6);
+    s.input.pointerDown(1, 1); // back in for the bar from beat 6
+    run(6, 8);
+    expect(endedAt, 'one bar out is resting, not stopping').toBe(0);
+
+    s.input.pointerUp(1);
+    run(8, 14);
+    s.stop();
+    expect(endedAt).toBeGreaterThan(0);
+  });
+
   it('never ends a run inside the chosen length, however silent', () => {
     let summary: SessionSummary | null = null;
     let endedAt = 0;
@@ -349,6 +424,65 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     const finished = summary as unknown as SessionSummary;
     expect(finished.total).toBe(12);
     expect(endedAt).toBeGreaterThanOrEqual(12);
+  });
+});
+
+describe('reaching the end of the paper', () => {
+  /*
+   * The horizon is generous, not infinite. A player who plays every bar of
+   * it must be finished cleanly rather than left running against music that
+   * has run out — which is the one way an endless session could hang.
+   */
+  it('finishes decisively when the last bar is played', () => {
+    let summary: SessionSummary | null = null;
+    let endedAt = 0;
+    // Four bars chosen, twelve on the paper: the shape of the real thing,
+    // short enough to play to its end in a test.
+    const exercise: Exercise = {
+      notes: Array.from({ length: 24 }, (_, i) => note(i * 0.5, 0.5)),
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metre: metreFor(2, 4),
+      tempo: [],
+      totalBeats: 12,
+      chosenBeats: 4,
+      seed: 1,
+      kind: 'random',
+    };
+
+    const s = new Session({
+      context,
+      exercise,
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: (result) => {
+        summary = result;
+        endedAt = audioTime;
+      },
+    });
+
+    // Played all the way through, right off the end of the paper.
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+    s.start();
+    for (let elapsed = 0; elapsed <= 20; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    s.stop();
+
+    expect(summary, 'the run must end, not hang').not.toBeNull();
+    const finished = summary as unknown as SessionSummary;
+    expect(finished.total).toBe(24);
+    expect(finished.correct).toBe(24);
+    // At the paper's end plus the tail, and nowhere later.
+    expect(endedAt).toBeGreaterThanOrEqual(12);
+    expect(endedAt).toBeLessThan(14);
   });
 });
 

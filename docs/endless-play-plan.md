@@ -60,6 +60,49 @@ already reads every join the stitching reports. What remains of this plan
 is playing: the stop rule's patience, the window size, and whatever else
 the instrument turns up.
 
+## What playing turned up, and what it cost
+
+**The stop rule never fired, and the reason is a ruling this project had
+already written down.** It credited a bar as played if any note in it was
+judged correct — meant to protect a bar of open notes played perfectly. But
+with buttons, holding nothing *is* holding open, so a player who had walked
+away had every open note marked correct beneath them. Measured on the app's
+own defaults: 83% of random bars contain an open note, 87% of sight-reading
+bars, and **100% of scale bars** — a real exercise ran nine bars past the
+chosen end before stopping, and a scale would have run to the cap. The clause
+could only ever suppress the rule, never inform it, because it fired
+precisely when the evidence was ambiguous. *v2-design.md* said as much before
+any of this was built: "with buttons, silence is ambiguous. Resting, missing
+a passage badly, and putting the instrument down all look identical."
+
+So a bar every note of which could be played open now proves nothing and is
+passed over, exactly like a bar of rests, and the evidence wanted is a valve
+down rather than a correct answer. Patience went to **two consecutive**
+demanding silent bars, because a player who loses their place and drops out
+to find it is resting, not finished — around five seconds at an ordinary
+tempo. Measured in the real app: stopping now reaches the results screen in
+2–5 seconds.
+
+**The white promotes a block at a time**, a block being the length the player
+chose — the promotion this plan's parent document proposed and the first
+build quietly dropped in favour of one bar at a time. Revealing bar by bar
+looks equivalent and is worse for the reason the whole feature exists: the
+bar you are *about* to play stays grey until you are inside it, so a player
+reading ahead is always reading grey. `horizon.ts` holds the arithmetic,
+clamped at both ends and tested against absurd beats, so the number the
+renderer greys against can never run past the paper.
+
+## Still open, and known
+
+- **The Stop button discards the run.** It returns to settings with no
+  results, which was harmless when exercises ended by themselves and is not
+  now that stopping is the designed ending.
+- **Variable tempo is sparse across the grey** for free material and
+  patterns: the plan is given one interior boundary, the chosen end, so a
+  two-hundred-bar run gets a single step and a closing rit. Themes are fine,
+  having a join per tune. Block boundaries are the obvious candidate, with a
+  minimum spacing so a four-bar block does not change speed every four bars.
+
 ## Decisions deliberately left to playing
 
 The window size; the cap per material kind (200 bars of free material is

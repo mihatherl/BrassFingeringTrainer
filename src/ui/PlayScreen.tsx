@@ -18,6 +18,7 @@ import { formatPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
 import { Session } from '../engine/session';
 import { fingeringHints } from '../exercise/hints';
+import { whiteUntilBeat } from '../exercise/horizon';
 import { soundingHeads } from '../exercise/ties';
 import { loadStats } from '../storage/stats';
 import { SCORE_WINDOW_BARS, type NoteJudgement, type SessionSummary, type Verdict } from '../engine/judge';
@@ -169,24 +170,9 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       // the note it is tied from rather than staying unmarked beside it.
       verdictFor: (index) => verdictsRef.current[heads[index]],
       hintFor: (index) => hints.get(index),
-      /*
-       * The white's moving end: the bar the playhead is in turns white as it
-       * is entered, so the horizon keeps receding while the player keeps
-       * going. Absent when there is no grey, which is every exercise whose
-       * chosen length is the whole paper.
-       */
-      whiteUntil:
-        exercise.chosenBeats < exercise.totalBeats
-          ? () =>
-              Math.min(
-                exercise.totalBeats,
-                Math.max(
-                  exercise.chosenBeats,
-                  (barAt(exercise.metre, session.transport.visualBeat()) + 1) *
-                    exercise.metre.barBeats,
-                ),
-              )
-          : undefined,
+      // The white's moving end, promoted a block at a time; see `horizon.ts`.
+      // Safe on an exercise with no grey, where it is simply the whole paper.
+      whiteUntil: () => whiteUntilBeat(exercise, session.transport.visualBeat()),
       /*
        * The notation's own scale, handed to the stylesheet so the conductor
        * and the recent-notes band can be measured in it too — see
