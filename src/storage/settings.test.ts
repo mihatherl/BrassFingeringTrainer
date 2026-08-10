@@ -4,10 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   PLAYBACK_MODES,
-  loadOpenPanels,
   loadSettings,
   sanitise,
-  saveOpenPanels,
   saveSettings,
 } from './settings';
 
@@ -94,35 +92,6 @@ describe('a playback mode that no longer exists', () => {
   });
 });
 
-describe('which settings sections are open', () => {
-  it('uses the given defaults when nothing is stored', () => {
-    expect(loadOpenPanels(['exercise'])).toEqual(['exercise']);
-  });
-
-  it('round-trips a choice', () => {
-    saveOpenPanels(['instrument', 'playback']);
-    expect(loadOpenPanels(['exercise'])).toEqual(['instrument', 'playback']);
-  });
-
-  it('remembers everything being closed, rather than falling back to defaults', () => {
-    // Collapsing the lot is a deliberate choice and must survive a reload.
-    saveOpenPanels([]);
-    expect(loadOpenPanels(['exercise'])).toEqual([]);
-  });
-
-  it('ignores rubbish in storage', () => {
-    localStorage.setItem('brass-trainer:open-panels', '{"not":"an array"}');
-    expect(loadOpenPanels(['exercise'])).toEqual(['exercise']);
-
-    localStorage.setItem('brass-trainer:open-panels', 'not json');
-    expect(loadOpenPanels(['exercise'])).toEqual(['exercise']);
-  });
-
-  it('discards non-string entries', () => {
-    localStorage.setItem('brass-trainer:open-panels', '["exercise", 7, null]');
-    expect(loadOpenPanels([])).toEqual(['exercise']);
-  });
-});
 
 describe('sanitising', () => {
   it('rejects an instrument that no longer exists', () => {

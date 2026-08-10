@@ -161,6 +161,27 @@ export function ResultsScreen({
         )}
       </section>
 
+
+      {/*
+        What to do next, above the reading rather than below it.
+        
+        The review and the weak-note chart are worth the room they take and
+        are worth scrolling for; they are not worth scrolling *past* every
+        single time to reach the button that starts another go, which is what
+        most people want within a second of seeing the score.
+      */}
+      <div className="actions">
+        <button type="button" className="button button--primary button--large" onClick={onNext}>
+          Another
+        </button>
+        <button type="button" className="button" onClick={onRepeat}>
+          Same again
+        </button>
+        <button type="button" className="button button--quiet" onClick={onSettings}>
+          Settings
+        </button>
+      </div>
+
       <section className="panel">
         <h2>What you played</h2>
         <ReviewStave exercise={shown} verdicts={verdicts} />
@@ -184,17 +205,6 @@ export function ResultsScreen({
         </section>
       )}
 
-      <div className="actions">
-        <button type="button" className="button button--primary button--large" onClick={onNext}>
-          Another
-        </button>
-        <button type="button" className="button" onClick={onRepeat}>
-          Same again
-        </button>
-        <button type="button" className="button button--quiet" onClick={onSettings}>
-          Settings
-        </button>
-      </div>
     </div>
   );
 }

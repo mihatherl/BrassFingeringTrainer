@@ -202,34 +202,6 @@ export const TIME_SIGNATURES = [
   { beatsPerBar: 6, beatUnit: 8, label: '6/8' },
 ] as const;
 
-const PANELS_KEY = 'brass-trainer:open-panels';
-
-/**
- * Which settings sections are expanded.
- *
- * Kept apart from the settings themselves: it is a view preference, not
- * something that changes what gets generated, and it should not travel with a
- * shared or exported configuration.
- */
-export function loadOpenPanels(fallback: string[]): string[] {
-  try {
-    const raw = localStorage.getItem(PANELS_KEY);
-    if (!raw) return fallback;
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-export function saveOpenPanels(ids: string[]): void {
-  try {
-    localStorage.setItem(PANELS_KEY, JSON.stringify(ids));
-  } catch {
-    // Not worth breaking the screen over.
-  }
-}
-
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

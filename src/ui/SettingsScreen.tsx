@@ -20,8 +20,6 @@ import {
   TEMPO_RANGE,
   TIMING_TOLERANCE_RANGE,
   TIME_SIGNATURES,
-  loadOpenPanels,
-  saveOpenPanels,
   type Settings,
 } from '../storage/settings';
 
@@ -64,9 +62,6 @@ function Panel({ id, title, values, open, onToggle, children }: PanelProps) {
 function summarise(...parts: Array<string | undefined>): string {
   return parts.filter(Boolean).join(' · ');
 }
-
-/** Sections open the first time the app is used. */
-const DEFAULT_OPEN_PANELS = ['exercise'];
 
 function describeSpan(semitones: number): string {
   if (semitones >= 24) return 'two octaves';
@@ -127,23 +122,27 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
     ),
   };
 
-  const [openPanels, setOpenPanels] = useState(() => loadOpenPanels(DEFAULT_OPEN_PANELS));
+  /*
+   * Every section shut on arrival, every time.
+   *
+   * The state used to be remembered, which meant coming back from a run to
+   * whatever had been left open — usually everything, since opening a section
+   * is how you change anything. Shut, the whole screen is six lines saying
+   * what is set and a Start button, which is what someone returning for
+   * another go actually wants to see.
+   */
+  const [openPanels, setOpenPanels] = useState<string[]>([]);
   const isOpen = (id: string) => openPanels.includes(id);
   const setOpen = (id: string, open: boolean) => {
-    setOpenPanels((current) => {
-      const next = open ? [...new Set([...current, id])] : current.filter((p) => p !== id);
-      saveOpenPanels(next);
-      return next;
-    });
+    setOpenPanels((current) =>
+      open ? [...new Set([...current, id])] : current.filter((p) => p !== id),
+    );
   };
 
   return (
     <div className="screen screen--settings">
       <header className="masthead">
         <h1>Brass Fingering Trainer</h1>
-        <p className="muted">
-          Hold the right valves as each note crosses the line.
-        </p>
       </header>
 
       <Panel id="instrument" title="Instrument" values={panelValues.instrument} open={isOpen('instrument')} onToggle={setOpen}>
@@ -182,9 +181,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
               </button>
             ))}
           </div>
-          {clefs.length === 1 && (
-            <p className="field__note muted">{instrument.name} reads treble clef only.</p>
-          )}
         </div>
 
         <p className="field__note muted">
@@ -247,11 +243,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
               );
             })}
           </div>
-          <p className="field__note muted">
-            {settings.keySet.length < 2
-              ? `Staying in ${keySignature?.name ?? ''} throughout. Add a key or two and the exercise will modulate between them, ordered so each change is a step around the circle of fifths rather than a jump.`
-              : `Moving between ${settings.keySet.length} keys. Changes land on a bar line — and for scales and arpeggios, only once a cycle is finished. At most ${MAX_KEYS_IN_PLAY}.`}
-          </p>
         </div>
 
         <div className="field">
@@ -315,15 +306,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
                 </option>
               ))}
             </select>
-            {/* Compound time is a different feel rather than a longer bar, and
-                the app counts it the way a band does. Worth saying, because a
-                player who counts six will fight the metronome all the way. */}
-            {settings.beatUnit === 8 && (
-              <p className="field__note muted">
-                Two beats to the bar, not six — the metronome clicks the dotted crotchets and the
-                conductor beats two, as they would in a march.
-              </p>
-            )}
           </label>
 
           {/* A scale is measured in times through rather than in bars: the
@@ -423,13 +405,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           />
           <span>Variable tempo</span>
         </label>
-        <p className="field__note muted">
-          The tempo you set is where the music starts. Themes change speed where one ends and the
-          next begins — a metronome mark over the bar line says the new speed — and every ending
-          broadens into a rit., printed where it starts. The beat moves and you go with it, which
-          is what following a conductor feels like, and nothing a steady metronome can teach. With
-          the conductor on, watch the tip of the baton cool to blue as the speed comes out.
-        </p>
 
         <label className="field">
           <span className="field__label">
@@ -443,11 +418,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             value={settings.scrollSpeed}
             onChange={(event) => update('scrollSpeed', Number(event.target.value))}
           />
-          <p className="field__note muted">
-            How fast the music travels across the screen. The same on every device and at every
-            tempo — a bigger screen shows more bars rather than moving faster. Dense runs of short
-            notes may still go past quicker, so they stay far enough apart to read.
-          </p>
         </label>
 
         <div className="field">
@@ -484,11 +454,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           />
           <span>Conductor</span>
         </label>
-        <p className="field__note muted">
-          A baton beating the bar, beside the notes you have played. Not either/or with the
-          metronome — watch the stick while hearing the click, then turn the click off. Upright
-          screens only, and not for metres it has no pattern for.
-        </p>
 
         <label className="field field--inline">
           <input
@@ -507,10 +472,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
           />
           <span>Show fingerings for notes I get wrong</span>
         </label>
-        <p className="field__note muted">
-          Printed above the note, and only where there is time to read one — never in a run, and
-          at most one to a bar.
-        </p>
 
         <label className="field">
           <span className="field__label">
@@ -529,12 +490,6 @@ export function SettingsScreen({ settings, onChange, onStart }: SettingsScreenPr
             value={Math.round(settings.timingTolerance * 100)}
             onChange={(event) => update('timingTolerance', Number(event.target.value) / 100)}
           />
-          <p className="field__note muted">
-            How far off the beat a fingering still counts, shown here for a crotchet at{' '}
-            {settings.tempo} bpm. Shorter notes get proportionally less. Reading a note and then
-            moving takes most people around 200 ms, so give yourself room if you are sight-reading
-            rather than playing from memory.
-          </p>
         </label>
 
         <label className="field">

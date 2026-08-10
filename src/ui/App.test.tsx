@@ -39,8 +39,10 @@ describe('the app', () => {
     const instrument = screen.getByLabelText<HTMLSelectElement>('Instrument');
 
     fireEvent.change(instrument, { target: { value: 'cornet' } });
+    // The one button left is the whole explanation; there used to be a line of
+    // prose beside it saying so, which said nothing the control did not.
     expect(screen.queryByRole('button', { name: 'Bass' })).toBeNull();
-    expect(screen.getByText(/reads treble clef only/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Treble' })).toBeTruthy();
 
     fireEvent.change(instrument, { target: { value: 'euphonium' } });
     expect(screen.getByRole('button', { name: 'Bass' })).toBeTruthy();
@@ -78,15 +80,18 @@ describe('the app', () => {
     expect(screen.getByRole('button', { name: 'Hard' }).className).toContain('is-selected');
   });
 
-  it('opens only the exercise section to begin with', () => {
-    // The screen is long; collapsing it is the point, so the rest start shut.
+  it('starts with every section shut, every time', () => {
+    /*
+     * The screen is long and collapsing it is the point. What is set shows on
+     * each shut section's summary line, so arriving at a screen of headings
+     * loses nothing — and coming back from a run no longer means arriving at
+     * whatever happened to be open when you left, which was usually all of it.
+     */
     render(<App />);
     const panels = [...document.querySelectorAll<HTMLDetailsElement>('details.panel')];
 
     expect(panels.length).toBeGreaterThan(3);
-    const open = panels.filter((panel) => panel.open);
-    expect(open).toHaveLength(1);
-    expect(open[0].querySelector('.panel__title')?.textContent).toBe('Exercise');
+    expect(panels.filter((panel) => panel.open)).toHaveLength(0);
   });
 
   it('says what is selected in each collapsed section', () => {
