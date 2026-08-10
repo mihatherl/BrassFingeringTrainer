@@ -12,6 +12,11 @@
   --correct: #1a7f4b;
   --wrong: #c02b2b;
   --missed: #b7791f;
+  /* The play button's two jobs. The verdict hues, since red and green mean
+     the same here as they do on the notes, but their own tokens: these carry
+     white text and the verdict colours never do. */
+  --stop: #b52d2d;
+  --go: #16744a;
   --valve: #e8e4db;
   --valve-down: #2f6fd0;
   --valve-down-text: #ffffff;
@@ -47,6 +52,8 @@
     --correct: #4ade80;
     --wrong: #f87171;
     --missed: #fbbf24;
+    --stop: #c03b35;
+    --go: #1a7f52;
     --valve: #2c2f38;
     --valve-down: #63a1ff;
     --valve-down-text: #0d1017;
@@ -139,9 +146,45 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.play-bar .button {
-  padding: 0.25rem 0.7rem;
-  font-size: 0.85rem;
+/*
+ * The one button on the play screen, and the only thing there a player
+ * touches other than the valves — so it is sized for a thumb reaching across
+ * an instrument rather than for a cursor. A player reported the old quiet
+ * text link as too small to find, which it was: it was a link pretending to
+ * be a control.
+ *
+ * Written against `.button` rather than beside it, because the base class is
+ * defined further down this file and would otherwise win on source order —
+ * which is exactly what happened first, leaving a bigger button in the wrong
+ * colours entirely.
+ */
+.button.play-action {
+  min-width: 7rem;
+  min-height: 3rem;
+  padding: 0.6rem 1.4rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  border-radius: 10px;
+  color: #fff;
+  /* Only the colour changes between its two jobs, so the button does not
+     move or resize under a thumb already on its way to it. */
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.button.play-action--stop {
+  background: var(--stop);
+  border-color: var(--stop);
+}
+
+.button.play-action--continue {
+  background: var(--go);
+  border-color: var(--go);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-action {
+    transition: none;
+  }
 }
 
 .play-stats {

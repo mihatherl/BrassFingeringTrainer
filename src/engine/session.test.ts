@@ -243,18 +243,22 @@ describe('a session across a step change', () => {
   });
 });
 
-describe('stopped, or resting — the rule beyond the chosen length', () => {
-  /** Six bars of 2/4 crotchets; the chosen length is the first two. */
-  function horizonExercise(chosenBeats = 4, notes = Array.from({ length: 12 }, (_, i) => note(i, 1))): Exercise {
+describe('the offer to carry on', () => {
+  /*
+   * Nothing is inferred from playing or silence any more. The music runs to
+   * the length the player asked for; a few beats before it does, the session
+   * offers more, and the offer is answered by a call or not at all.
+   */
+  function horizonExercise(chosenBeats = 8): Exercise {
     return {
-      notes,
+      notes: Array.from({ length: 24 }, (_, i) => note(i, 1)),
       rests: [],
       instrumentId: 'eb-bass',
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
       metre: metreFor(2, 4),
       tempo: [],
-      totalBeats: 12,
+      totalBeats: 24,
       chosenBeats,
       seed: 1,
       kind: 'random',
@@ -268,121 +272,123 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
     }
   }
 
+  interface Watched {
+    session: Session;
+    offers: boolean[];
+    ended: () => number;
+  }
+
   /** A session at 60bpm, where one second of audio time is one beat. */
-  function sessionOn(exercise: Exercise, onFinish: () => void): Session {
-    return new Session({
+  function watched(exercise: Exercise, playback: 'off' | 'reference' = 'off'): Watched {
+    const offers: boolean[] = [];
+    let endedAt = 0;
+    const session = new Session({
       context,
       exercise,
       tempo: 60,
       countInBars: 0,
       metronomeEnabled: false,
-      playbackMode: 'off',
+      playbackMode: playback,
       brassVoice: voice,
-      onFinish,
-    });
-  }
-
-  it('ends a few beats after the playing stops, and not before', () => {
-    let endedAt = 0;
-    const s = sessionOn(horizonExercise(), () => {
-      endedAt = audioTime;
-    });
-    // Wrong valves are still playing: a fingering nothing here accepts.
-    s.input.pointerDown(1, 1);
-    s.start();
-    run(0, 6);
-    s.input.pointerUp(1);
-    run(6, 8);
-    expect(endedAt, 'three beats of silence, not two').toBe(0);
-    run(8, 12);
-    s.stop();
-
-    expect(endedAt).toBeGreaterThanOrEqual(9);
-    expect(endedAt).toBeLessThan(10);
-  });
-
-  it('is not fooled by open notes, which silence and playing share', () => {
-    /*
-     * The bug this rule shipped with. A player holding nothing *is* holding
-     * "open", so notes that accept open were judged correct beneath an absent
-     * player and the run was carried on — and four bars in five contain one.
-     * Music that never demands a valve must prove nothing at all.
-     */
-    const openNote = (startBeat: number): NoteEvent => ({
-      ...note(startBeat, 1),
-      acceptedMasks: [0],
-      primaryMask: 0,
-    });
-    let endedAt = 0;
-    // Beats 4 to 7 are open; the demanding notes resume at beat 8.
-    const s = sessionOn(
-      horizonExercise(4, [
-        ...[0, 1, 2, 3].map((b) => note(b, 1)),
-        ...[4, 5, 6, 7].map(openNote),
-        ...[8, 9, 10, 11].map((b) => note(b, 1)),
-      ]),
-      () => {
+      onOffer: (offering) => offers.push(offering),
+      onFinish: () => {
         endedAt = audioTime;
       },
-    );
-    s.start();
-    run(0, 7.5);
-    // Four beats of silence have passed, but nothing in them asked for a
-    // valve, so nothing has been proved and the run stands.
-    expect(endedAt, 'open notes cannot tell playing from silence').toBe(0);
-    run(7.5, 12);
-    s.stop();
-
-    // The first note that needs a valve settles it.
-    expect(endedAt).toBeGreaterThanOrEqual(8);
-    expect(endedAt).toBeLessThan(9);
-  });
-
-  it('forgives a moment out, and ends when it becomes a departure', () => {
-    // A player who loses their place for a beat or two is resting.
-    let endedAt = 0;
-    const s = sessionOn(horizonExercise(), () => {
-      endedAt = audioTime;
     });
-    s.start();
-    s.input.pointerDown(1, 1);
-    run(0, 4);
-    s.input.pointerUp(1);
-    run(4, 6); // two beats out
-    s.input.pointerDown(1, 1);
-    run(6, 7);
-    expect(endedAt, 'two beats out is resting, not stopping').toBe(0);
+    return { session, offers, ended: () => endedAt };
+  }
 
-    s.input.pointerUp(1);
-    run(7, 12);
-    s.stop();
-    // Three beats after the departure — the tick grid puts it a hair under.
-    expect(endedAt).toBeGreaterThan(9.5);
-    expect(endedAt).toBeLessThan(11);
-  });
-
-  it('never ends a run inside the chosen length, however silent', () => {
-    let summary: SessionSummary | null = null;
-    let endedAt = 0;
-    const s = sessionOn(horizonExercise(12), (result?: SessionSummary) => {
-      summary = (result ?? null) as SessionSummary | null;
-      endedAt = audioTime;
-    });
-    s.start();
+  it('ends at the length asked for when the offer is let pass', () => {
+    const { session, ended } = watched(horizonExercise());
+    session.start();
     run(0, 14);
-    s.stop();
+    session.stop();
 
-    // No horizon, no input at all: the session runs to the end as it always
-    // has, because the rule only wakes past the chosen length.
-    const finished = summary as unknown as SessionSummary;
-    expect(finished.total).toBe(12);
-    expect(endedAt).toBeGreaterThanOrEqual(12);
+    // Eight beats chosen out of twenty-four on the paper, plus the tail.
+    expect(ended()).toBeGreaterThanOrEqual(9);
+    expect(ended()).toBeLessThan(10);
   });
 
-  it('drops the reference tone into the grey, and restores it when played to', () => {
+  it('offers a few beats before the music runs out, once', () => {
+    const { session, offers } = watched(horizonExercise());
+    session.start();
+    run(0, 3);
+    expect(offers, 'nothing offered in the body of the run').toEqual([]);
+    run(3, 5);
+    expect(offers, 'offered four beats out, and only once').toEqual([true]);
+    session.stop();
+  });
+
+  it('plays on when the offer is taken, and offers again next time', () => {
+    const { session, offers, ended } = watched(horizonExercise());
+    session.start();
+    run(0, 5);
+    expect(offers).toEqual([true]);
+
+    session.continuePlaying();
+    expect(offers, 'accepting withdraws the offer').toEqual([true, false]);
+    expect(session.endBeat).toBe(16);
+
+    run(5, 13);
+    expect(offers, 'the next block asks for itself in its own last beats').toEqual([
+      true,
+      false,
+      true,
+    ]);
+    expect(ended(), 'still going').toBe(0);
+
+    run(13, 20);
+    session.stop();
+    expect(ended()).toBeGreaterThanOrEqual(17);
+    expect(ended()).toBeLessThan(18);
+  });
+
+  it('sounds nothing that has not been asked for, then sounds it when it is', () => {
+    const { session } = watched(horizonExercise(), 'reference');
+    session.start();
+    run(0, 5);
+    // Eight beats committed: the notes at beats 8 and beyond are not ours.
+    expect(played.every((p) => p.startTime < session.transport.timeForBeat(8))).toBe(true);
+    const before = played.length;
+
+    session.continuePlaying();
+    run(5, 9);
+    expect(played.length, 'the next block sounds once it is taken').toBeGreaterThan(before);
+    session.stop();
+  });
+
+  it('refuses to be pressed twice for one block, or past the paper', () => {
+    const { session } = watched(horizonExercise());
+    session.start();
+    run(0, 5);
+
+    session.continuePlaying();
+    session.continuePlaying();
+    expect(session.endBeat, 'one press, one block').toBe(16);
+
+    run(5, 13);
+    session.continuePlaying();
+    expect(session.endBeat, 'clamped to what was generated').toBe(24);
+    expect(session.canContinue).toBe(false);
+
+    session.continuePlaying();
+    expect(session.endBeat).toBe(24);
+    session.stop();
+  });
+
+  it('says nothing at all when the exercise has no horizon', () => {
+    const { session, offers } = watched(horizonExercise(24));
+    session.start();
+    run(0, 26);
+    session.stop();
+    expect(offers).toEqual([]);
+    expect(session.canContinue).toBe(false);
+  });
+
+  it('drops the reference tone while the offer stands, and restores it', () => {
     const volumes: number[] = [];
     const listening = { ...voice, setVolume: (v: number) => volumes.push(v) };
-    const s = new Session({
+    const session = new Session({
       context,
       exercise: horizonExercise(),
       tempo: 60,
@@ -390,32 +396,59 @@ describe('stopped, or resting — the rule beyond the chosen length', () => {
       metronomeEnabled: false,
       playbackMode: 'reference',
       brassVoice: listening,
-      onFinish: () => {},
     });
 
-    s.start();
+    session.start();
     expect(volumes, 'a run starts at full voice').toEqual([1]);
-    run(0, 5); // into the grey, holding nothing
-    expect(volumes[volumes.length - 1], 'quietened past the chosen end').toBe(0.5);
+    run(0, 5);
+    expect(volumes[volumes.length - 1], 'quiet while the question stands').toBe(0.5);
 
-    s.input.pointerDown(1, 1);
-    run(5, 6);
+    session.continuePlaying();
     expect(volumes[volumes.length - 1], 'answered, so back to full').toBe(1);
-    s.stop();
+    session.stop();
+  });
+
+  it('stops on the spot when asked, reporting what was played', () => {
+    let summary: SessionSummary | null = null;
+    const s = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onFinish: (result) => {
+        summary = result;
+      },
+    });
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+    s.start();
+    run(0, 3);
+    s.finishNow();
+
+    const finished = summary as unknown as SessionSummary;
+    expect(finished, 'the run is reported, not discarded').not.toBeNull();
+    expect(finished.total).toBeGreaterThan(0);
+    expect(finished.correct).toBe(finished.total);
+    // And it is over: nothing more is judged after the fact.
+    const judged = finished.total;
+    run(3, 12);
+    expect(s.judgements).toHaveLength(judged);
   });
 });
 
 describe('reaching the end of the paper', () => {
   /*
-   * The horizon is generous, not infinite. A player who plays every bar of
-   * it must be finished cleanly rather than left running against music that
-   * has run out — which is the one way an endless session could hang.
+   * The horizon is generous, not infinite. A player who takes every offer
+   * must be finished cleanly at the end of it rather than left running
+   * against music that has run out — the one way an endless session could
+   * hang.
    */
-  it('finishes decisively when the last bar is played', () => {
+  it('finishes decisively when the last block is played', () => {
     let summary: SessionSummary | null = null;
     let endedAt = 0;
-    // Four bars chosen, twelve on the paper: the shape of the real thing,
-    // short enough to play to its end in a test.
     const exercise: Exercise = {
       notes: Array.from({ length: 24 }, (_, i) => note(i * 0.5, 0.5)),
       rests: [],
@@ -430,7 +463,10 @@ describe('reaching the end of the paper', () => {
       kind: 'random',
     };
 
-    const s = new Session({
+    // A player who says yes every time, until there is nothing left to say
+    // yes to: four beats, then eight, then the whole twelve.
+    const holder: { session?: Session } = {};
+    holder.session = new Session({
       context,
       exercise,
       tempo: 60,
@@ -438,13 +474,16 @@ describe('reaching the end of the paper', () => {
       metronomeEnabled: false,
       playbackMode: 'off',
       brassVoice: voice,
+      onOffer: (offering) => {
+        if (offering) holder.session?.continuePlaying();
+      },
       onFinish: (result) => {
         summary = result;
         endedAt = audioTime;
       },
     });
+    const s = holder.session;
 
-    // Played all the way through, right off the end of the paper.
     s.input.pointerDown(1, 1);
     s.input.pointerDown(2, 2);
     s.start();
@@ -456,8 +495,9 @@ describe('reaching the end of the paper', () => {
 
     expect(summary, 'the run must end, not hang').not.toBeNull();
     const finished = summary as unknown as SessionSummary;
-    expect(finished.total).toBe(24);
+    expect(finished.total, 'every note on the paper').toBe(24);
     expect(finished.correct).toBe(24);
+    expect(s.canContinue, 'nothing left to offer').toBe(false);
     // At the paper's end plus the tail, and nowhere later.
     expect(endedAt).toBeGreaterThanOrEqual(12);
     expect(endedAt).toBeLessThan(14);

@@ -57,6 +57,14 @@ export interface SessionOptions {
    */
   onCorrect?: (noteIndex: number) => void;
   onFinish?: (summary: SessionSummary) => void;
+  /**
+   * Raised when the music is about to run out and the player may ask for
+   * more, and again when the offer is taken up or has passed.
+   *
+   * The screen turns this into a button; the session does not care how it is
+   * answered, only that `continuePlaying` is called before the music ends.
+   */
+  onOffer?: (offering: boolean) => void;
 }
 
 /**
@@ -67,31 +75,31 @@ const RESOLVE_INTERVAL_MS = 10;
 const TAIL_BEATS = 1;
 
 /**
- * Beats of silence past the chosen length that end a run.
+ * How long before the music runs out the player is asked whether to carry on.
  *
- * Beats rather than bars, so the wait is the same length of music whatever
- * the metre — a bar of 2/4 is half the patience of a bar of 4/4, and the
- * player feels beats going by rather than bar lines. Three is under two
- * seconds at an ordinary tempo: long enough that a breath or a fumbled entry
- * is not mistaken for leaving, short enough that putting the instrument down
- * ends the session while you are still putting it down.
+ * Beats rather than bars, so the offer is the same length of music whatever
+ * the metre. Four is a bar of four-four — long enough to notice a button
+ * change colour and reach it while playing, short enough that the question
+ * is plainly about the ending that is arriving rather than a standing
+ * invitation.
  *
- * Silence alone is never enough — see `hasStopped`, which also asks whether
- * anything went past that actually needed a valve.
+ * **Nothing is inferred from whether the player is playing.** An earlier
+ * design read silence as leaving and sound as staying, and it could not be
+ * made honest: with buttons, an open note and an abandoned instrument are
+ * the same input, and even fixed it made a decision on the player's behalf
+ * from evidence that never meant what it appeared to. Carrying on is now a
+ * thing a player *asks* for.
  */
-const SILENT_BEATS_TO_STOP = 3;
+const OFFER_BEATS = 4;
 
 /**
- * What the reference tone drops to past the chosen length, until the player
- * shows they mean to carry on.
+ * What the reference tone drops to while the offer stands.
  *
- * The music continuing into the grey is an offer, not an instruction, and an
- * offer should not be made at full volume. Playing on answers it and the
- * tone comes back up; playing nothing lets `SILENT_BEATS_TO_STOP` end the
- * run a moment later, so the quiet is also the sound of a session about to
- * finish.
+ * The continuation is an offer, and an offer should not be made at full
+ * volume. Accepting brings the tone straight back; letting it pass lets the
+ * music end, so the quiet is also the sound of a run about to finish.
  */
-const GREY_VOLUME = 0.5;
+const OFFER_VOLUME = 0.5;
 
 
 export class Session {
@@ -106,18 +114,16 @@ export class Session {
   private nextNoteToSchedule = 0;
   private nextNoteToResolve = 0;
   /**
-   * Beats of every note that cannot be played open, in order.
+   * The beat this run is committed to play until.
    *
-   * The stop rule asks whether anything needing a valve went past unplayed,
-   * and asks it a hundred times a second, so the question is answered by a
-   * binary search of this rather than by walking the notes.
+   * The length the player chose, extended a block at a time by
+   * `continuePlaying`. Everything downstream reads it rather than the length
+   * of the paper: the music past it is generated, drawn grey, and will only
+   * ever be played if it is asked for.
    */
-  private readonly demandingBeats: number[];
-  /** Where the player last had something down; -Infinity if they never have. */
-  private lastHeldBeat = Number.NEGATIVE_INFINITY;
-  /** Whether the reference tone has been dropped, and then answered. */
-  private quietened = false;
-  private carryingOn = false;
+  private playUntil: number;
+  /** Whether the offer is currently standing, so it is made only once. */
+  private offering = false;
   /** Notes already confirmed as right, so each is announced only once. */
   private readonly noticed: boolean[];
   private finished = false;
@@ -137,14 +143,51 @@ export class Session {
     // A count-in of whole bars, so it must be measured in the crotchets a bar
     // actually holds rather than in the numerator on the stave.
     this.countInBeats = countInBars * exercise.metre.barBeats;
-    this.demandingBeats = exercise.notes
-      .filter((note) => !note.acceptedMasks.includes(0))
-      .map((note) => note.startBeat);
+    this.playUntil = exercise.chosenBeats;
   }
 
-  /** Transport beat at which the exercise ends. */
+  /** Transport beat at which this run ends, unless the player asks for more. */
   get endBeat(): number {
-    return this.options.exercise.totalBeats;
+    return this.playUntil;
+  }
+
+  /** Whether there is more paper to be had beyond what is committed. */
+  get canContinue(): boolean {
+    return this.playUntil < this.options.exercise.totalBeats - 1e-9;
+  }
+
+  /**
+   * Takes up the offer: another block of music, the same length as the one
+   * the player chose, clamped to what was generated.
+   *
+   * Safe to call at any time and more than once — a second press inside one
+   * offer window buys one block, not two, because the offer is withdrawn as
+   * soon as it is accepted.
+   */
+  /**
+   * Ends the run here and reports what was played.
+   *
+   * What the Stop button does. Everything judged so far counts; the notes
+   * that were never reached are simply not in the summary, exactly as when a
+   * run reaches its committed end.
+   */
+  finishNow(): void {
+    if (this.finished) return;
+    this.finished = true;
+    this.stop();
+    this.options.onFinish?.(summarise(this.options.exercise.notes, this.judgements));
+  }
+
+  continuePlaying(): void {
+    if (!this.offering || !this.canContinue) return;
+    const { exercise } = this.options;
+    this.playUntil = Math.min(
+      exercise.totalBeats,
+      this.playUntil + Math.max(exercise.chosenBeats, 1),
+    );
+    this.offering = false;
+    this.synth.setVolume(1);
+    this.options.onOffer?.(false);
   }
 
   timeForNote(index: number): number {
@@ -165,7 +208,7 @@ export class Session {
 
   start(): void {
     // The voice is loaded once and reused across runs, so a session that
-    // ended quietly in the grey must not hand the next one a quiet start.
+    // ended on an unanswered offer must not hand the next one a quiet start.
     this.synth.setVolume(1);
     this.input.clearHistory();
     this.transport.start((from, to) => this.schedule(from, to), -this.countInBeats);
@@ -202,7 +245,7 @@ export class Session {
       const firstPulse = Math.ceil(fromBeat / pulseBeats);
       for (let pulse = firstPulse; pulse * pulseBeats < toBeat; pulse++) {
         const beat = pulse * pulseBeats;
-        if (beat > exercise.totalBeats) break;
+        if (beat > this.playUntil) break;
         const positionInBar = ((pulse % pulsesPerBar) + pulsesPerBar) % pulsesPerBar;
         this.metronome.click(this.transport.timeForBeat(beat), positionInBar === 0);
       }
@@ -214,6 +257,10 @@ export class Session {
       const index = this.nextNoteToSchedule;
       const note = exercise.notes[index];
       if (note.startBeat >= toBeat) break;
+      // Never sound music that has not been asked for. The pointer stays put
+      // rather than advancing, so accepting the offer picks these up on the
+      // next pass instead of losing them.
+      if (note.startBeat >= this.playUntil - 1e-9) break;
       this.nextNoteToSchedule++;
 
       // The far end of a tie is already sounding, played by the note it is tied
@@ -301,101 +348,40 @@ export class Session {
 
     if (this.finished) return;
 
-    this.offerTheGrey(now);
+    this.makeTheOffer(now);
 
     /*
-     * Stopped, or resting? Past the chosen length, a few beats of silence
-     * with something that needed a valve going past in them ends the run.
+     * The run ends where it is committed to, not where the paper does.
      *
-     * **Notes that can be played open prove nothing** and are ignored, along
-     * with rests. With buttons, playing an open note and having put the
-     * instrument down are the same input — the design doc says so outright —
-     * so a stretch of music that never demands a valve cannot tell the two
-     * apart, and asking it to was this rule's first and worst bug: it counted
-     * such music as played, and since four bars in five contain an open note,
-     * a player who had stopped was carried on regardless. Scales, every bar
-     * of which has one, were never stopped at all.
-     *
-     * Wrong valves are playing, so fluffing and carrying on survives — the
-     * evidence wanted is a valve down at some instant, not a correct answer.
-     * The whole rule remains the simplest one that works, written to be
-     * replaced by the microphone — which can simply hear that you have
-     * stopped — rather than refined.
+     * Every note this side of the committed end has been judged and its tail
+     * has rung, so there is nothing left to wait for. Past it the music
+     * exists and is drawn grey, and it stays that way unless the player asks
+     * for it — see `continuePlaying`.
      */
-    if (this.hasStopped(now)) {
-      this.finished = true;
-      this.stop();
-      this.options.onFinish?.(summarise(exercise.notes, this.judgements));
-      return;
-    }
-
-    const endTime = this.transport.timeForBeat(this.endBeat + TAIL_BEATS);
-    if (this.nextNoteToResolve >= exercise.notes.length && now >= endTime) {
+    const endTime = this.transport.timeForBeat(this.playUntil + TAIL_BEATS);
+    const next = exercise.notes[this.nextNoteToResolve];
+    const allJudged = next === undefined || next.startBeat >= this.playUntil - 1e-9;
+    if (allJudged && now >= endTime) {
       this.finished = true;
       this.stop();
       this.options.onFinish?.(summarise(exercise.notes, this.judgements));
     }
-  }
-
-  /** Whether the exercise carries on past the length that was asked for. */
-  private get hasHorizon(): boolean {
-    const { exercise } = this.options;
-    return exercise.chosenBeats < exercise.totalBeats;
   }
 
   /**
-   * Drops the reference tone as the music passes into the grey, and brings it
-   * back the moment the player answers by playing something.
+   * Asks, a few beats before the music runs out, whether the player wants
+   * more — and drops the reference tone while the question stands.
    *
-   * Once only: after the first answer the player has plainly decided, and a
-   * tone that ducked at every block boundary would be nagging rather than
-   * asking.
+   * Made once per committed end: accepting withdraws it and moves the end on,
+   * so the next block asks again in its own last beats. Nothing here reads
+   * what the player is doing; the offer is answered by a button or not at all.
    */
-  private offerTheGrey(now: number): void {
-    if (!this.hasHorizon || this.carryingOn) return;
-    const { exercise } = this.options;
-    if (this.transport.beatForTime(now) < exercise.chosenBeats) return;
+  private makeTheOffer(now: number): void {
+    if (this.offering || !this.canContinue) return;
+    if (this.transport.beatForTime(now) < this.playUntil - OFFER_BEATS) return;
 
-    if (!this.quietened) {
-      this.synth.setVolume(GREY_VOLUME);
-      this.quietened = true;
-    }
-    if (this.input.maskAt(now) !== 0) {
-      this.synth.setVolume(1);
-      this.carryingOn = true;
-    }
-  }
-
-  private hasStopped(now: number): boolean {
-    if (!this.hasHorizon) return false;
-    const { exercise } = this.options;
-
-    const beat = this.transport.beatForTime(now);
-    // The paper's own end is the natural finish's business, not this rule's.
-    if (beat <= exercise.chosenBeats || beat > exercise.totalBeats) return false;
-
-    if (this.input.maskAt(now) !== 0) {
-      this.lastHeldBeat = beat;
-      return false;
-    }
-
-    // Silence is only counted from the chosen end: whatever happened inside
-    // the length the player asked for, they asked for it.
-    const since = Math.max(this.lastHeldBeat, exercise.chosenBeats);
-    if (beat - since < SILENT_BEATS_TO_STOP) return false;
-    return this.demandedAValve(since, beat);
-  }
-
-  /** Whether any note needing a valve falls in `[from, to)`. */
-  private demandedAValve(from: number, to: number): boolean {
-    const beats = this.demandingBeats;
-    let low = 0;
-    let high = beats.length;
-    while (low < high) {
-      const mid = (low + high) >> 1;
-      if (beats[mid] < from) low = mid + 1;
-      else high = mid;
-    }
-    return low < beats.length && beats[low] < to;
+    this.offering = true;
+    this.synth.setVolume(OFFER_VOLUME);
+    this.options.onOffer?.(true);
   }
 }

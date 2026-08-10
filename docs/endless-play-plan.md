@@ -92,39 +92,37 @@ reading ahead is always reading grey. `horizon.ts` holds the arithmetic,
 clamped at both ends and tested against absurd beats, so the number the
 renderer greys against can never run past the paper.
 
-**The patience became beats, and shorter.** Two bars was measured against a
-bar line, which makes the wait twice as long in 4/4 as in 2/4 for no reason
-a player would recognise. It is now **three beats of silence** — under two
-seconds at an ordinary tempo — and silence still only counts where something
-needing a valve went past in it, so rests and open-note passages are as
-transparent as they were. Putting the instrument down now reaches the
-results screen in under three seconds.
+**Then the whole inference was abandoned, and it should have been sooner.**
+Two rounds of fixing a rule that read intent from silence produced a rule
+that worked and still decided *for* the player, from evidence that never
+quite meant what it appeared to. So the guessing is gone. The music runs to
+the length that was asked for; four beats before it does, the play button
+turns green and says **Continue**, and pressing it buys another block. Let
+it pass and the run ends, which is what not answering an offer means.
+Nothing reads whether the player is playing. `Session` owns a committed end
+rather than a rule, `continuePlaying` moves it, and everything downstream —
+the white, the scheduler, the finish — reads that one number.
 
-**The reference tone halves as the music passes into the grey**, and comes
-back the moment the player plays something. The continuation is an offer,
-not an instruction, and an offer should not be made at full volume; playing
-on answers it, playing nothing lets the three-beat rule end the run a moment
-later. Once only — a tone that ducked at every block boundary would be
-nagging rather than asking — and the voice is restored at the start of every
-run, since it outlives the session that quietened it.
+**The button became a button.** A player reported the old top-left Stop as
+too small to find, which it was: a quiet text link pretending to be a
+control, in the one place on the screen where a thumb arrives from an
+instrument rather than a mouse. It is now 7rem by 3rem, red for Stop and
+green for Continue, changing only its colour between the two so it does not
+move under a thumb already on its way to it. One button with two jobs and no
+third state.
 
-**The key set never toured, and with one cycle it never moved at all.** Keys
-are dealt across the units the player asked for, which is design; but the
-deal used whole-number division, so four keys across one chosen cycle
-advanced four places per cycle — and four places round a set of four is no
-movement whatever. Scales in four keys, once through, stayed in the first
-key for all two hundred bars, and asking for two cycles of four keys gave the
-first key and the third, skipping one the player had chosen. `tourKey` in
-`domain/keys.ts` now holds each key for `ceil(chosen / keys)` units and
-carries the tour round the set indefinitely, so the grey works through the
-circle of fifths exactly as a player would expect. Themes had the same fault
-and take the same fix.
+**And Stop reports the run instead of discarding it**, which the previous
+behaviour did quietly — tolerable when an exercise always ran to a fixed end
+and a trap now that stopping is how a session of any length finishes. A run
+with nothing judged in it still simply leaves, since there is nothing to
+report.
+
+The reference tone still halves while the question stands and returns when
+it is answered, which is the one part of the old design that survived intact:
+the continuation is an offer, and an offer should not be made at full volume.
 
 ## Still open, and known
 
-- **The Stop button discards the run.** It returns to settings with no
-  results, which was harmless when exercises ended by themselves and is not
-  now that stopping is the designed ending.
 - **Variable tempo is sparse across the grey** for free material and
   patterns: the plan is given one interior boundary, the chosen end, so a
   two-hundred-bar run gets a single step and a closing rit. Themes are fine,

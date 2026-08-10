@@ -18,7 +18,6 @@ import { formatPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
 import { Session } from '../engine/session';
 import { fingeringHints } from '../exercise/hints';
-import { whiteUntilBeat } from '../exercise/horizon';
 import { soundingHeads } from '../exercise/ties';
 import { loadStats } from '../storage/stats';
 import { SCORE_WINDOW_BARS, type NoteJudgement, type SessionSummary, type Verdict } from '../engine/judge';
@@ -79,6 +78,10 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
    * never trigger the render that mounts it.
    */
   const [transport, setTransport] = useState<Transport | null>(null);
+  /** Whether the music is about to run out and more may be asked for. */
+  const [offering, setOffering] = useState(false);
+  /** How much music this run is committed to, which Continue extends. */
+  const [committedBeats, setCommittedBeats] = useState(exercise.chosenBeats);
   // Held across the gate so the session can be handed the loaded voice.
   const voiceRef = useRef<Voice | undefined>(undefined);
 
@@ -91,6 +94,8 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    setOffering(false);
+    setCommittedBeats(exercise.chosenBeats);
     verdictsRef.current = new Array(exercise.notes.length).fill(undefined);
     // Which note actually sounds each written one, so the renderer can look a
     // verdict up through a tie. Fixed by the exercise, so settled once here
@@ -140,6 +145,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         setRecent((current) => [describeNote(exercise, judgement), ...current].slice(0, RECENT_NOTES));
       },
       onFinish: (summary) => finishRef.current(summary),
+      onOffer: setOffering,
     });
     sessionRef.current = session;
     setTransport(session.transport);
@@ -170,9 +176,9 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       // the note it is tied from rather than staying unmarked beside it.
       verdictFor: (index) => verdictsRef.current[heads[index]],
       hintFor: (index) => hints.get(index),
-      // The white's moving end, promoted a block at a time; see `horizon.ts`.
-      // Safe on an exercise with no grey, where it is simply the whole paper.
-      whiteUntil: () => whiteUntilBeat(exercise, session.transport.visualBeat()),
+      // White as far as the run is committed, and grey beyond — read per
+      // frame, so accepting the offer turns the next block white at once.
+      whiteUntil: () => session.endBeat,
       /*
        * The notation's own scale, handed to the stylesheet so the conductor
        * and the recent-notes band can be measured in it too — see
@@ -337,19 +343,56 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   }
 
   const accuracy = Math.round(progress.accuracy * 100);
-  const chosenNotes = exercise.notes.filter((n) => n.startBeat < exercise.chosenBeats - 1e-9).length;
+
+  /*
+   * Stopping ends the run and reports it, rather than discarding it.
+   *
+   * It used to walk back to the settings screen with the score in its
+   * pocket, which was a small loss when an exercise always ran to a fixed
+   * end and is a real one now that stopping is how a session of any length
+   * is meant to finish. A run with nothing judged in it has nothing to
+   * report, so that one still simply leaves.
+   */
+  const stopNow = () => {
+    const session = sessionRef.current;
+    if (!session || session.judgements.length === 0) {
+      onExit();
+      return;
+    }
+    session.finishNow();
+  };
+  // Against what this run has committed to rather than what was first asked
+  // for: taking the offer moves the target, and a target is the point of one.
+  const targetNotes = exercise.notes.filter((n) => n.startBeat < committedBeats - 1e-9).length;
 
   return (
     <div className="screen screen--play" ref={screenRef}>
       <div className="play-bar">
-        <button type="button" className="button button--quiet" onClick={onExit}>
-          Stop
+        {/*
+          One button, thumb-sized, doing whatever the moment asks of it: red
+          to finish, and green to carry on in the last beats before the music
+          runs out. There is no third state and no way to be caught out —
+          letting the green one pass simply ends the run, which is what not
+          answering an offer means.
+        */}
+        <button
+          type="button"
+          className={`button play-action ${offering ? 'play-action--continue' : 'play-action--stop'}`}
+          onClick={() => {
+            const session = sessionRef.current;
+            if (!offering || !session) {
+              stopNow();
+              return;
+            }
+            session.continuePlaying();
+            setCommittedBeats(session.endBeat);
+          }}
+        >
+          {offering ? 'Continue' : 'Stop'}
         </button>
         <div className="play-stats">
-          {/* Progress through what was asked for; past it, the count stands
-              alone — bonus territory has no denominator. */}
           <span>
-            {progress.done <= chosenNotes ? `${progress.done} / ${chosenNotes}` : progress.done}
+            {progress.done} / {targetNotes}
           </span>
           <span className="play-stats__accuracy">{accuracy}%</span>
         </div>
