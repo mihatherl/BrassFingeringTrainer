@@ -107,18 +107,29 @@
           <option value="4" selected>four</option>
           <option value="6">six</option>
         </select>
-        <input id="preview-position" type="range" min="0" max="100" step="5" value="50" aria-label="Position on the axis" />
-        <span id="preview-position-value">50% along</span>
+      </div>
+      <div class="controls" style="margin-top: 0.4rem">
+        <span class="name">Style</span>
+        <input id="preview-position" type="range" min="0" max="100" step="5" value="50" aria-label="Where on the flowing to marcato axis" />
+        <span id="preview-position-value">halfway</span>
       </div>
       <div class="controls" style="margin-top: 0.4rem">
         <span class="name">Tempo</span>
         <input id="preview-tempo" type="range" min="40" max="160" step="1" value="80" aria-label="Tempo" />
         <span id="preview-tempo-value">80 bpm</span>
       </div>
+      <!--
+        The gesture on screen, in the same words as the dials above it. Without
+        this the panel showed a shape and left you to work out which mixture of
+        the two ends it was — which is not a thing anyone can do by eye.
+      -->
+      <p class="hint" id="preview-values" style="margin-top: 0.5rem"></p>
       <p class="hint">
-        The lag is the one dial a still picture cannot show, which is what this is for. It runs off
-        the browser's frame clock rather than an audio one — not good enough to play against, fine
-        for judging whether the hand hangs and snaps the way it should.
+        <strong>The Style slider is where on the axis this is</strong> — all the way left is the
+        flowing end exactly as dialled above, all the way right is marcato, and anywhere between is
+        the mixture printed underneath. The lag is the one dial a still picture cannot show, which
+        is what the animation is for. It runs off the browser's frame clock rather than an audio
+        one — not good enough to play against, fine for judging whether the hand hangs and snaps.
       </p>
     </div>
 

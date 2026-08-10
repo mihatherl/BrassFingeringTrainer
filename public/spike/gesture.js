@@ -280,11 +280,21 @@ function animate() {
     const t = Number(el('preview-position').value) / 100;
     const bpm = Number(el('preview-tempo').value);
     el('preview-position-value').textContent =
-      t === 0 ? 'flowing' : t === 1 ? 'marcato' : `${Math.round(t * 100)}% along`;
+      t === 0
+        ? 'flowing'
+        : t === 1
+          ? 'marcato'
+          : t === 0.5
+            ? 'halfway'
+            : `${Math.round(t * 100)}% toward marcato`;
     el('preview-tempo-value').textContent = `${bpm} bpm`;
 
     const p = paramsAt(t);
     const pattern = patternAt(pulses, p);
+    // Said outright rather than left to be inferred from the slider's position.
+    el('preview-values').textContent = DIALS.map(({ key, label }) =>
+      key === 'lag' ? `${label} ${(p.lag / 100).toFixed(2)}` : `${label} ${Math.round(p[key])}%`,
+    ).join('   ');
     const now = performance.now() / 1000;
     const beat = (now * bpm) / 60;
     const at = ((beat % pattern.length) + pattern.length) % pattern.length;
