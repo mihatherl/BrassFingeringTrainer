@@ -178,6 +178,23 @@ const ARCS_AT_SMOOTH = 0.25;
 const BEATS_AT_SMOOTH = 0.45;
 
 /**
+ * How far along the axis the style sits, from its own smooth end to its own
+ * marcato end.
+ *
+ * Measured across the *usable* range rather than from a notional zero, which
+ * matters more than it sounds: with the floor read from zero, "the arcs bottom
+ * out at a quarter" described a setting nobody could select — the smoothest
+ * reachable style still gave 40%, and the constant was quietly describing a
+ * gesture off the end of the slider. Normalised here, the numbers in this file
+ * are the numbers a player can actually reach.
+ */
+const styleFraction = () => {
+  const min = Number(ui.rebound.min);
+  const max = Number(ui.rebound.max);
+  return (Number(ui.rebound.value) - min) / (max - min);
+};
+
+/**
  * The gesture's shape at the current settings.
  *
  * The preparatory stroke is deliberately *not* on the same curve as the rest,
@@ -186,6 +203,10 @@ const BEATS_AT_SMOOTH = 0.45;
  * where a recognisable downbeat is wanted however legato the phrase, and it
  * grows past any length an arm could hold a baton at when the arcs go up. So it
  * *follows* the arcs rather than matching them, and how closely is the slider.
+ *
+ * The default is the player's own pairing: with the arcs at a quarter, the
+ * downbeat wants to be about a third — which leaves it three or four times the
+ * height of the strokes around it, recognisable without being a mast.
  */
 const shapeNow = () => {
   const bounce = Number(ui.bounce.value) / 100;
@@ -194,9 +215,9 @@ const shapeNow = () => {
   let arcs = bounce;
   let flatten = 1;
   if (ui.shapeWithStyle.checked) {
-    const style = Number(ui.rebound.value) / 100;
-    arcs *= ARCS_AT_SMOOTH + (1 - ARCS_AT_SMOOTH) * style;
-    flatten = BEATS_AT_SMOOTH + (1 - BEATS_AT_SMOOTH) * style;
+    const along = styleFraction();
+    arcs *= ARCS_AT_SMOOTH + (1 - ARCS_AT_SMOOTH) * along;
+    flatten = BEATS_AT_SMOOTH + (1 - BEATS_AT_SMOOTH) * along;
   }
   arcs *= compoundLift();
 
