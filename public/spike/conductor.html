@@ -60,6 +60,9 @@
           <option value="4" selected>4/4</option>
           <option value="3">3/4</option>
           <option value="2">2/4</option>
+          <option value="6-8">6/8</option>
+          <option value="9-8">9/8</option>
+          <option value="12-8">12/8</option>
         </select>
         <select id="shape" aria-label="What is drawn">
           <option value="dot">Dot</option>
@@ -87,6 +90,11 @@
         <input id="rebound" type="range" min="20" max="90" step="5" value="55" aria-label="Rebound" />
         <span><strong id="ratio">—</strong></span>
       </div>
+      <div class="controls" style="margin-top: 0.4rem" id="compound-controls">
+        <input id="compound-lag" type="range" min="0" max="30" step="1" value="0" aria-label="Compound extra lag" />
+        <input id="compound-lift" type="range" min="100" max="180" step="5" value="100" aria-label="Compound extra lift" />
+        <span id="compound-value">compound: no difference</span>
+      </div>
       <p class="hint" id="status">Needs a tap to start, for the audio clock.</p>
     </div>
 
@@ -108,6 +116,19 @@
         actually is. Second, and the doubtful one: drag the tempo while playing. That is a rit., and
         it is the thing a metronome can never teach. If you cannot follow it here, the conductor is
         a nice touch for steady playing and no more.
+      </p>
+      <p class="hint">
+        <strong>The compound question, which is what the two extra sliders are for.</strong>
+        6/8 is beaten in two, 9/8 in three, 12/8 in four — the same shapes as 2/4, 3/4 and 4/4,
+        so nothing new is drawn. What the reference says differs is the <em>motion</em>:
+        compound time "carries more bounce, or air, between each beat", and the arrival point
+        should be emphasised more than the travel between gestures. Both sliders start at no
+        difference, and staying there is a real answer. <strong>Lag</strong> is the timing
+        reading — the hand lingers longer between beats and snaps harder through them.
+        <strong>Lift</strong> is the geometric one — the arcs simply rise higher. Set a
+        compound metre and flip between it and its simple twin at the same tempo and style;
+        the metronome ticks the three subdivisions under the pulse, quietly, so the compound
+        feel is actually there to be judged against.
       </p>
       <p class="hint">
         <strong>These are drawn as the band sees them.</strong> Every conducting diagram is from the

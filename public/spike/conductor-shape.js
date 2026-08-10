@@ -157,8 +157,14 @@ function centreOf(pattern) {
  *
  * Scaling about the centre leaves the centre alone, so the grip's own smaller
  * copy stays concentric whatever this does.
+ *
+ * `lift` raises the arcs *without* touching where the beats are, which is the
+ * other reading of the reference's "more bounce, or air, between each beat" —
+ * that the hand rises higher between beats rather than lingering longer up
+ * there. It is here so the compound question is not settled by assuming which
+ * of the two the sentence means.
  */
-export function scaledPattern(pattern, spread, height) {
+export function scaledPattern(pattern, spread, height, lift = 1) {
   const centre = centreOf(pattern);
   /*
    * The last beat's rebound and the downbeat's drop are one gesture.
@@ -175,7 +181,7 @@ export function scaledPattern(pattern, spread, height) {
     // The lifts are most of the pattern's vertical extent now that the beats
     // all sit along the bottom, so they shrink with it rather than towering
     // over a flattened shape.
-    rebound: p.rebound * height,
+    rebound: p.rebound * height * lift,
     path: p.path?.map((via) => ({
       x: centre.x + spread * (via.x - centre.x),
       y: centre.y + height * (via.y - centre.y),
@@ -302,9 +308,18 @@ function warp(t, lag) {
  * see at all. Approaching one it comes very nearly to a stop between beats and
  * snaps through them, which is a march. The legato-to-marcato axis is this, not
  * the height of the arcs.
+ *
+ * `extra` is what the compound question is asking about. The reference says
+ * conducting in compound meters "carries more bounce, or air, between each
+ * beat", and that "the conductor should emphasize the arrival point more
+ * greatly than when traveling between gestures" — both of which describe the
+ * timing rather than the shape, and both of which are a deeper lag. It is a
+ * separate number from the style so the two can be judged apart: the question
+ * is whether 6/8 wants more of this than 2/4 does *at the same style setting*,
+ * and the honest answer might be none.
  */
-function lagFor(rebound) {
-  return Math.min(0.92, 0.3 + 0.62 * rebound);
+function lagFor(rebound, extra = 0) {
+  return Math.min(0.92, 0.3 + 0.62 * rebound + extra);
 }
 
 /**
@@ -321,7 +336,7 @@ function lagFor(rebound) {
  * previously the same mechanism, which is why making the beat readable kept
  * costing the shape and vice versa.
  */
-export function tipAt(pattern, beatInBar, rebound) {
+export function tipAt(pattern, beatInBar, rebound, extraLag = 0) {
   const count = pattern.length;
   // Wrapped both ways: a count-in sits at negative beats, and JavaScript's
   // remainder keeps the sign of its left operand.
@@ -334,7 +349,7 @@ export function tipAt(pattern, beatInBar, rebound) {
   // Segments from this beat to the next: one more than the stroke's via count.
   const span = (((starts[(index + 1) % count] ?? 0) - start) % total + total) % total || total;
   // The warp decides how much of the stroke has been covered.
-  const along = warp(t, lagFor(rebound)) * span;
+  const along = warp(t, lagFor(rebound, extraLag)) * span;
   const segment = Math.min(span - 1, Math.floor(along));
   const step = Math.min(1, Math.max(0, along - segment));
 
@@ -358,28 +373,34 @@ export function tipAt(pattern, beatInBar, rebound) {
  */
 const ICTUS_WINDOW = 0.06;
 
-export function ictusStrength(pattern, beat, rebound) {
+export function ictusStrength(pattern, beat, rebound, extraLag = 0) {
   const d = 1e-4;
   const before = beat - ICTUS_WINDOW;
   const after = beat + ICTUS_WINDOW;
-  const descending = (tipAt(pattern, before + d, rebound).y - tipAt(pattern, before - d, rebound).y) / (2 * d);
-  const rising = (tipAt(pattern, after + d, rebound).y - tipAt(pattern, after - d, rebound).y) / (2 * d);
+  const descending =
+    (tipAt(pattern, before + d, rebound, extraLag).y -
+      tipAt(pattern, before - d, rebound, extraLag).y) /
+    (2 * d);
+  const rising =
+    (tipAt(pattern, after + d, rebound, extraLag).y -
+      tipAt(pattern, after - d, rebound, extraLag).y) /
+    (2 * d);
   // Downward on the way in and upward on the way out; anything else is drift.
   return Math.max(0, descending) + Math.max(0, -rising);
 }
 
 /** The weakest ictus in the bar, since a pattern is as readable as its worst beat. */
-export function weakestIctus(pattern, rebound) {
+export function weakestIctus(pattern, rebound, extraLag = 0) {
   return pattern.reduce(
-    (worst, _, beat) => Math.min(worst, ictusStrength(pattern, beat, rebound)),
+    (worst, _, beat) => Math.min(worst, ictusStrength(pattern, beat, rebound, extraLag)),
     Infinity,
   );
 }
 
-function speedAt(pattern, beat, rebound) {
+function speedAt(pattern, beat, rebound, extraLag = 0) {
   const d = 1e-4;
-  const a = tipAt(pattern, beat - d, rebound);
-  const b = tipAt(pattern, beat + d, rebound);
+  const a = tipAt(pattern, beat - d, rebound, extraLag);
+  const b = tipAt(pattern, beat + d, rebound, extraLag);
   return Math.hypot(b.x - a.x, b.y - a.y) / (2 * d);
 }
 
@@ -399,14 +420,14 @@ function speedAt(pattern, beat, rebound) {
  * drift on either side of it. The worst beat is what comes back, because a
  * pattern is only as readable as the beat you cannot find.
  */
-export function readability(pattern, rebound) {
+export function readability(pattern, rebound, extraLag = 0) {
   const count = pattern.length;
   const quietest = [];
   for (let stroke = 0; stroke < count; stroke++) {
     let slowest = Infinity;
     // The very ends belong to the beats either side rather than to the drift.
     for (let i = 5; i < 96; i++) {
-      slowest = Math.min(slowest, speedAt(pattern, stroke + i / 100, rebound));
+      slowest = Math.min(slowest, speedAt(pattern, stroke + i / 100, rebound, extraLag));
     }
     quietest.push(slowest);
   }
@@ -414,8 +435,8 @@ export function readability(pattern, rebound) {
   let worst = Infinity;
   for (let beat = 0; beat < count; beat++) {
     const sharpest = Math.max(
-      speedAt(pattern, beat - 1e-3, rebound),
-      speedAt(pattern, beat + 1e-3, rebound),
+      speedAt(pattern, beat - 1e-3, rebound, extraLag),
+      speedAt(pattern, beat + 1e-3, rebound, extraLag),
     );
     const drift = Math.min(quietest[(beat - 1 + count) % count], quietest[beat]);
     worst = Math.min(worst, sharpest / (drift || 1e-9));

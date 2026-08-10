@@ -49,6 +49,10 @@ const ui = {
   extent: el('extent'),
   rebound: el('rebound'),
   ratio: el('ratio'),
+  compoundLag: el('compound-lag'),
+  compoundLift: el('compound-lift'),
+  compoundValue: el('compound-value'),
+  compoundControls: el('compound-controls'),
   canvas: el('canvas'),
   status: el('status'),
   beatNumber: el('beat-number'),
@@ -112,15 +116,38 @@ const STYLES = [
 ];
 
 /**
+ * The metre as selected, split into the two things that are not the same.
+ *
+ * The written signature says 6/8; the *pulse count* says two, and the pulse
+ * count is what picks the pattern. Keeping them apart here is the same
+ * separation `domain/metre.ts` makes in the app, and for the same reason: 6/8
+ * conducted by its numerator would be beaten in six, which is a thing
+ * conductors do only very slowly.
+ */
+const currentMetre = () => {
+  const value = ui.beats.value;
+  if (!value.includes('-')) return { pulses: Number(value), compound: false, label: `${value}/4` };
+  const [top, unit] = value.split('-').map(Number);
+  return { pulses: top / 3, compound: true, label: `${top}/${unit}` };
+};
+
+/** How much deeper the warp goes in compound time, at the same style setting. */
+const extraLag = () => (currentMetre().compound ? Number(ui.compoundLag.value) / 100 : 0);
+
+/** How much higher the arcs rise in compound time. 1 is no difference. */
+const lift = () => (currentMetre().compound ? Number(ui.compoundLift.value) / 100 : 1);
+
+/**
  * The pattern as currently set: the metre's shape, cut down to the extent the
  * dynamic asks for. A conductor beating a quiet passage uses the same shape and
  * simply makes it smaller, in both directions and by different amounts.
  */
 const currentPattern = () =>
   scaledPattern(
-    PATTERNS[Number(ui.beats.value)],
+    PATTERNS[currentMetre().pulses],
     Number(ui.spread.value) / 100,
     Number(ui.height.value) / 100,
+    lift(),
   );
 
 const showRatio = () => {
@@ -128,11 +155,41 @@ const showRatio = () => {
   const style = STYLES.find((s) => value <= s.upTo).name;
   const pattern = currentPattern();
   const rebound = value / 100;
+  const extra = extraLag();
   // The ictus is the change of direction, so that is the headline; the speed
-  // contrast is worth reporting too but it is not what a beat *is*.
+  // contrast is worth reporting too but it is not what a beat *is*. Both are
+  // measured with the compound settings applied, so the numbers describe what
+  // is actually on the screen rather than its simple-time twin.
   ui.ratio.textContent =
-    `${style} — weakest ictus ${weakestIctus(pattern, rebound).toFixed(1)}, ` +
-    `speed ${readability(pattern, rebound).toFixed(1)}x`;
+    `${style} — weakest ictus ${weakestIctus(pattern, rebound, extra).toFixed(1)}, ` +
+    `speed ${readability(pattern, rebound, extra).toFixed(1)}x`;
+};
+
+const showCompound = () => {
+  const metre = currentMetre();
+  // The sliders are only meaningful in compound time, and a control that does
+  // nothing is worse than one that is not there.
+  ui.compoundControls.style.opacity = metre.compound ? '1' : '0.35';
+  ui.compoundLag.disabled = !metre.compound;
+  ui.compoundLift.disabled = !metre.compound;
+
+  if (metre.compound) {
+    const lag = Number(ui.compoundLag.value);
+    const rise = Number(ui.compoundLift.value);
+    const parts = [];
+    if (lag > 0) parts.push(`lag +${(lag / 100).toFixed(2)}`);
+    if (rise > 100) parts.push(`lift ${rise}%`);
+    ui.compoundValue.textContent =
+      `${metre.label} beaten in ${metre.pulses} — ` +
+      (parts.length ? parts.join(', ') : 'no difference from simple time yet');
+  } else {
+    ui.compoundValue.textContent = `${metre.label} is simple — no compound difference to set`;
+  }
+
+  // Always, and not only in the compound branch: leaving a compound metre has
+  // to put the measurements back too, or the numbers go on describing a shape
+  // that is no longer on the screen.
+  showRatio();
 };
 const showExtent = () => {
   ui.extent.textContent = `${ui.spread.value}% wide, ${ui.height.value}% tall`;
@@ -145,7 +202,10 @@ ui.travel.addEventListener('input', showTravel);
 showTravel();
 
 ui.rebound.addEventListener('input', showRatio);
-ui.beats.addEventListener('change', showRatio);
+ui.beats.addEventListener('change', showCompound);
+ui.compoundLag.addEventListener('input', showCompound);
+ui.compoundLift.addEventListener('input', showCompound);
+showCompound();
 ui.spread.addEventListener('input', showExtent);
 ui.height.addEventListener('input', showExtent);
 showExtent();
@@ -166,16 +226,44 @@ async function start() {
    * up to a frame, and the whole point here is to compare the *visual* ictus
    * against an audible one — so the audible one had better be exact.
    */
-  let nextClick = Math.ceil(clock.beatNow());
+  /*
+   * Counted in *divisions* rather than pulses, so compound time can tick its
+   * three-under-the-beat.
+   *
+   * The clock's "beat" is the conducted pulse throughout — the dotted crotchet
+   * in 6/8 — so a compound bar is three divisions to each of those and a simple
+   * one is a single division per pulse, which leaves the simple case ticking
+   * exactly as it always did. This matters more than it looks: judging whether
+   * compound time wants a different motion is impossible without the compound
+   * division actually sounding, since otherwise 6/8 and 2/4 are the same two
+   * clicks a bar and the ear has nothing to tell them apart by.
+   */
+  let nextClick = 0;
+  let divisionsSoFar = 0;
   const scheduleClicks = () => {
+    const metre = currentMetre();
+    const perPulse = metre.compound ? 3 : 1;
     if (!ui.click.checked) {
-      nextClick = Math.ceil(clock.beatNow());
+      nextClick = Math.ceil(clock.beatNow() * perPulse);
+      divisionsSoFar = perPulse;
       return;
     }
-    while (clock.timeForBeat(nextClick) < context.currentTime + 0.2) {
-      const at = Math.max(clock.timeForBeat(nextClick), context.currentTime);
-      const beats = PATTERNS[Number(ui.beats.value)].length;
-      click(context, at, ((nextClick % beats) + beats) % beats === 0);
+    // A change of metre mid-run would otherwise leave the counter measured in
+    // the old division and the clicks would land nowhere in particular.
+    if (perPulse !== divisionsSoFar) {
+      nextClick = Math.ceil(clock.beatNow() * perPulse);
+      divisionsSoFar = perPulse;
+    }
+    while (clock.timeForBeat(nextClick / perPulse) < context.currentTime + 0.2) {
+      const at = Math.max(clock.timeForBeat(nextClick / perPulse), context.currentTime);
+      const divisions = metre.pulses * perPulse;
+      const place = ((nextClick % divisions) + divisions) % divisions;
+      // Three voices, not two: the bar, the pulse, and the quavers under it.
+      // The subdivision is deliberately quiet — it is there to be felt rather
+      // than followed, and a loud one would drown the thing being judged.
+      if (place === 0) click(context, at, true);
+      else if (place % perPulse === 0) click(context, at, false);
+      else if (perPulse > 1) click(context, at, false, 0.06);
       nextClick++;
     }
   };
@@ -190,7 +278,7 @@ async function start() {
 
     scheduleClicks();
     const rebound = Number(ui.rebound.value) / 100;
-    trail.push({ at: context.currentTime, ...tipAt(pattern, beatInBar, rebound) });
+    trail.push({ at: context.currentTime, ...tipAt(pattern, beatInBar, rebound, extraLag()) });
     while (trail.length && trail[0].at < context.currentTime - TRAIL_SECONDS) trail.shift();
 
     draw(pattern, trail);
@@ -308,12 +396,12 @@ function draw(pattern, trail) {
 }
 
 /** A short click, accented on the first beat of the bar. */
-function click(context, at, accented) {
+function click(context, at, accented, level) {
   const osc = context.createOscillator();
   const gain = context.createGain();
   osc.frequency.value = accented ? 1600 : 1100;
   gain.gain.setValueAtTime(0.0001, at);
-  gain.gain.exponentialRampToValueAtTime(accented ? 0.35 : 0.2, at + 0.002);
+  gain.gain.exponentialRampToValueAtTime(level ?? (accented ? 0.35 : 0.2), at + 0.002);
   gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.05);
   osc.connect(gain).connect(context.destination);
   osc.start(at);
