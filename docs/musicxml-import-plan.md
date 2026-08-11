@@ -61,24 +61,43 @@ D.S. or D.C., not on the first pass.
 eight-bar rest is one element, not eight empty bars. Brass band parts are full
 of these and the count must survive import intact.
 
-## What the unfolder would do
+## The unfolder — built, v1.40.0
 
-Input: a parsed document. Output: a flat list of measures in playing order.
-Nothing else — no rendering, no generation, no audio.
+`src/import/unfold.ts` and `src/import/musicxml.ts`. In, the navigation marks of
+each written measure; out, the source measures in playing order.
 
-The algorithm is well defined. Walk measures in order, holding a repeat stack
-and a pass counter per repeat. Honour `time-only` and `ending number` to pick
-the right pass. On `dalsegno`/`dacapo`, jump, and set a flag that both enables
-`after-jump` repeats and arms `tocoda`. Stop at `fine`.
+**Split in two, and the split is what makes it testable.** `unfold.ts` holds the
+algorithm and has never heard of XML; `musicxml.ts` knows the format and holds no
+algorithm. Neither test has to set up the other half to say anything.
 
-This is a self-contained job with a clean input and a clean output, testable
-entirely on synthetic MusicXML written for the purpose, and independent of the
-microphone, of Audiveris, and of everything in `render/`.
+**Five rules where the obvious reading is wrong**, each pinned by a test and each
+confirmed to bite under mutation:
 
-**Validate rather than trust.** A file with a `dalsegno` and no matching
-`segno` cannot be unfolded, and the honest response is to say so — the same
-principle as v1.33.0's gated settings screen, where refusing beat silently
-doing something else.
+| rule | why the obvious reading fails |
+|---|---|
+| `times` counts **playings**, not jumps | `times="3"` is two jumps back, not three |
+| a jump is taken **once** | arriving at the same D.C. again means it has done its work; without this the commonest shape in the repertoire is an endless loop |
+| Fine and To Coda act **only after a jump** | on the way through they are instructions for later; obeying them the first time ends the piece halfway and looks deliberate |
+| an ordinary repeat is **not** taken past a jump, an `after-jump` one **only** there | the ordinary reading of D.C.; and an opt-in attribute cannot be describing the default |
+| past a jump, the **last** ending is played | a first-time bar exists to lead back into the repeat, and a D.C. is not repeating |
+
+That last one was found by a test rather than reasoned out in advance.
+
+**Validate rather than trust**, and the failure mode is the one already decided:
+an unresolvable part plays straight through and says why. A ceiling guards
+against a corrupt `times`, which is the one unbounded quantity in the format.
+
+### What the unfolder does not do yet
+
+- **Bar repeats are not expanded.** `measure-repeat` and `beat-repeat` are
+  navigation-adjacent but are about a measure's *content*, so they belong with
+  the reader that pulls out notes rather than with this one. The rule is
+  settled — see above — and the work is not done.
+- **Nothing reads the notes.** This resolves the order of measures; turning
+  those measures into an `Exercise` is the next piece, and it is where the
+  metre list, the multi-bar rest and the tier-3 substitution rules all get used.
+- **Part choice is an index.** `partNames` exists for a chooser; nothing asks
+  the player yet.
 
 **Not every exporter writes the `<sound>` layer.** MuseScore, Sibelius and
 Finale do; it is what it is for. The Audiveris output generated this session
