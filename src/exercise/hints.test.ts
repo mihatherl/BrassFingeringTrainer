@@ -35,6 +35,7 @@ const LENGTHS: Record<Duration['value'], number> = {
   quarter: 1,
   eighth: 0.5,
   sixteenth: 0.25,
+  thirtySecond: 0.125,
 };
 
 /** An exercise built from bars of (pitch, note value) pairs. */

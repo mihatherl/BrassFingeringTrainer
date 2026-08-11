@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { durationBeats, durationFromBeats, isBeamable, snapBeat } from './rhythm';
+import {
+  durationBeats,
+  durationFromBeats,
+  isBeamable,
+  snapBeat,
+  NOTE_VALUES,
+  NOTE_VALUE_FLAGS,
+} from './rhythm';
 
 describe('triplets', () => {
   it('is three in the time of two', () => {
@@ -57,5 +64,31 @@ describe('snapBeat', () => {
     let beat = 0;
     for (let i = 0; i < 48; i++) beat = snapBeat(beat + 1 / 3);
     expect(beat).toBe(16);
+  });
+});
+
+/**
+ * The demisemiquaver, which exists for imported music and for nothing else.
+ *
+ * A real part turned up with one, and the shortest value the app could write
+ * was a semiquaver — so the note was dropped and the player never played it.
+ * Nothing *generates* one: the difficulty tables name the values they draw
+ * from, and none of them names this.
+ */
+describe('the shortest value', () => {
+  it('is an eighth of a beat, and writable', () => {
+    expect(durationFromBeats(0.125)).toEqual({ value: 'thirtySecond', dotted: false });
+    expect(durationBeats({ value: 'thirtySecond', dotted: false })).toBe(0.125);
+  });
+
+  it('carries three beams', () => {
+    expect(NOTE_VALUE_FLAGS.thirtySecond).toBe(3);
+  });
+
+  it('is reached last, so nothing that already resolved resolves differently', () => {
+    // It sits at the end of `NOTE_VALUES`, which the searches walk in order.
+    expect(NOTE_VALUES[NOTE_VALUES.length - 1]).toBe('thirtySecond');
+    expect(durationFromBeats(0.25)).toEqual({ value: 'sixteenth', dotted: false });
+    expect(durationFromBeats(1)).toEqual({ value: 'quarter', dotted: false });
   });
 });

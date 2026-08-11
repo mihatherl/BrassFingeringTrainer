@@ -6,14 +6,24 @@
  * display can work purely in beats without knowing the tempo at all.
  */
 
-export type NoteValue = 'whole' | 'half' | 'quarter' | 'eighth' | 'sixteenth';
+export type NoteValue = 'whole' | 'half' | 'quarter' | 'eighth' | 'sixteenth' | 'thirtySecond';
 
+/**
+ * Longest first, which is the order the searches below want.
+ *
+ * `thirtySecond` sits at the end and is reached last, so nothing that already
+ * resolved resolves differently. **Nothing generates one**: the difficulty
+ * tables name the values they draw from, and none of them names this. It is
+ * here for imported music, where a demisemiquaver is somebody else's decision
+ * and the alternative was dropping the note.
+ */
 export const NOTE_VALUES: readonly NoteValue[] = [
   'whole',
   'half',
   'quarter',
   'eighth',
   'sixteenth',
+  'thirtySecond',
 ];
 
 /** Crotchet beats for each undotted value. */
@@ -23,6 +33,7 @@ export const NOTE_VALUE_BEATS: Record<NoteValue, number> = {
   quarter: 1,
   eighth: 0.5,
   sixteenth: 0.25,
+  thirtySecond: 0.125,
 };
 
 /** How many flags or beams the value carries. */
@@ -32,6 +43,7 @@ export const NOTE_VALUE_FLAGS: Record<NoteValue, number> = {
   quarter: 0,
   eighth: 1,
   sixteenth: 2,
+  thirtySecond: 3,
 };
 
 export interface Duration {

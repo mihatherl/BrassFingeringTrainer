@@ -7,7 +7,7 @@
  */
 
 import { diatonicStep, type SpelledPitch } from '../domain/pitch';
-import { NOTE_VALUE_FLAGS, type Duration } from '../domain/rhythm';
+import { NOTE_VALUE_FLAGS, type Duration, type NoteValue } from '../domain/rhythm';
 import { drawGlyph, glyphWidth, type GlyphName } from './glyphs';
 import { drawNumberGlyphs, isOnLine, yForStep, type StaveMetrics } from './stave';
 
@@ -52,6 +52,23 @@ const STEM_THICKNESS = 0.12;
 const BEAM_THICKNESS = 0.5;
 const BEAM_SPACING = 0.75;
 const LEDGER_OVERHANG = 0.28;
+
+/** The rest glyph for each written value. */
+const REST_GLYPHS: Record<NoteValue, GlyphName> = {
+  whole: 'restWhole',
+  half: 'restHalf',
+  quarter: 'restQuarter',
+  eighth: 'rest8th',
+  sixteenth: 'rest16th',
+  thirtySecond: 'rest32nd',
+};
+
+/** Flag glyphs by beam count, stem up then stem down. */
+const FLAG_GLYPHS: Record<number, readonly [GlyphName, GlyphName]> = {
+  1: ['flag8thUp', 'flag8thDown'],
+  2: ['flag16thUp', 'flag16thDown'],
+  3: ['flag32ndUp', 'flag32ndDown'],
+};
 
 function noteheadGlyph(duration: Duration): GlyphName {
   if (duration.value === 'whole') return 'noteheadWhole';
@@ -147,8 +164,7 @@ export function drawNote(
 
   const flags = NOTE_VALUE_FLAGS[note.duration.value];
   if (flags > 0 && !options.beamed) {
-    const glyph: GlyphName =
-      flags === 1 ? (up ? 'flag8thUp' : 'flag8thDown') : up ? 'flag16thUp' : 'flag16thDown';
+    const glyph = FLAG_GLYPHS[flags][up ? 0 : 1];
     drawGlyph(ctx, glyph, stemX, stemEndY, m.staveSpace);
   }
 }
@@ -350,16 +366,7 @@ export function drawRest(
   duration: Duration,
   colour: string,
 ): void {
-  const glyph: GlyphName =
-    duration.value === 'whole'
-      ? 'restWhole'
-      : duration.value === 'half'
-        ? 'restHalf'
-        : duration.value === 'quarter'
-          ? 'restQuarter'
-          : duration.value === 'eighth'
-            ? 'rest8th'
-            : 'rest16th';
+  const glyph = REST_GLYPHS[duration.value];
   ctx.fillStyle = colour;
   drawGlyph(ctx, glyph, x, m.middleLineY, m.staveSpace);
 

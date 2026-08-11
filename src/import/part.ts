@@ -501,7 +501,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
  * Longest-first is what an engraver writes: three beats is a dotted minim, not
  * six quavers.
  */
-const WRITABLE = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.25] as const;
+const WRITABLE = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.1875, 0.125] as const;
 
 /**
  * How a length is written: one value, or several to be tied together.

@@ -216,6 +216,19 @@ describe('what gets dropped, and what does not', () => {
   });
 });
 
+describe('very short notes', () => {
+  it('reads a demisemiquaver rather than dropping it', () => {
+    // A real part had one in bar 4. The shortest value the app could write was
+    // a semiquaver, so the note went missing and the player never played it.
+    const short = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>3</duration></note>`;
+    const { exercise, problems } = importing(score(short + note('D4', 3.875)));
+
+    expect(problems).toEqual([]);
+    expect(exercise?.notes[0].duration).toEqual({ value: 'thirtySecond', dotted: false });
+    expect(exercise?.totalBeats).toBe(4);
+  });
+});
+
 describe('a rhythm that cannot be written', () => {
   it('replaces it with silence of exactly the right length', () => {
     /*
