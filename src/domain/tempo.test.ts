@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { beatAt, compileTempo, rampRatioAt, tempoAt, timeAt, type TempoEvent } from './tempo';
+import {
+  beatAt,
+  compileTempo,
+  rampRatioAt,
+  steppedTempoAt,
+  tempoAt,
+  timeAt,
+  type TempoEvent,
+} from './tempo';
 
 /**
  * The clock is the one place a bug desynchronises sound from notation — the
@@ -229,6 +237,43 @@ describe('a beat that is not a crotchet', () => {
     const bpmAt = (b: number) =>
       b <= 3 ? 120 : b >= 6 ? 60 : 120 + ((b - 3) / 3) * (60 - 120);
     expect(timeAt(map, 6)).toBeCloseTo(integrated(bpmAt, 0, 6), 6);
+  });
+});
+
+describe('the tempo the music has settled at', () => {
+  /*
+   * What picks the conductor's pattern, and why it is not `tempoAt`.
+   *
+   * A step is a genuinely new speed and the hand should change with it; a rit
+   * passing through a threshold on its way somewhere should not reorganise the
+   * gesture mid-bend and flick back a bar later.
+   */
+  const events: TempoEvent[] = [
+    { kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 60 },
+    { kind: 'tempo', atBeat: 8, bpm: 190 },
+  ];
+
+  it('holds the opening tempo until something is declared', () => {
+    expect(steppedTempoAt(120, events, 0)).toBe(120);
+    expect(steppedTempoAt(120, events, 3.9)).toBe(120);
+    // Including behind the music, where the count-in lives.
+    expect(steppedTempoAt(120, events, -4)).toBe(120);
+  });
+
+  it('does not move while a rit is bending', () => {
+    // Half way through the ramp the clock is somewhere near 90 and falling;
+    // the declared speed is still the 120 the music was written at.
+    expect(tempoAt(compileTempo(120, events), 6)).toBeLessThan(120);
+    expect(steppedTempoAt(120, events, 6)).toBe(120);
+  });
+
+  it('takes a step the moment it lands, and keeps it', () => {
+    expect(steppedTempoAt(120, events, 8)).toBe(190);
+    expect(steppedTempoAt(120, events, 40)).toBe(190);
+  });
+
+  it('is unmoved by an exercise that holds its speed', () => {
+    expect(steppedTempoAt(96, [], 100)).toBe(96);
   });
 });
 

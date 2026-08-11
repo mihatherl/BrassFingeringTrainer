@@ -73,6 +73,37 @@ export type TempoEvent =
    */
   | { kind: 'hold'; atBeat: number; seconds: number };
 
+/**
+ * The tempo the music has settled at, ignoring any rit in progress.
+ *
+ * `tempoAt` answers what the clock is doing this instant, ramps included, which
+ * is what sound and position want. This answers something different and coarser:
+ * what speed has been *declared* — the opening tempo, or the last step written
+ * over the stave. It is the number a player would say if you asked how fast the
+ * music is, and it does not move while a rit is bending.
+ *
+ * Its customer is the conductor, which chooses a pattern by tempo. A pattern
+ * must follow a step: a join that moves the music from 150 to 190 is a genuinely
+ * new speed and a conductor beats it differently. A pattern must *not* follow a
+ * ramp: a rit passing through a threshold on its way somewhere would reorganise
+ * the hand mid-bend, which is unfollowable exactly where following matters most,
+ * and it would flick back again a bar later. Every ramp the plan writes is
+ * followed by a step or by the end of the music, so the settled tempo is never
+ * stale for long.
+ */
+export function steppedTempoAt(
+  nominalBpm: number,
+  events: readonly TempoEvent[],
+  beat: number,
+): number {
+  let bpm = nominalBpm;
+  for (const event of events) {
+    if (event.kind !== 'tempo' || event.atBeat > beat + EPSILON) continue;
+    bpm = event.bpm;
+  }
+  return bpm;
+}
+
 /** A stretch of beats with linearly varying tempo. `slope` is bpm per beat. */
 interface Span {
   kind: 'span';

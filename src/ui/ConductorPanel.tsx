@@ -13,9 +13,10 @@
  * about what is on the page.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Metre } from '../domain/metre';
 import type { Transport } from '../engine/clock';
+import { steppedTempoAt, type TempoEvent } from '../domain/tempo';
 import {
   extentOf,
   gripFor,
@@ -37,16 +38,19 @@ interface ConductorPanelProps {
    * setting; `render/conductor.ts` owns what the number means.
    */
   style: number;
-  /**
-   * The tempo as set, in conducted beats per minute — which decides whether a
-   * compound bar is beaten in its pulses or in its divisions.
-   *
-   * The *nominal* tempo, deliberately, and not whatever the map is doing at
-   * this instant: a conductor does not change pattern half way through a rit,
-   * and a shape that reorganised itself as the music broadened would be
-   * unfollowable exactly where following matters most.
-   */
+  /** The opening tempo, in conducted beats per minute. */
   tempo: number;
+  /**
+   * Where the tempo moves, so the pattern can move with it.
+   *
+   * A step is a genuinely new speed — a join taking the music from 150 to 190
+   * is beaten differently, and a conductor changes pattern there — so the
+   * gesture follows one. A *ramp* it must not follow: a rit passing through a
+   * threshold on its way somewhere would reorganise the hand mid-bend, which is
+   * unfollowable exactly where following matters most, and it would flick back
+   * a bar later. `steppedTempoAt` draws that line.
+   */
+  tempoEvents: readonly TempoEvent[];
 }
 
 /**
@@ -82,18 +86,44 @@ const COOL_RGB = '59, 130, 246';
 const WARM_RGB = '192, 38, 211';
 const ORB_FULL_AT = 0.35;
 
-export function ConductorPanel({ transport, metre, style, tempo }: ConductorPanelProps) {
+export function ConductorPanel({
+  transport,
+  metre,
+  style,
+  tempo,
+  tempoEvents,
+}: ConductorPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawn = patternFor(metre, tempo);
+  /*
+   * The speed the music has settled at, which is what picks the pattern.
+   *
+   * State rather than a value read in the loop, because the pattern decides the
+   * panel's proportions as well as its drawing — a four going alla breve is a
+   * different shape in a differently shaped box. Set from the frame loop and
+   * guarded, so the re-render happens on the handful of beats where a step
+   * actually crosses a threshold and never otherwise.
+   */
+  const [settled, setSettled] = useState(tempo);
+  const settledRef = useRef(tempo);
+  const drawn = patternFor(metre, settled);
   /*
    * The gesture, worked out once rather than per frame.
    *
    * `shapeFor` reads the style setting and `shapedPattern` applies it, so what
    * the rest of this component handles is already the shape that will be drawn
    * — the raw entry in `PATTERNS` is a diagram and never reaches the canvas.
+   *
+   * **Memoised because the effect below owns an animation, not because this is
+   * expensive.** Both of these build fresh objects, so unmemoised they were new
+   * on every render — and the effect lists them, so it tore down the frame loop
+   * and started another every time the play screen re-rendered. That is once a
+   * note: measured at thirteen restarts across eleven judged notes, each of them
+   * throwing away the trail, which is the one part of the drawing that carries
+   * how fast the hand is moving. `patternFor` returns a shared entry from
+   * `PATTERNS`, so `drawn` is stable of itself.
    */
-  const shape = shapeFor(style);
-  const pattern = drawn && shapedPattern(drawn, shape);
+  const shape = useMemo(() => shapeFor(style), [style]);
+  const pattern = useMemo(() => (drawn ? shapedPattern(drawn, shape) : null), [drawn, shape]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -143,6 +173,13 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
       // Interpolated rather than raw, so the gesture is smooth between audio
       // ticks — the same reading the notation is positioned from.
       const beat = transport.visualBeat();
+      // Cheap: a handful of events, walked once a frame, and `setSettled` is
+      // guarded so React sees a change only when the pattern really moves.
+      const declared = steppedTempoAt(tempo, tempoEvents, beat);
+      if (declared !== settledRef.current) {
+        settledRef.current = declared;
+        setSettled(declared);
+      }
       const place = placeInPattern(metre, pattern, beat);
       const tip = tipAt(pattern, place, shape.lag);
       const grip = gripFor(pattern, tip);
@@ -205,7 +242,7 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
       if (frame !== null) cancelAnimationFrame(frame);
       colourScheme?.removeEventListener('change', onSchemeChange);
     };
-  }, [transport, metre, pattern, shape.lag]);
+  }, [transport, metre, pattern, shape.lag, tempo, tempoEvents]);
 
   // No pattern for this metre means no conductor, and the metronome carries on
   // alone. Guessing a shape would teach a gesture no conductor will ever make.

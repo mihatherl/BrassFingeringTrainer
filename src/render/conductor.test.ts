@@ -16,6 +16,7 @@ import {
   tipAt,
 } from './conductor';
 import { pulseAt } from '../domain/metre';
+import { steppedTempoAt, type TempoEvent } from '../domain/tempo';
 
 /**
  * The style axis, sampled end to end.
@@ -137,6 +138,45 @@ describe('choosing a pattern', () => {
     expect(patternFor(metreFor(5, 4))).toBeNull();
     expect(patternFor(metreFor(7, 8))).toBeNull();
     expect(patternFor(metreFor(11, 8))).toBeNull();
+  });
+});
+
+describe('the pattern following a change of tempo', () => {
+  /*
+   * The composition the play screen actually performs: the settled tempo picks
+   * the pattern, so a step that crosses a threshold changes the gesture and a
+   * rit bending through one does not.
+   *
+   * Tested here rather than only in a browser because the exercise a run gets
+   * is seeded — watching for a switch in the app means waiting for a plan that
+   * happens to step across the line, which it may not do.
+   */
+  const metre = metreFor(4, 4);
+  const shapeAt = (nominal: number, events: TempoEvent[], beat: number) =>
+    patternFor(metre, steppedTempoAt(nominal, events, beat))!.length;
+
+  it('changes shape where the music steps to a genuinely new speed', () => {
+    // Alla breve at 180, back to four when the join drops it to 144.
+    const events: TempoEvent[] = [{ kind: 'tempo', atBeat: 16, bpm: 144 }];
+    expect(shapeAt(180, events, 0)).toBe(2);
+    expect(shapeAt(180, events, 15.9)).toBe(2);
+    expect(shapeAt(180, events, 16)).toBe(4);
+  });
+
+  it('holds its shape through a rit, however far the rit bends', () => {
+    /*
+     * A closing rit from 180 down to 108 passes clean through the threshold.
+     * The hand must not reorganise half way down and back again — the gesture
+     * would be unfollowable exactly where following matters most.
+     */
+    const events: TempoEvent[] = [{ kind: 'ramp', fromBeat: 8, toBeat: 16, toBpm: 108 }];
+    for (const beat of [8, 10, 12, 14, 16, 24]) {
+      expect(shapeAt(180, events, beat), `beat ${beat}`).toBe(2);
+    }
+  });
+
+  it('leaves an exercise that holds its speed alone from end to end', () => {
+    for (const beat of [0, 8, 64]) expect(shapeAt(120, [], beat)).toBe(4);
   });
 });
 

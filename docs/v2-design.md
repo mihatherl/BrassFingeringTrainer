@@ -1028,7 +1028,16 @@ one was the doubtful question and the reason for building a spike at all.
 
   A fast **four** is halved rather than taken to one: alla breve, which the
   player ruled takes the ordinary two pattern — the same double J a 2/4 uses —
-  rather than wanting a shape of its own. One threshold serves both, and the
+  rather than wanting a shape of its own.
+
+  **The pattern follows a step and not a ramp**, which is one distinction and
+  not two rules. A join moving the music from 150 to 190 is a genuinely new
+  speed and a conductor beats it differently, so the gesture changes with it; a
+  rit passing through a threshold on its way somewhere must not reorganise the
+  hand mid-bend, which is unfollowable exactly where following matters most and
+  would flick back a bar later. `steppedTempoAt` in `domain/tempo.ts` draws the
+  line, answering what speed has been *declared* rather than what the clock is
+  doing this instant. One threshold serves both, and the
   arithmetic falls out: above it a 2/4 and a 4/4 each give a gesture every two
   crotchets, a 3/4 one every three. `placeInPattern` needed nothing, deriving
   the positions from the bar rather than the pulse, so two gestures across four
