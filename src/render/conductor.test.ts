@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { metreFor } from '../domain/metre';
 import {
+  BEAT_IN_ONE_ABOVE_BPM,
   CONDUCTOR_STYLE_RANGE,
+  PANEL_ASPECT_RANGE,
+  panelAspect,
   extentOf,
   gripFor,
   patternFor,
@@ -71,6 +74,30 @@ describe('choosing a pattern', () => {
     expect(patternFor(metreFor(4, 4), slow)!.length).toBe(4);
   });
 
+  it('beats a fast simple bar in one, and only where the reference does', () => {
+    /*
+     * "The one pattern is often used in very fast 2/4, 3/4 and 3/8" — past a
+     * speed a hand cannot make two or three readable ictuses, and beating the
+     * bar is clearer than beating a blur.
+     *
+     * Four is excluded on purpose: a quick common time goes to *two*, which is
+     * a different shape and is not drawn. Compound is excluded too — 6/8 is
+     * already in two, which is what a fast one wants.
+     */
+    const fast = BEAT_IN_ONE_ABOVE_BPM + 1;
+    expect(patternFor(metreFor(2, 4), fast)!.length).toBe(1);
+    expect(patternFor(metreFor(3, 4), fast)!.length).toBe(1);
+    expect(patternFor(metreFor(3, 8), fast)!.length).toBe(1);
+
+    expect(patternFor(metreFor(4, 4), fast)!.length).toBe(4);
+    expect(patternFor(metreFor(6, 8), fast)!.length).toBe(2);
+
+    // At the threshold itself it is still beaten in its pulses, and with no
+    // tempo given nothing changes for a caller that has not been told the speed.
+    expect(patternFor(metreFor(2, 4), BEAT_IN_ONE_ABOVE_BPM)!.length).toBe(2);
+    expect(patternFor(metreFor(3, 4))!.length).toBe(3);
+  });
+
   it('keeps the fast shape where no subdivided one is drawn yet', () => {
     // 9/8 and 12/8 would want nine and twelve patterns. Until those exist the
     // honest answer is the one that is taught for a quicker tempo, not silence
@@ -108,6 +135,16 @@ describe('placing a beat in its pattern', () => {
         );
       }
     }
+  });
+
+  it('runs one position to the bar when the bar is beaten in one', () => {
+    const metre = metreFor(3, 4);
+    const pattern = patternFor(metre, BEAT_IN_ONE_ABOVE_BPM + 1)!;
+    // The whole bar is one gesture, so a bar of three crotchets is one trip
+    // round the loop. `pulseAt` would say three and the hand would race.
+    expect(placeInPattern(metre, pattern, 0)).toBe(0);
+    expect(placeInPattern(metre, pattern, 1.5)).toBeCloseTo(0.5, 12);
+    expect(placeInPattern(metre, pattern, 3)).toBeCloseTo(1, 12);
   });
 
   it('runs six positions to the bar in a subdivided six', () => {
@@ -203,6 +240,10 @@ describe.each(STYLES)('the gesture, at style %s', (STYLE) => {
    */
   const shape = shapeFor(STYLE);
   const patterns = [
+    // The one pattern is the degenerate case and belongs here for that reason:
+    // a single ictus, no "between beats" at all, and a hairpin so narrow that
+    // the tip very nearly retraces its own line.
+    { n: 1, pattern: patternFor(metreFor(2, 4), BEAT_IN_ONE_ABOVE_BPM + 1)! },
     ...[2, 3, 4].map((n) => ({ n, pattern: patternFor(metreFor(n, 4))! })),
     // The subdivided six is held to every property the others are. It is the
     // most convoluted shape here — two elevated beats and a stroke that loops
@@ -336,22 +377,34 @@ describe.each(STYLES)('the gesture, at style %s', (STYLE) => {
   });
 
   it('measures an extent a panel can be fitted to', () => {
+    /*
+     * The panel takes the gesture's own proportions, so what matters is whether
+     * those proportions are usable — and for one of them they are not. The one
+     * pattern is a vertical line: asking for its true aspect gives a panel a few
+     * pixels wide beside the note list, which is why `panelAspect` clamps.
+     *
+     * Asserted as *which* patterns need the clamp rather than merely that the
+     * clamp works, since a clamp always works. If the one pattern were ever
+     * widened, or another shape went extreme, this says so.
+     */
     for (const { n, pattern } of patterns) {
       const extent = extentOf(pattern, shape.lag);
-      expect(extent.width, `${n} pattern width`).toBeGreaterThan(0.2);
+      expect(extent.width, `${n} pattern width`).toBeGreaterThan(0.02);
       expect(extent.height, `${n} pattern height`).toBeGreaterThan(0.2);
-      /*
-       * Nothing so extreme that it cannot be fitted into a panel beside a list.
-       *
-       * Wider than it used to be allowed to go, because the gesture is: at the
-       * flowing end the hand travels broadly and rises very little, which is
-       * the whole point of that end and puts a four pattern at better than four
-       * to one. The bound is a layout sanity check rather than a claim about
-       * conducting, and the panel takes the gesture's own proportions anyway.
-       */
-      const aspect = extent.width / extent.height;
-      expect(aspect, `${n} pattern aspect`).toBeGreaterThan(0.25);
-      expect(aspect, `${n} pattern aspect`).toBeLessThan(5);
+
+      const raw = extent.width / extent.height;
+      if (n === 1) {
+        expect(raw, 'the one pattern is a line and must be clamped').toBeLessThan(
+          PANEL_ASPECT_RANGE.min,
+        );
+      } else {
+        expect(raw, `${n} pattern aspect`).toBeGreaterThanOrEqual(PANEL_ASPECT_RANGE.min);
+        expect(raw, `${n} pattern aspect`).toBeLessThanOrEqual(PANEL_ASPECT_RANGE.max);
+      }
+
+      const panel = panelAspect(extent);
+      expect(panel, `${n} panel aspect`).toBeGreaterThanOrEqual(PANEL_ASPECT_RANGE.min);
+      expect(panel, `${n} panel aspect`).toBeLessThanOrEqual(PANEL_ASPECT_RANGE.max);
     }
   });
 });

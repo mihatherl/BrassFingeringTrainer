@@ -64,6 +64,50 @@ export const PATTERNS = {
    * is by construction the previous beat's rebound, the two cannot drift apart.
    */
   /*
+   * The one pattern: a series of downbeats with a single rebound.
+   *
+   * For a 2/4, 3/4 or 3/8 gone too fast to beat its pulses, where the whole bar
+   * becomes one gesture. Straight down onto the ictus, a narrow hook round the
+   * bottom, and straight back up.
+   *
+   * **The hook must stay narrow, and the sides near parallel.** The reference is
+   * explicit that the beat must not become oval or U-shaped: a wide turn puts no
+   * single instant at the bottom and the ictus stops being identifiable, which
+   * is the only thing this pattern has to convey, having nothing else in it.
+   * Narrow but never zero, though — a perfect retrace back up the line it came
+   * down is a reversal no hand performs, and it would leave no continuous
+   * tangent at the beat.
+   *
+   * Six via points rather than one or two, and that is what keeps it a hairpin
+   * instead of a leaf. With a single point up each side the spline bows outward
+   * between them and the widest part of the gesture lands half way up, where the
+   * reference has the sides parallel and all the separation down at the turn. So
+   * each side is pinned twice, low and high, and the top is a pair rather than a
+   * single apex — one point up there leaves the descent overshooting outward as
+   * it comes off the turn.
+   *
+   * Drawn by its path rather than by a rebound, because with one beat there is
+   * no "between beats" for an apex to sit in. The rebound is documentary.
+   *
+   * Mirrored, as every published diagram must be: the reference descends on the
+   * conductor's left and rises on their right, which the band sees reversed.
+   */
+  1: [
+    {
+      x: 0,
+      y: 1,
+      rebound: 1.5,
+      path: [
+        { x: -0.05, y: 0.88 },
+        { x: -0.05, y: 0.1 },
+        { x: -0.045, y: -0.46 },
+        { x: 0.012, y: -0.46 },
+        { x: 0.02, y: 0.1 },
+        { x: 0.02, y: 0.88 },
+      ],
+    },
+  ],
+  /*
    * A tall narrow hook, not a wide dome.
    *
    * The two pattern is the one place Mann's rule bites hardest: with no

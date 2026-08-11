@@ -21,7 +21,7 @@ import { PATTERNS, scaledPattern, tipAt } from './conductor-shape.js';
  * are the deliverable, not the drawing.
  */
 
-const PULSES = [2, 3, 4, 6];
+const PULSES = [1, 2, 3, 4, 6];
 const COLUMNS = 5;
 
 /**
@@ -213,7 +213,7 @@ function buildGrid() {
     grid.append(cell(t === 0 ? 'flowing' : t === 1 ? 'marcato' : `${Math.round(t * 100)}%`, 'grid__head'));
   }
   for (const pulses of PULSES) {
-    grid.append(cell(pulses === 6 ? 'six' : `${pulses}`, 'grid__row-head'));
+    grid.append(cell(pulses === 1 ? 'one' : pulses === 6 ? 'six' : `${pulses}`, 'grid__row-head'));
     for (let column = 0; column < COLUMNS; column++) {
       const holder = document.createElement('div');
       holder.className = 'grid__cell';

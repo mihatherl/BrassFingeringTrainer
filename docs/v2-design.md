@@ -1009,15 +1009,25 @@ one was the doubtful question and the reason for building a spike at all.
   already takes. Blocked on the fixed scale above — without it the panel would
   simply re-inflate whatever was taken away.
 
-- **The pattern itself may depend on tempo, not only its size.** From
-  conductors: a 2/4 fast enough stops being the double-J with both ictuses on
-  the floor and becomes plain up-down — the second beat at the *top*. A 6/8 goes
-  the other way at speed and is beaten in one rather than two. The mechanism for
-  this exists and is proven: `patternFor(metre, bpm)` already chooses between
-  the two and the six for compound time by tempo, so a fast variant is another
-  entry in `PATTERNS` and another threshold, not new machinery. What it needs is
-  a drawn shape and a threshold, both of which want a conductor's eye rather
-  than a guess — the same way the six pattern was settled.
+- **The pattern depends on tempo, and the one pattern is built.** A very fast
+  2/4, 3/4 or 3/8 stops being beaten in its pulses at all: the bar becomes a
+  single gesture, straight down onto the ictus, a narrow hook, and straight back
+  up. `BEAT_IN_ONE_ABOVE_BPM` is 168 and a guess until played. Four is excluded
+  — a quick common time goes to *two*, which is a different shape and is not
+  drawn — and compound is excluded, 6/8 in two being already what a fast one
+  wants.
+
+  Two things it taught. The hook has to be a hairpin rather than a leaf, which
+  takes six via points: with one up each side the spline bows out and the widest
+  part of the gesture lands half way up, where the reference has the sides
+  parallel and all the separation at the turn. And it is the first shape whose
+  proportions a panel cannot use — a twenty-fifth as wide as it is tall, which
+  asked for literally gives a five-pixel sliver beside the note list. Hence
+  `panelAspect`, which clamps; the test says *which* patterns need the clamp
+  rather than merely that clamping works.
+
+  Still open in the same family: **a fast four beaten in two**, which is a real
+  shape and not drawn.
 
 - **Five and seven patterns** are drawn on the reference sheet in `input/` and can
   be added from it. Until then those metres get no conductor.

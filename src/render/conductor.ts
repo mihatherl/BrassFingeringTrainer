@@ -52,10 +52,55 @@ export type ConductorPattern = Beat[];
  * Where the tip lands, per pulse count. All coordinates are normalised: x runs
  * left to right, y downward.
  *
- * Only two, three and four exist. Anything else has no pattern and gets no
- * conductor — see `patternFor`.
+ * One, two, three, four and six exist. Anything else has no pattern and gets no
+ * conductor — see `patternFor`, which also decides when a metre takes a shape
+ * other than its own pulse count.
  */
 const PATTERNS: Record<number, ConductorPattern> = {
+  /*
+   * The one pattern: a series of downbeats with a single rebound.
+   *
+   * For a 2/4, 3/4 or 3/8 gone too fast to beat its pulses, where the whole bar
+   * becomes one gesture. Straight down onto the ictus, a narrow hook round the
+   * bottom, and straight back up.
+   *
+   * **The hook must stay narrow, and the sides near parallel.** The reference is
+   * explicit that the beat must not become oval or U-shaped: a wide turn puts no
+   * single instant at the bottom and the ictus stops being identifiable, which
+   * is the only thing this pattern has to convey, having nothing else in it.
+   * Narrow but never zero, though — a perfect retrace back up the line it came
+   * down is a reversal no hand performs, and it would leave no continuous
+   * tangent at the beat.
+   *
+   * Six via points rather than one or two, and that is what keeps it a hairpin
+   * instead of a leaf. With a single point up each side the spline bows outward
+   * between them and the widest part of the gesture lands half way up, where the
+   * reference has the sides parallel and all the separation down at the turn. So
+   * each side is pinned twice, low and high, and the top is a pair rather than a
+   * single apex — one point up there leaves the descent overshooting outward as
+   * it comes off the turn.
+   *
+   * Drawn by its path rather than by a rebound, because with one beat there is
+   * no "between beats" for an apex to sit in. The rebound is documentary.
+   *
+   * Mirrored, as every published diagram must be: the reference descends on the
+   * conductor's left and rises on their right, which the band sees reversed.
+   */
+  1: [
+    {
+      x: 0,
+      y: 1,
+      rebound: 1.5,
+      path: [
+        { x: -0.05, y: 0.88 },
+        { x: -0.05, y: 0.1 },
+        { x: -0.045, y: -0.46 },
+        { x: 0.012, y: -0.46 },
+        { x: 0.02, y: 0.1 },
+        { x: 0.02, y: 0.88 },
+      ],
+    },
+  ],
   // A J and a reverse J. Beat two sits above the downbeat, and the hand sweeps
   // past it and back so the two hooks curl in opposite senses.
   2: [
@@ -149,6 +194,26 @@ const PATTERNS: Record<number, ConductorPattern> = {
 export const SUBDIVIDE_BELOW_BPM = 76;
 
 /**
+ * Above this many conducted beats a minute, a simple bar beaten in two or three
+ * becomes one gesture.
+ *
+ * The one pattern, which the reference gives to "very fast 2/4, 3/4 and 3/8".
+ * Past a certain speed a hand cannot make two or three separate ictuses that
+ * anyone can read, and beating the bar is clearer than beating a blur — the
+ * same reasoning as `SUBDIVIDE_BELOW_BPM`, from the other end.
+ *
+ * A guess until played, like every other number here that describes musical
+ * judgement rather than arithmetic. 168 puts a waltz in one at about 56 bars a
+ * minute, which is quick but not extreme, and leaves the top quarter of the
+ * tempo range in one.
+ *
+ * Four is deliberately excluded, and 4/4 keeps its four however fast. A quick
+ * common time goes to *two*, not one — that is a different shape and it is not
+ * drawn yet.
+ */
+export const BEAT_IN_ONE_ABOVE_BPM = 168;
+
+/**
  * The pattern for a metre, or null when there is none.
  *
  * **Null means the conductor switches off and the metronome carries on.** A
@@ -162,6 +227,16 @@ export function patternFor(metre: Metre, bpm?: number): ConductorPattern | null 
   if (metre.isCompound && bpm !== undefined && bpm < SUBDIVIDE_BELOW_BPM) {
     const subdivided = PATTERNS[metre.beatsPerBar];
     if (subdivided) return subdivided;
+  }
+  // Too fast for its own pulses: the bar becomes one gesture. Only where the
+  // reference puts it — a simple two or three — never a four.
+  if (
+    !metre.isCompound &&
+    bpm !== undefined &&
+    bpm > BEAT_IN_ONE_ABOVE_BPM &&
+    (metre.pulsesPerBar === 2 || metre.pulsesPerBar === 3)
+  ) {
+    return PATTERNS[1];
   }
   return PATTERNS[metre.pulsesPerBar] ?? null;
 }
@@ -434,6 +509,25 @@ export function gripFor(pattern: ConductorPattern, tip: ConductorPoint): Conduct
  * themselves. Computed once per pattern so a panel can be fitted to it without
  * knowing anything about conducting.
  */
+/**
+ * Proportions a panel can be given for a gesture, clamped to something usable.
+ *
+ * The panel takes the gesture's own aspect ratio so that a shape is not
+ * letterboxed inside a box guessed for a different one. That works while the
+ * shapes are within reach of each other, and the one pattern is not: it is a
+ * vertical line, a twenty-fifth as wide as it is tall, and asking for that
+ * literally gives a five-pixel sliver beside the note list. Clamped, the panel
+ * stays a panel and the gesture centres inside it — which is honest, because a
+ * one pattern really is a line and there is nothing else to show.
+ */
+export const PANEL_ASPECT_RANGE = { min: 0.3, max: 5 } as const;
+
+export function panelAspect(extent: { width: number; height: number }): number {
+  const aspect = extent.width / extent.height;
+  if (!Number.isFinite(aspect)) return 1;
+  return Math.min(PANEL_ASPECT_RANGE.max, Math.max(PANEL_ASPECT_RANGE.min, aspect));
+}
+
 export function extentOf(pattern: ConductorPattern, lag: number) {
   let minX = Infinity;
   let maxX = -Infinity;

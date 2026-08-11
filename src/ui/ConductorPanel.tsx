@@ -19,6 +19,7 @@ import type { Transport } from '../engine/clock';
 import {
   extentOf,
   gripFor,
+  panelAspect,
   patternFor,
   placeInPattern,
   shapeFor,
@@ -228,7 +229,7 @@ export function ConductorPanel({ transport, metre, style, tempo }: ConductorPane
     <div
       className="conductor"
       aria-hidden="true"
-      style={{ aspectRatio: `${extent.width} / ${extent.height}` }}
+      style={{ aspectRatio: String(panelAspect(extent)) }}
     >
       <canvas ref={canvasRef} className="conductor__canvas" />
     </div>
