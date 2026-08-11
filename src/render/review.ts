@@ -16,6 +16,7 @@
 
 import { formatMask } from '../domain/fingering';
 import { keyAt, widestKey } from '../domain/keys';
+import { barCount, beatOfBar } from '../domain/metre';
 import type { Verdict } from '../engine/judge';
 import { isTieContinuation } from '../exercise/ties';
 import type { Exercise } from '../exercise/types';
@@ -94,14 +95,14 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   const metrics = staveMetrics(exercise.clef, 0, staveSpace);
   const headerWidth =
     // The widest key reached, so a later system with more accidentals cannot
-    // overflow a line whose bars were planned against a narrower one.
-    measureStaveHeader(
-      metrics,
-      widestKey(exercise.keys),
-      exercise.metre.beatsPerBar,
-      exercise.metre.beatUnit,
-    ) +
-    staveSpace;
+    // overflow a line whose bars were planned against a narrower one — and the
+    // widest signature for the same reason, since a part that turns from 3/4
+    // into 12/8 wants the room on every line rather than on the ones after it.
+    Math.max(
+      ...exercise.metres.map(({ metre }) =>
+        measureStaveHeader(metrics, widestKey(exercise.keys), metre.beatsPerBar, metre.beatUnit),
+      ),
+    ) + staveSpace;
 
   const head = noteheadWidth(metrics, { value: 'quarter', dotted: false });
   const usable = width - headerWidth - staveSpace * 2;
@@ -130,7 +131,7 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
   // Systems are filled greedily, as an engraver fills a line: take bars until
   // the next one will not fit, then break. A line of held notes therefore holds
   // far more bars than a line of semiquavers, which is the whole point.
-  const totalBars = Math.max(1, Math.ceil(exercise.totalBeats / exercise.metre.barBeats));
+  const totalBars = barCount(exercise.metres, exercise.totalBeats);
   const systemStarts: number[] = [];
   for (let bar = 0; bar < totalBars; bar += spacing.barsFitting(bar, usable)) {
     systemStarts.push(bar);
@@ -155,7 +156,7 @@ function drawReviewSystem(
 ): void {
   const { exercise, verdicts, theme } = options;
   const { staveSpace, headerWidth, spacing, systemStarts } = layout;
-  const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
+  const totalBars = barCount(exercise.metres, exercise.totalBeats);
 
   // Three and a half spaces of clearance above the stave for ledger lines and
   // accidentals; the annotation gets what is left underneath.
@@ -171,8 +172,8 @@ function drawReviewSystem(
     // Every line justified to the margin, bar the last — see `justifiedX`.
     xForBeat: justifiedX(
       spacing,
-      firstBar * exercise.metre.barBeats,
-      Math.min(exercise.totalBeats, lastBar * exercise.metre.barBeats),
+      beatOfBar(exercise.metres, firstBar),
+      Math.min(exercise.totalBeats, beatOfBar(exercise.metres, lastBar)),
       headerWidth,
       layout.usableWidth,
       !final,

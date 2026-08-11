@@ -23,6 +23,7 @@
  * it crossed the strike line.
  */
 
+import { barCount, beatOfBar } from '../domain/metre';
 import type { Exercise } from '../exercise/types';
 
 /**
@@ -103,8 +104,8 @@ export interface SpacingOptions {
 }
 
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
-  const { barBeats } = exercise.metre;
-  const { totalBeats } = exercise;
+  const { totalBeats, metres } = exercise;
+  const totalBars = barCount(metres, totalBeats);
   const columns = columnBeats(exercise);
 
   // Gaps between consecutive columns are the durations that matter: what a note
@@ -142,8 +143,8 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
   const widestBar = (offsets: number[]) => {
     const at = (beat: number) => interpolate(columns, offsets, beat);
     let widest = 0;
-    for (let bar = 0; bar * barBeats < totalBeats; bar++) {
-      widest = Math.max(widest, at((bar + 1) * barBeats) - at(bar * barBeats));
+    for (let bar = 0; beatOfBar(metres, bar) < totalBeats; bar++) {
+      widest = Math.max(widest, at(beatOfBar(metres, bar + 1)) - at(beatOfBar(metres, bar)));
     }
     return widest;
   };
@@ -173,7 +174,6 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
 
   const xOf = (beat: number) => interpolate(columns, offsets, beat) * scale;
   const width = xOf(totalBeats);
-  const totalBars = Math.max(1, Math.ceil(totalBeats / barBeats));
 
   return {
     xOf,
@@ -181,11 +181,11 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
     width,
     averagePixelsPerBeat: totalBeats > 0 ? width / totalBeats : 0,
     barsFitting(fromBar, available) {
-      const start = xOf(fromBar * barBeats);
+      const start = xOf(beatOfBar(metres, fromBar));
       let bars = 0;
       while (
         fromBar + bars < totalBars &&
-        xOf((fromBar + bars + 1) * barBeats) - start <= available
+        xOf(beatOfBar(metres, fromBar + bars + 1)) - start <= available
       ) {
         bars++;
       }
@@ -230,10 +230,12 @@ function notesByBeat(exercise: Exercise): Map<number, number> {
 
 /** Every beat a bar line falls on, including the closing one. */
 function barBoundaryBeats(exercise: Exercise): Set<number> {
-  const { barBeats } = exercise.metre;
-  const { totalBeats } = exercise;
+  const { totalBeats, metres } = exercise;
+  const bars = barCount(metres, totalBeats);
   const beats = new Set<number>([totalBeats]);
-  for (let bar = 1; bar * barBeats < totalBeats; bar++) beats.add(bar * barBeats);
+  for (let bar = 1; bar < bars; bar++) {
+    beats.add(beatOfBar(metres, bar));
+  }
   return beats;
 }
 
@@ -249,9 +251,10 @@ function columnBeats(exercise: Exercise): number[] {
   const beats = new Set<number>([0, exercise.totalBeats]);
   for (const note of exercise.notes) beats.add(note.startBeat);
   for (const rest of exercise.rests) beats.add(rest.startBeat);
-  const { barBeats } = exercise.metre;
-  for (let bar = 0; bar * barBeats < exercise.totalBeats; bar++) {
-    beats.add(bar * barBeats);
+  const { totalBeats, metres } = exercise;
+  const bars = barCount(metres, totalBeats);
+  for (let bar = 0; bar < bars; bar++) {
+    beats.add(beatOfBar(metres, bar));
   }
   return [...beats].sort((a, b) => a - b);
 }

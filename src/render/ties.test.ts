@@ -91,7 +91,7 @@ function tiedExercise(): Exercise {
     instrumentId: 'eb-bass',
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: 0 }],
-    metre: metreFor(2, 4),
+    metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
     tempo: [],
     totalBeats: 4,
     chosenBeats: 4,

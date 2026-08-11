@@ -343,7 +343,7 @@ describe('summarising a run', () => {
 });
 
 describe('the scoring window', () => {
-  const metre = metreFor(4, 4);
+  const metres = [{ fromBeat: 0, metre: metreFor(4, 4) }];
 
   /** One crotchet per bar, which keeps bar arithmetic legible. */
   const noteInBar = (bar: number) => noteExpecting([0b001], bar * 4);
@@ -357,14 +357,14 @@ describe('the scoring window', () => {
   it('returns a short run whole, so nothing about small exercises changes', () => {
     const notes = [0, 1, 2, 3].map(noteInBar);
     const judgements = notes.map((_, i) => judged(i, 'correct'));
-    expect(windowJudgements(notes, judgements, metre)).toEqual(judgements);
+    expect(windowJudgements(notes, judgements, metres)).toEqual(judgements);
   });
 
   it('rolls: only the last window of bars is scored', () => {
     const notes = Array.from({ length: 40 }, (_, bar) => noteInBar(bar));
     const judgements = notes.map((_, i) => judged(i, i < 24 ? 'wrong' : 'correct'));
 
-    const inWindow = windowJudgements(notes, judgements, metre);
+    const inWindow = windowJudgements(notes, judgements, metres);
     // Bars 24–39: the sixteen ending at the last judged bar.
     expect(inWindow).toHaveLength(16);
     expect(inWindow.every((j) => j.verdict === 'correct')).toBe(true);
@@ -379,7 +379,7 @@ describe('the scoring window', () => {
     const notes = Array.from({ length: 40 }, (_, bar) => noteInBar(bar));
     const judgements = notes.slice(0, 20).map((_, i) => judged(i, 'correct'));
 
-    const inWindow = windowJudgements(notes, judgements, metre);
+    const inWindow = windowJudgements(notes, judgements, metres);
     expect(inWindow).toHaveLength(16);
     expect(inWindow[0].noteIndex).toBe(4);
     expect(inWindow[inWindow.length - 1].noteIndex).toBe(19);

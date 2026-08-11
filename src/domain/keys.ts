@@ -34,8 +34,9 @@ export interface KeyChange {
  * The key in force at a beat.
  *
  * Deliberately the same shape as `metre.ts`'s "what is in force at beat b" —
- * a piece can change key partway through, and one day metre as well, and both
- * want asking the same way rather than each inventing its own lookup.
+ * a piece changes key partway through, and metre as well, and both want asking
+ * the same way rather than each inventing its own lookup. `metreAt` is the
+ * other half of the pair.
  *
  * Total over negative beats, because the count-in sits there: before the first
  * change, the first key applies. A list is never empty in practice, but an

@@ -16,7 +16,7 @@
  * since that is how long the note it stands for actually sounds.
  */
 
-import { barAt, type Metre } from '../domain/metre';
+import { barAt, type MetreChange } from '../domain/metre';
 import type { NoteEvent } from '../exercise/types';
 import type { ValveInput } from './input';
 
@@ -152,15 +152,15 @@ export const SCORE_WINDOW_BARS = 16;
 export function windowJudgements(
   notes: readonly NoteEvent[],
   judgements: readonly NoteJudgement[],
-  metre: Metre,
+  metres: readonly MetreChange[],
   bars = SCORE_WINDOW_BARS,
 ): NoteJudgement[] {
   let lastBar = -1;
   for (const judgement of judgements) {
-    lastBar = Math.max(lastBar, barAt(metre, notes[judgement.noteIndex].startBeat));
+    lastBar = Math.max(lastBar, barAt(metres, notes[judgement.noteIndex].startBeat));
   }
   const fromBar = lastBar - bars + 1;
-  return judgements.filter((j) => barAt(metre, notes[j.noteIndex].startBeat) >= fromBar);
+  return judgements.filter((j) => barAt(metres, notes[j.noteIndex].startBeat) >= fromBar);
 }
 
 export interface SessionSummary {

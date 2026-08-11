@@ -32,7 +32,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
-import { metreFor } from '../domain/metre';
+import { metreAt, metreFor } from '../domain/metre';
 import { difficultyById } from '../exercise/difficulty';
 import { generateExercise, type GenerateOptions } from '../exercise/generate';
 import { exerciseFromTheme } from '../exercise/theme';
@@ -182,7 +182,7 @@ describe('engraving', () => {
 
       const { systemStarts } = planReview(DEFAULT_WIDTH, exercise);
       for (const { fromBeat } of changes) {
-        const bar = fromBeat / exercise.metre.barBeats;
+        const bar = fromBeat / metreAt(exercise.metres, 0).barBeats;
         expect(systemStarts, `${keySet} change at bar ${bar} is not a line start`).not.toContain(
           bar,
         );

@@ -14,7 +14,7 @@ import { acceptedMasks as fingeringMasks, primaryFingering } from '../domain/fin
 import { soundingFromWritten, type Clef, type Instrument } from '../domain/instruments';
 import { keyAt, needsAccidental, spellInKey, type KeyChange } from '../domain/keys';
 import { isBeamable, snapBeat, type Duration } from '../domain/rhythm';
-import { barAt, type Metre } from '../domain/metre';
+import { barAt, beatOfBar, metreAt, type Metre, type MetreChange } from '../domain/metre';
 import type { Letter } from '../domain/pitch';
 import type { TempoEvent } from '../domain/tempo';
 import { isTieContinuation } from './ties';
@@ -109,9 +109,14 @@ export function assembleExercise(
     });
   }
 
+  // The generator works in one metre throughout, so the exercise's list is one
+  // entry long. It is a list because an imported part is not, and everything
+  // downstream counts bars through the list either way.
+  const metres: MetreChange[] = [{ fromBeat: 0, metre }];
+
   assignTupletGroups(notes);
-  assignBeamGroups(notes, rests, metre);
-  assignAccidentals(notes, metre, keys);
+  assignBeamGroups(notes, rests, metres);
+  assignAccidentals(notes, metres, keys);
 
   return {
     notes,
@@ -119,7 +124,7 @@ export function assembleExercise(
     instrumentId: instrument.id,
     clef,
     keys,
-    metre,
+    metres,
     tempo: options.tempo ?? [],
     totalBeats: snapBeat(options.totalBeats),
     chosenBeats: snapBeat(options.chosenBeats ?? options.totalBeats),
@@ -185,11 +190,22 @@ function assignTupletGroups(notes: NoteEvent[]): void {
  * anything crossing a beat, or interrupted by a rest or a longer note, starts a
  * new group.
  */
-function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre): void {
+function assignBeamGroups(
+  notes: NoteEvent[],
+  rests: RestEvent[],
+  metres: readonly MetreChange[],
+): void {
   // Grouped by pulse rather than by crotchet, which is the same thing in simple
   // time and the difference between beaming in twos and in threes once it is
   // not: 6/8 beams three quavers to a dotted crotchet.
-  const pulseOf = (beat: number) => Math.floor(beat / metre.pulseBeats + 1e-9);
+  //
+  // Counted from the bar line rather than from beat 0. The two agree while one
+  // metre runs the whole piece, and stop agreeing after a change that leaves a
+  // bar line off a multiple of the new pulse — where counting absolutely puts a
+  // pulse boundary in the middle of a beam. The bar is the frame a beam lives
+  // in, so it is the thing to measure from.
+  const pulseOf = (beat: number) =>
+    Math.floor((beat - beatOfBar(metres, barAt(metres, beat))) / metreAt(metres, beat).pulseBeats + 1e-9);
   const restStarts = rests.map((r) => r.startBeat).sort((a, b) => a - b);
   /*
    * Whether a rest comes between two notes, which is where a beam breaks.
@@ -213,13 +229,13 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre):
     }
 
     const beat = pulseOf(note.startBeat);
-    const bar = barAt(metre, note.startBeat);
+    const bar = barAt(metres, note.startBeat);
     let end = index;
     while (
       end + 1 < notes.length &&
       isBeamable(notes[end + 1].duration) &&
       pulseOf(notes[end + 1].startBeat) === beat &&
-      barAt(metre, notes[end + 1].startBeat) === bar &&
+      barAt(metres, notes[end + 1].startBeat) === bar &&
       !restBetween(notes[end].startBeat, notes[end + 1].startBeat)
     ) {
       end++;
@@ -246,12 +262,16 @@ function assignBeamGroups(notes: NoteEvent[], rests: RestEvent[], metre: Metre):
  * means a later note of that pitch in that bar gets an accidental of its own —
  * the cautionary an engraver would write there anyway.
  */
-function assignAccidentals(notes: NoteEvent[], metre: Metre, keys: readonly KeyChange[]): void {
+function assignAccidentals(
+  notes: NoteEvent[],
+  metres: readonly MetreChange[],
+  keys: readonly KeyChange[],
+): void {
   let currentBar = -1;
   let altered = new Map<string, number>();
 
   for (const [index, note] of notes.entries()) {
-    const bar = barAt(metre, note.startBeat);
+    const bar = barAt(metres, note.startBeat);
     if (bar !== currentBar) {
       currentBar = bar;
       altered = new Map();

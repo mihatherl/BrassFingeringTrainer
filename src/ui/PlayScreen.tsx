@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
 import { formatMask } from '../domain/fingering';
-import { barAt } from '../domain/metre';
+import { barAt, metreAt } from '../domain/metre';
 import { instrumentById } from '../domain/instruments';
 import { formatPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
@@ -125,19 +125,19 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
          * glancing at late in a long session. Recomputed from the verdicts
          * on each judgement — one pass per note judged, nowhere near a frame.
          */
-        const { metre, notes } = exercise;
+        const { metres, notes } = exercise;
         let done = 0;
         let lastBar = 0;
         verdictsRef.current.forEach((verdict, index) => {
           if (!verdict) return;
           done++;
-          lastBar = Math.max(lastBar, barAt(metre, notes[index].startBeat));
+          lastBar = Math.max(lastBar, barAt(metres, notes[index].startBeat));
         });
         let inWindow = 0;
         let correct = 0;
         verdictsRef.current.forEach((verdict, index) => {
           if (!verdict) return;
-          if (barAt(metre, notes[index].startBeat) <= lastBar - SCORE_WINDOW_BARS) return;
+          if (barAt(metres, notes[index].startBeat) <= lastBar - SCORE_WINDOW_BARS) return;
           inWindow++;
           if (verdict === 'correct') correct++;
         });
@@ -440,7 +440,14 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         {settings.conductorEnabled && transport && (
           <ConductorPanel
             transport={transport}
-            metre={exercise.metre}
+            /*
+             * The metre the piece opens in. The panel already changes pattern
+             * when the tempo steps across a threshold; changing it when the
+             * metre changes is the same kind of move and is not built, because
+             * nothing generates a part that does so yet. Listed with the other
+             * open ends in `musicxml-import-plan.md`.
+             */
+            metre={metreAt(exercise.metres, 0)}
             style={settings.conductorStyle}
             tempo={settings.tempo}
             tempoEvents={exercise.tempo}

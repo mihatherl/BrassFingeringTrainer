@@ -1,4 +1,4 @@
-import { metreFor } from '../domain/metre';
+import { metreAt, metreFor } from '../domain/metre';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
 import { Transport } from '../engine/clock';
@@ -614,7 +614,7 @@ describe('scrolling renderer', () => {
       renderer.draw();
 
       const { pageStartBar, barsPerPage } = renderer.scale;
-      const currentBar = Math.floor(beat / exercise.metre.barBeats);
+      const currentBar = Math.floor(beat / metreAt(exercise.metres, 0).barBeats);
       expect(currentBar, `beat ${beat}`).toBeGreaterThanOrEqual(pageStartBar);
       expect(currentBar, `beat ${beat}`).toBeLessThan(pageStartBar + barsPerPage);
     }
@@ -1056,7 +1056,7 @@ describe('scrolling renderer', () => {
       // The invariant that matters: whatever the stack does, the player can see
       // the bar they are on.
       const { renderer, exercise, drawAtBeat } = stackedRenderer();
-      const beatsPerBar = exercise.metre.barBeats;
+      const beatsPerBar = metreAt(exercise.metres, 0).barBeats;
       let previousStart = 0;
 
       for (let beat = 0; beat < exercise.totalBeats; beat += 0.5) {
@@ -1076,7 +1076,7 @@ describe('scrolling renderer', () => {
       // Reaching the *bottom* line is what moves the stack, not reaching the
       // end of the line being read — so there is always one line spare.
       const { renderer, exercise, drawAtBeat } = stackedRenderer();
-      const beatsPerBar = exercise.metre.barBeats;
+      const beatsPerBar = metreAt(exercise.metres, 0).barBeats;
 
       drawAtBeat(0);
       const firstScreen = renderer.scale;
@@ -1090,7 +1090,7 @@ describe('scrolling renderer', () => {
 
     it('slides rather than cutting when it does move', () => {
       const { renderer, exercise, drawAtBeat } = stackedRenderer();
-      const beatsPerBar = exercise.metre.barBeats;
+      const beatsPerBar = metreAt(exercise.metres, 0).barBeats;
 
       drawAtBeat(0);
       const before = renderer.scale.shownOrigin;
@@ -1114,7 +1114,7 @@ describe('scrolling renderer', () => {
       const { barsPerPage } = renderer.scale;
       expect(barsPerPage).toBeGreaterThan(2);
 
-      const beatsPerBar = exercise.metre.barBeats;
+      const beatsPerBar = metreAt(exercise.metres, 0).barBeats;
       // Still on the first page while the playhead is short of the last bar.
       drawAtBeat((barsPerPage - 2) * beatsPerBar);
       expect(renderer.scale.pageStartBar).toBe(0);
@@ -1127,7 +1127,7 @@ describe('scrolling renderer', () => {
     it('slides to the new page rather than cutting to it', () => {
       const { renderer, exercise, drawAtBeat } = pagedRenderer();
       const { barsPerPage } = renderer.scale;
-      const beatsPerBar = exercise.metre.barBeats;
+      const beatsPerBar = metreAt(exercise.metres, 0).barBeats;
 
       drawAtBeat(0);
       const before = renderer.scale.shownOrigin;
@@ -1156,7 +1156,7 @@ describe('scrolling renderer', () => {
     it('eases in and out rather than moving at a constant rate', () => {
       const { renderer, exercise, drawAtBeat } = pagedRenderer();
       const { barsPerPage } = renderer.scale;
-      const turnBeat = (barsPerPage - 1) * exercise.metre.barBeats;
+      const turnBeat = (barsPerPage - 1) * metreAt(exercise.metres, 0).barBeats;
 
       drawAtBeat(0);
       const from = renderer.scale.shownOrigin;
@@ -1199,7 +1199,7 @@ describe('scrolling renderer', () => {
       // Whatever the last page starts on, the final bar is on it. Pages hold
       // different numbers of bars now, so "total less a page" is no longer a
       // number that means anything.
-      const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
+      const totalBars = Math.ceil(exercise.totalBeats / metreAt(exercise.metres, 0).barBeats);
       wall += 600;
       drawAtBeat(exercise.totalBeats - 0.25);
       const lastPage = renderer.scale;
@@ -1211,7 +1211,7 @@ describe('scrolling renderer', () => {
       // A second turn arriving mid-slide must continue from where the first got
       // to, not from the page it was heading for.
       const { renderer, exercise, drawAtBeat } = pagedRenderer();
-      const beatsPerBar = exercise.metre.barBeats;
+      const beatsPerBar = metreAt(exercise.metres, 0).barBeats;
       const { barsPerPage } = renderer.scale;
 
       drawAtBeat(0);
@@ -1278,7 +1278,7 @@ describe('revealByBar', () => {
 
   it('withholds every note in a bar until the whole bar is judged', () => {
     const exercise = twoBarExercise();
-    const { barBeats } = exercise.metre;
+    const { barBeats } = metreAt(exercise.metres, 0);
     const barOf = (index: number) => Math.floor(exercise.notes[index].startBeat / barBeats);
     const firstBarCount = exercise.notes.filter((_, index) => barOf(index) === 0).length;
     expect(firstBarCount).toBeGreaterThan(1);
@@ -1301,7 +1301,7 @@ describe('revealByBar', () => {
 
   it('treats a missed note as judged, same as a correct or wrong one', () => {
     const exercise = twoBarExercise();
-    const { barBeats } = exercise.metre;
+    const { barBeats } = metreAt(exercise.metres, 0);
     const firstBarCount = exercise.notes.filter(
       (note) => Math.floor(note.startBeat / barBeats) === 0,
     ).length;

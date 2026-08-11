@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { instrumentById, writtenRange } from '../domain/instruments';
-import { metreFor } from '../domain/metre';
+import { metreAt, metreFor } from '../domain/metre';
 import { durationBeats } from '../domain/rhythm';
 import { difficultyById } from './difficulty';
 import { generateExercise } from './generate';
@@ -242,7 +242,7 @@ describe('themes through the generator', () => {
     // free material, so it is measured in bars again.
     const exercise = themed({ metre: metreFor(5, 4), bars: 8 });
     expect(exercise.notes.length).toBeGreaterThan(0);
-    expect(exercise.totalBeats).toBe(8 * exercise.metre.barBeats);
+    expect(exercise.totalBeats).toBe(8 * metreAt(exercise.metres, 0).barBeats);
   });
 
   it('is reproducible from its seed, like everything else generated', () => {
@@ -260,7 +260,7 @@ describe('themes through the generator', () => {
      */
     for (const bars of [4, 12, 16]) {
       const exercise = themed({ kind: 'phrases', bars, difficulty: difficultyById('medium') });
-      expect(exercise.totalBeats, `${bars} bars`).toBe(bars * exercise.metre.barBeats);
+      expect(exercise.totalBeats, `${bars} bars`).toBe(bars * metreAt(exercise.metres, 0).barBeats);
     }
   });
 });

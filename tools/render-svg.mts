@@ -11,6 +11,7 @@
  * app draws rather than a redrawing of it.
  */
 
+import { barCount, beatOfBar } from '../src/domain/metre.ts';
 import type { Exercise } from '../src/exercise/types.ts';
 import { planReview } from '../src/render/review.ts';
 import { staveMetrics } from '../src/render/stave.ts';
@@ -34,7 +35,7 @@ export function exerciseToSvg(exercise: Exercise, width = DEFAULT_WIDTH): string
 
   const layout = planReview(width, exercise);
   const ctx = new SvgContext();
-  const totalBars = Math.ceil(exercise.totalBeats / exercise.metre.barBeats);
+  const totalBars = barCount(exercise.metres, exercise.totalBeats);
 
   layout.systemStarts.forEach((firstBar, system) => {
     const lastBar = layout.systemStarts[system + 1] ?? totalBars;
@@ -48,8 +49,8 @@ export function exerciseToSvg(exercise: Exercise, width = DEFAULT_WIDTH): string
       ),
       xForBeat: justifiedX(
         layout.spacing,
-        firstBar * exercise.metre.barBeats,
-        Math.min(exercise.totalBeats, lastBar * exercise.metre.barBeats),
+        beatOfBar(exercise.metres, firstBar),
+        Math.min(exercise.totalBeats, beatOfBar(exercise.metres, lastBar)),
         layout.headerWidth,
         layout.usableWidth,
         !final,

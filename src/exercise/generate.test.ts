@@ -1,4 +1,4 @@
-import { metreFor } from '../domain/metre';
+import { metreAt, metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import { isPlayable } from '../domain/fingering';
 import { instrumentById, soundingFromWritten, writtenRange } from '../domain/instruments';
@@ -48,7 +48,7 @@ describe('exercise generation', () => {
 
     // Counted from the exercise rather than from the bars asked for: a scale
     // is measured in cycles, so how many bars it runs to is its own business.
-    const bars = exercise.totalBeats / exercise.metre.barBeats;
+    const bars = exercise.totalBeats / metreAt(exercise.metres, 0).barBeats;
     expect(bars, 'a whole number of bars').toBe(Math.round(bars));
     expect(bars).toBeGreaterThan(0);
 
@@ -186,7 +186,7 @@ describe('scales and arpeggios', () => {
             seed: 11,
           }),
         );
-        const { barBeats } = exercise.metre;
+        const { barBeats } = metreAt(exercise.metres, 0);
         expect(exercise.keys.length, `${kind} ${difficultyId}: no change to check`).toBeGreaterThan(
           1,
         );
@@ -205,13 +205,13 @@ describe('scales and arpeggios', () => {
       // the middle of a scale is a gap in the scale.
       const exercise = generateExercise(options({ kind, cycles: 2, seed: 11 }));
       expect(exercise.rests).toEqual([]);
-      expect(exercise.totalBeats % exercise.metre.barBeats).toBe(0);
+      expect(exercise.totalBeats % metreAt(exercise.metres, 0).barBeats).toBe(0);
     });
 
     it.each(PATTERNS)('runs to a whole number of bars (%s)', (kind) => {
       for (const cycles of [1, 2, 4, 8]) {
         const exercise = generateExercise(options({ kind, cycles, seed: cycles }));
-        const bars = exercise.totalBeats / exercise.metre.barBeats;
+        const bars = exercise.totalBeats / metreAt(exercise.metres, 0).barBeats;
         expect(bars, `${kind} x${cycles}`).toBe(Math.round(bars));
         // And longer when asked for more, which is the whole of the control.
         expect(exercise.totalBeats).toBeGreaterThan(0);
@@ -242,7 +242,7 @@ describe('scales and arpeggios', () => {
       for (const bars of [4, 8, 16]) {
         const exercise = generateExercise(options({ kind: 'random', bars, cycles: 7,
  themeCount: 2, seed: bars }));
-        expect(exercise.totalBeats, `random ${bars}`).toBe(bars * exercise.metre.barBeats);
+        expect(exercise.totalBeats, `random ${bars}`).toBe(bars * metreAt(exercise.metres, 0).barBeats);
       }
     });
 
@@ -260,9 +260,9 @@ describe('scales and arpeggios', () => {
  themeCount: 2, seed: bars }));
 
         expect(seven.totalBeats, `phrases ${bars}`).toBeGreaterThanOrEqual(
-          bars * seven.metre.barBeats,
+          bars * metreAt(seven.metres, 0).barBeats,
         );
-        expect(seven.totalBeats % seven.metre.barBeats, 'ends part way through a bar').toBe(0);
+        expect(seven.totalBeats % metreAt(seven.metres, 0).barBeats, 'ends part way through a bar').toBe(0);
         expect(two.totalBeats, `cycles leaked into phrases at ${bars}`).toBe(seven.totalBeats);
       }
     });
@@ -386,7 +386,7 @@ describe('scales and arpeggios', () => {
            */
           for (const rest of exercise.rests) {
             const endsOnBarLine =
-              (rest.startBeat + durationBeats(rest.duration)) % exercise.metre.barBeats === 0;
+              (rest.startBeat + durationBeats(rest.duration)) % metreAt(exercise.metres, 0).barBeats === 0;
             const runsToAnotherRest = exercise.rests.some(
               (other) =>
                 Math.abs(other.startBeat - (rest.startBeat + durationBeats(rest.duration))) < 1e-9,
@@ -629,7 +629,7 @@ describe('accidentals', () => {
     let checked = 0;
 
     for (const note of exercise.notes) {
-      const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
+      const bar = Math.floor(note.startBeat / metreAt(exercise.metres, 0).barBeats);
       if (bar !== currentBar) {
         currentBar = bar;
         inForce = new Map();
@@ -662,7 +662,7 @@ describe('accidentals', () => {
 
     for (const [index, note] of exercise.notes.entries()) {
       if (isTieContinuation(exercise.notes, index)) continue;
-      const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
+      const bar = Math.floor(note.startBeat / metreAt(exercise.metres, 0).barBeats);
       if (barsSeen.has(bar)) continue;
 
       const spelled = spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat));
@@ -686,7 +686,7 @@ describe('accidentals', () => {
       // A tie continuation never takes one; see above.
       if (isTieContinuation(exercise.notes, index)) continue;
       const spelled = spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat));
-      const bar = Math.floor(note.startBeat / exercise.metre.barBeats);
+      const bar = Math.floor(note.startBeat / metreAt(exercise.metres, 0).barBeats);
       const key = `${bar}:${spelled.letter}${spelled.octave}`;
       if (needsAccidental(spelled, keyAt(exercise.keys, note.startBeat)) && !marked.has(key)) {
         expect(note.showAccidental).toBe(true);
@@ -781,7 +781,7 @@ describe('key changes', () => {
    * room at a column it already has.
    */
   const barOf = (exercise: ReturnType<typeof generateExercise>, beat: number) =>
-    beat / exercise.metre.barBeats;
+    beat / metreAt(exercise.metres, 0).barBeats;
 
   it('produces one key and no changes when only one was offered', () => {
     // The ordinary case, and the one that must not have changed.
@@ -948,9 +948,9 @@ describe('variable tempo, at generation', () => {
     for (const event of exercise.tempo) {
       if (event.kind === 'tempo') {
         expect(event.atBeat).toBeGreaterThan(0);
-        expect(event.atBeat % exercise.metre.barBeats).toBe(0);
+        expect(event.atBeat % metreAt(exercise.metres, 0).barBeats).toBe(0);
       } else if (event.kind === 'ramp') {
-        expect(event.fromBeat % exercise.metre.barBeats).toBe(0);
+        expect(event.fromBeat % metreAt(exercise.metres, 0).barBeats).toBe(0);
         expect(event.toBeat).toBeLessThanOrEqual(exercise.totalBeats);
       } else {
         throw new Error('no holds until stage 3');
@@ -1012,7 +1012,7 @@ describe('the horizon', () => {
     const scales = generateExercise(options({ kind: 'scales', cycles: 2, horizonBars: 15 }));
     expect(scales.totalBeats).toBeGreaterThanOrEqual(60);
     expect(scales.chosenBeats).toBeLessThan(scales.totalBeats);
-    expect(scales.chosenBeats % scales.metre.barBeats).toBe(0);
+    expect(scales.chosenBeats % metreAt(scales.metres, 0).barBeats).toBe(0);
     // Without the cap, nothing changes: the old exact-length path survives.
     const exact = generateExercise(options({ kind: 'scales', cycles: 2 }));
     expect(exact.chosenBeats).toBe(exact.totalBeats);
@@ -1024,7 +1024,7 @@ describe('the horizon', () => {
     );
     expect(themes.totalBeats).toBeGreaterThanOrEqual(120);
     expect(themes.chosenBeats).toBeLessThan(themes.totalBeats);
-    expect(themes.chosenBeats % themes.metre.barBeats).toBe(0);
+    expect(themes.chosenBeats % metreAt(themes.metres, 0).barBeats).toBe(0);
   });
 
   it('changes nothing when the chosen length already reaches the cap', () => {
@@ -1176,8 +1176,8 @@ describe('compound time', () => {
     for (const difficulty of DIFFICULTIES) {
       for (const kind of ['scales', 'arpeggios'] as const) {
         const exercise = generateExercise(options({ difficulty, metre, kind, cycles: 2, seed: 4 }));
-        expect(exercise.metre.beatsPerBar, `${kind} ${difficulty.id}`).toBe(4);
-        expect(exercise.metre.beatUnit, `${kind} ${difficulty.id}`).toBe(4);
+        expect(metreAt(exercise.metres, 0).beatsPerBar, `${kind} ${difficulty.id}`).toBe(4);
+        expect(metreAt(exercise.metres, 0).beatUnit, `${kind} ${difficulty.id}`).toBe(4);
       }
     }
   });

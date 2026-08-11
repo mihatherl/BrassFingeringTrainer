@@ -12,6 +12,7 @@ import { isTieContinuation, tiedBeats } from '../exercise/ties';
 import { BrassSynth } from '../audio/synth';
 import type { Voice } from '../audio/sampler';
 import { Metronome } from '../audio/metronome';
+import { barAt, beatOfBar, metreAt } from '../domain/metre';
 import { Transport } from './clock';
 import { ValveInput } from './input';
 import {
@@ -158,13 +159,20 @@ export class Session {
     // metre's pulse is what turns the player's beat into crotchets — in 6/8
     // the number they set is dotted crotchets, and 1.5 crotchets is what one
     // of those lasts.
-    this.transport = new Transport(context, tempo, exercise.tempo, exercise.metre.pulseBeats);
+    //
+    // The *opening* metre, and only it: the transport is told the conversion
+    // once, at construction. A part that changes metre changes what one of the
+    // player's beats lasts, and this is the place that would have to learn to
+    // follow it — recorded in `musicxml-import-plan.md` rather than guessed at
+    // here, since nothing generates such an exercise yet.
+    const opening = metreAt(exercise.metres, 0);
+    this.transport = new Transport(context, tempo, exercise.tempo, opening.pulseBeats);
     this.input = new ValveInput(() => context.currentTime);
     this.synth = options.brassVoice ?? new BrassSynth(context);
     this.metronome = new Metronome(context);
     // A count-in of whole bars, so it must be measured in the crotchets a bar
     // actually holds rather than in the numerator on the stave.
-    this.countInBeats = countInBars * exercise.metre.barBeats;
+    this.countInBeats = countInBars * opening.barBeats;
     this.playUntil = exercise.chosenBeats;
   }
 
@@ -271,13 +279,24 @@ export class Session {
        * crotchets, not three on the crotchets — which is not where any of the
        * music is and not what anyone counts.
        */
-      const { pulseBeats, pulsesPerBar } = exercise.metre;
-      const firstPulse = Math.ceil(fromBeat / pulseBeats);
-      for (let pulse = firstPulse; pulse * pulseBeats < toBeat; pulse++) {
-        const beat = pulse * pulseBeats;
-        if (beat > this.soundUntil) break;
-        const positionInBar = ((pulse % pulsesPerBar) + pulsesPerBar) % pulsesPerBar;
-        this.metronome.click(this.transport.timeForBeat(beat), positionInBar === 0);
+      /*
+       * Walked bar by bar rather than by one pulse length across the whole
+       * window, because the pulse is a property of the metre in force and a
+       * part changes metre. The bar is also what decides the strong click, so
+       * counting within it is the same walk twice over rather than a pulse
+       * index and a modulo that have to agree.
+       */
+      for (let bar = barAt(exercise.metres, fromBeat); ; bar++) {
+        const barStart = beatOfBar(exercise.metres, bar);
+        // Every pulse of this bar falls at or after its bar line, so one test
+        // on the bar ends the walk rather than each pulse re-deciding it.
+        if (barStart >= toBeat || barStart > this.soundUntil) break;
+        const metre = metreAt(exercise.metres, barStart);
+        for (let pulse = 0; pulse < metre.pulsesPerBar; pulse++) {
+          const beat = barStart + pulse * metre.pulseBeats;
+          if (beat < fromBeat || beat >= toBeat || beat > this.soundUntil) continue;
+          this.metronome.click(this.transport.timeForBeat(beat), pulse === 0);
+        }
       }
     }
 

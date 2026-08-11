@@ -1,6 +1,6 @@
 import type { Clef } from '../domain/instruments';
 import type { KeyChange } from '../domain/keys';
-import type { Metre } from '../domain/metre';
+import type { MetreChange } from '../domain/metre';
 import type { SpelledPitch } from '../domain/pitch';
 import type { Duration } from '../domain/rhythm';
 import type { TempoEvent } from '../domain/tempo';
@@ -76,19 +76,24 @@ export interface Exercise {
    * The written key, and any changes of it, in beat order starting at 0.
    *
    * A list rather than one number because a part changes key, often several
-   * times — the same reason `metre` is a shape of its own rather than a loose
+   * times — the same reason `metres` is a shape of its own rather than a loose
    * numerator. Ask it with `keyAt`; a single-key exercise is a list of one and
    * costs nothing.
    */
   keys: KeyChange[];
   /**
-   * The time signature and everything that follows from it.
+   * The time signature, and any changes of it, in beat order starting at 0.
    *
-   * One field rather than a loose numerator and denominator, because the
-   * numerator is not the length of a bar and the two only agree while the
-   * denominator is 4. See `metre.ts`.
+   * Each entry is a whole `Metre` rather than a loose numerator and denominator,
+   * because the numerator is not the length of a bar and the two only agree
+   * while the denominator is 4. See `metre.ts`.
+   *
+   * A list for the same reason `keys` is one: a real part changes time
+   * signature, and everything that counts bars has to survive it. Ask it with
+   * `metreAt`, and count bars with `barAt`, which walks the list — a generated
+   * exercise is a list of one and costs nothing.
    */
-  metre: Metre;
+  metres: MetreChange[];
   /**
    * Where the tempo moves, in beat order, with absolute bpm values.
    *

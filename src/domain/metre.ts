@@ -74,14 +74,108 @@ export function metreFor(beatsPerBar: number, beatUnit: number): Metre {
   };
 }
 
-/** Which bar a beat falls in, counting from zero. */
-export function barAt(metre: Metre, beat: number): number {
-  return Math.floor(beat / metre.barBeats);
+/** The metre everything falls back to when a list is empty. */
+const COMMON_TIME = metreFor(4, 4);
+
+/** A metre coming into force, and the beat it does so on. */
+export interface MetreChange {
+  /**
+   * Beats from the start of the exercise. The first is always 0.
+   *
+   * **A change falls on a bar line** — the bar before it is a whole bar of the
+   * metre it is leaving. Music does write a short bar before a change, but the
+   * two are separable: that is a partial bar, which is its own thing, and not
+   * something a reader should have to infer from a metre change landing in an
+   * odd place. Bar counting here assumes the bar line and rounds if given
+   * otherwise, rather than silently renumbering everything downstream.
+   */
+  fromBeat: number;
+  metre: Metre;
 }
 
-/** Where a bar starts, in crotchets. */
-export function beatOfBar(metre: Metre, bar: number): number {
-  return bar * metre.barBeats;
+/**
+ * The metre in force at a beat.
+ *
+ * The same shape as `keyAt`, deliberately and for the same reason: a part
+ * changes time signature as it changes key, and the two want asking the same
+ * way rather than each inventing its own lookup. `metre.ts`'s own comment has
+ * promised this since it was written.
+ *
+ * Total over negative beats, because the count-in sits there: before the first
+ * change, the first metre applies. An empty list answers common time rather
+ * than throwing, since a renderer midway through a frame is no place to
+ * discover a malformed exercise.
+ */
+export function metreAt(changes: readonly MetreChange[], beat: number): Metre {
+  let metre = changes[0]?.metre ?? COMMON_TIME;
+  for (const change of changes) {
+    if (change.fromBeat > beat) break;
+    metre = change.metre;
+  }
+  return metre;
+}
+
+/** Whether the metre ever changes, for the many places that only care if it does. */
+export function changesMetre(changes: readonly MetreChange[]): boolean {
+  return changes.length > 1;
+}
+
+/**
+ * Which bar a beat falls in, counting from zero.
+ *
+ * Takes the whole list rather than one metre because bar numbering is the thing
+ * a metre change actually breaks: `beat / barBeats` is right up to the change
+ * and wrong for every bar after it. The walk accumulates whole bars per segment,
+ * so bar 30 of a piece that turns from 4/4 into 3/4 is where a player counting
+ * from the top would put it.
+ *
+ * Negative beats extend the first segment downwards, which is where the
+ * count-in lives.
+ */
+export function barAt(changes: readonly MetreChange[], beat: number): number {
+  if (changes.length === 0) return Math.floor(beat / COMMON_TIME.barBeats);
+
+  let bars = 0;
+  for (let i = 0; i < changes.length; i++) {
+    const { fromBeat, metre } = changes[i];
+    const until = changes[i + 1]?.fromBeat ?? Infinity;
+    if (beat < until) return bars + Math.floor((beat - fromBeat) / metre.barBeats);
+    bars += Math.round((until - fromBeat) / metre.barBeats);
+  }
+  return bars;
+}
+
+/** Where a bar starts, in crotchets. The exact inverse of `barAt` at every bar line. */
+export function beatOfBar(changes: readonly MetreChange[], bar: number): number {
+  if (changes.length === 0) return bar * COMMON_TIME.barBeats;
+
+  let bars = 0;
+  for (let i = 0; i < changes.length; i++) {
+    const { fromBeat, metre } = changes[i];
+    const until = changes[i + 1]?.fromBeat ?? Infinity;
+    // Infinite for the last segment, so it always answers and the loop is total.
+    const inSegment = Math.round((until - fromBeat) / metre.barBeats);
+    if (bar - bars < inSegment) return fromBeat + (bar - bars) * metre.barBeats;
+    bars += inSegment;
+  }
+  return changes[changes.length - 1].fromBeat;
+}
+
+/**
+ * How many bars a piece of this length occupies.
+ *
+ * The last bar counts even when the music stops part-way through it, because a
+ * partial bar is still a bar to draw and to fit on a line. Never fewer than
+ * one: an empty exercise still has a bar to put its clef in.
+ *
+ * Here rather than at the seven call sites that each wrote
+ * `Math.ceil(totalBeats / barBeats)`, which is the same figure only while one
+ * metre runs the whole piece.
+ */
+export function barCount(changes: readonly MetreChange[], totalBeats: number): number {
+  const last = barAt(changes, totalBeats);
+  const partial = beatOfBar(changes, last) < totalBeats - 1e-9;
+  return Math.max(1, partial ? last + 1 : last);
 }
 
 /**

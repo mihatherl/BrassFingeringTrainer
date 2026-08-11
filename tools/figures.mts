@@ -58,7 +58,7 @@ export function tiedFigure(): Exercise {
     instrumentId: 'eb-bass',
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: 0 }],
-    metre: metreFor(4, 4),
+    metres: [{ fromBeat: 0, metre: metreFor(4, 4) }],
     tempo: [],
     totalBeats: 12,
     chosenBeats: 12,

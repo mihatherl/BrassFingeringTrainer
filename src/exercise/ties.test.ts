@@ -1,4 +1,4 @@
-import { metreFor } from '../domain/metre';
+import { metreAt, metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
 import { spellInKey } from '../domain/keys';
@@ -86,10 +86,10 @@ describe('generating ties', () => {
           const tail = exercise.notes[index + 1];
           expect(tail, 'a tie must have something to tie to').toBeDefined();
 
-          const bar = Math.floor(head.startBeat / exercise.metre.barBeats);
-          const tailBar = Math.floor(tail.startBeat / exercise.metre.barBeats);
+          const bar = Math.floor(head.startBeat / metreAt(exercise.metres, 0).barBeats);
+          const tailBar = Math.floor(tail.startBeat / metreAt(exercise.metres, 0).barBeats);
           expect(tailBar, 'ties cross a bar line').toBe(bar + 1);
-          expect(tail.startBeat % exercise.metre.barBeats, 'the tail lands on a downbeat').toBe(0);
+          expect(tail.startBeat % metreAt(exercise.metres, 0).barBeats, 'the tail lands on a downbeat').toBe(0);
           expect(
             head.startBeat + durationBeats(head.duration),
             'the head fills its bar exactly',
@@ -139,19 +139,19 @@ describe('generating ties', () => {
         const exercise = generateExercise(options({ difficulty, seed }));
         const filled = new Map<number, number>();
         for (const slot of [...exercise.notes, ...exercise.rests]) {
-          const bar = Math.floor(slot.startBeat / exercise.metre.barBeats);
+          const bar = Math.floor(slot.startBeat / metreAt(exercise.metres, 0).barBeats);
           filled.set(bar, (filled.get(bar) ?? 0) + durationBeats(slot.duration));
         }
 
         // Every bar but the last accounts for exactly its own length; a tie
         // hands the overrun to the bar it lands in rather than losing it.
-        const bars = exercise.totalBeats / exercise.metre.barBeats;
+        const bars = exercise.totalBeats / metreAt(exercise.metres, 0).barBeats;
         let running = 0;
         for (let bar = 0; bar < bars; bar++) {
           running += filled.get(bar) ?? 0;
-          const carried = running - (bar + 1) * exercise.metre.barBeats;
+          const carried = running - (bar + 1) * metreAt(exercise.metres, 0).barBeats;
           expect(carried, `bar ${bar + 1} of ${difficulty.id}`).toBeGreaterThanOrEqual(0);
-          expect(carried).toBeLessThan(exercise.metre.barBeats);
+          expect(carried).toBeLessThan(metreAt(exercise.metres, 0).barBeats);
         }
       }
     }

@@ -65,7 +65,7 @@ export interface HintOptions {
  */
 export function fingeringHints(options: HintOptions): Map<number, string> {
   const { exercise, stats, secondsBetween } = options;
-  const { notes, metre } = exercise;
+  const { notes, metres } = exercise;
   const hints = new Map<number, string>();
 
   // The space over a note at a tempo change belongs to the mark — the
@@ -102,7 +102,7 @@ export function fingeringHints(options: HintOptions): Map<number, string> {
       next !== null ? notes[next].startBeat : note.startBeat + tiedBeats(notes, index);
     if (secondsBetween(note.startBeat, until) < MIN_SECONDS_TO_READ) return;
 
-    candidates.push({ index, bar: barAt(metre, note.startBeat), accuracy });
+    candidates.push({ index, bar: barAt(metres, note.startBeat), accuracy });
   });
 
   const takenBars = new Set<number>();

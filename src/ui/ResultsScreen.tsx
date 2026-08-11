@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
-import { barAt } from '../domain/metre';
+import { barAt, barCount, beatOfBar } from '../domain/metre';
 import { instrumentById, soundingFromWritten } from '../domain/instruments';
 import { keyAt } from '../domain/keys';
 import {
@@ -45,7 +45,7 @@ export function ResultsScreen({
    * it was, and weak-note drilling has already been fed the whole session.
    */
   const windowed = useMemo(() => {
-    const inWindow = windowJudgements(exercise.notes, summary.judgements, exercise.metre);
+    const inWindow = windowJudgements(exercise.notes, summary.judgements, exercise.metres);
     return inWindow.length === summary.judgements.length
       ? null
       : summarise(exercise.notes, inWindow);
@@ -62,8 +62,8 @@ export function ResultsScreen({
     const lastBeat = Math.max(
       ...summary.judgements.map((j) => exercise.notes[j.noteIndex].startBeat),
     );
-    const chosenBar = Math.ceil(exercise.chosenBeats / exercise.metre.barBeats);
-    return Math.max(0, barAt(exercise.metre, lastBeat) + 1 - chosenBar);
+    const chosenBar = barCount(exercise.metres, exercise.chosenBeats);
+    return Math.max(0, barAt(exercise.metres, lastBeat) + 1 - chosenBar);
   }, [exercise, summary]);
 
   /*
@@ -75,13 +75,12 @@ export function ResultsScreen({
    */
   const shown = useMemo(() => {
     if (exercise.chosenBeats >= exercise.totalBeats) return exercise;
-    const { barBeats } = exercise.metre;
     const lastBeat = summary.judgements.length
       ? Math.max(...summary.judgements.map((j) => exercise.notes[j.noteIndex].startBeat))
       : exercise.chosenBeats - 1e-9;
     const end = Math.min(
       exercise.totalBeats,
-      Math.max(exercise.chosenBeats, (barAt(exercise.metre, lastBeat) + 1) * barBeats),
+      Math.max(exercise.chosenBeats, beatOfBar(exercise.metres, barAt(exercise.metres, lastBeat) + 1)),
     );
     return {
       ...exercise,

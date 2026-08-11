@@ -1,4 +1,4 @@
-import { metreFor } from '../domain/metre';
+import { metreAt, metreFor } from '../domain/metre';
 import { describe, expect, it } from 'vitest';
 import type { Duration } from '../domain/rhythm';
 import { spellInKey } from '../domain/keys';
@@ -59,7 +59,7 @@ function exerciseOf(bars: Array<Array<Duration['value']>>, beatsPerBar = 4): Exe
     instrumentId: 'eb-bass',
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: -3 }],
-    metre: metreFor(beatsPerBar, 4),
+    metres: [{ fromBeat: 0, metre: metreFor(beatsPerBar, 4) }],
     tempo: [],
     totalBeats: bars.length * beatsPerBar,
     chosenBeats: bars.length * beatsPerBar,
@@ -85,9 +85,9 @@ function barWidths(
 ): number[] {
   const spacing = engraveSpacing(exercise, options);
   const widths: number[] = [];
-  for (let bar = 0; bar * exercise.metre.barBeats < exercise.totalBeats; bar++) {
+  for (let bar = 0; bar * metreAt(exercise.metres, 0).barBeats < exercise.totalBeats; bar++) {
     widths.push(
-      spacing.xOf((bar + 1) * exercise.metre.barBeats) - spacing.xOf(bar * exercise.metre.barBeats),
+      spacing.xOf((bar + 1) * metreAt(exercise.metres, 0).barBeats) - spacing.xOf(bar * metreAt(exercise.metres, 0).barBeats),
     );
   }
   return widths;

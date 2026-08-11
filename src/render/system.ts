@@ -12,6 +12,7 @@
  */
 
 import { keyAt } from '../domain/keys';
+import { beatOfBar, metreAt } from '../domain/metre';
 import type { TempoEvent } from '../domain/tempo';
 import type { Exercise } from '../exercise/types';
 import {
@@ -286,10 +287,12 @@ export function drawTempoEvent(
 export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions): void {
   const { exercise, metrics, xForBeat, theme, firstBar, lastBar } = options;
   const { staveSpace } = metrics;
-  const { barBeats, beatsPerBar, beatUnit } = exercise.metre;
-
-  const firstBeat = firstBar * barBeats;
-  const lastBeat = Math.min(exercise.totalBeats, lastBar * barBeats);
+  const firstBeat = beatOfBar(exercise.metres, firstBar);
+  const lastBeat = Math.min(exercise.totalBeats, beatOfBar(exercise.metres, lastBar));
+  // The signature the system opens in. A change part-way along a line is a
+  // thing to draw where it falls, as key changes already are; the header states
+  // what is in force at the bar line the line begins on.
+  const { beatsPerBar, beatUnit } = metreAt(exercise.metres, firstBeat);
   const rightEdge = xForBeat(lastBeat) - BAR_LINE_SETBACK * staveSpace;
 
   ctx.strokeStyle = theme.stave;
@@ -328,7 +331,9 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   // of the stave already marks, and those belonging to a change, which are
   // drawn below at the position the signature leaves them.
   ctx.strokeStyle = theme.stave;
-  for (let beat = firstBeat + barBeats; beat <= lastBeat; beat += barBeats) {
+  for (let bar = firstBar + 1; ; bar++) {
+    const beat = beatOfBar(exercise.metres, bar);
+    if (beat > lastBeat) break;
     if (changes.has(beat)) continue;
     drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);
   }
@@ -357,7 +362,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
       xForBeat(beat) - BAR_LINE_SETBACK * staveSpace,
       event,
       theme.note,
-      exercise.metre.isCompound,
+      metreAt(exercise.metres, beat).isCompound,
     );
   }
 

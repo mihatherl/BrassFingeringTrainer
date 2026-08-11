@@ -102,44 +102,79 @@ against the former.
   so a compressed MusicXML file can be opened with a small central-directory
   reader and no dependency. Not built; the mechanism was confirmed to exist.
 
-## The one structural blocker, and the pattern that solves it
+## The structural blocker — done
 
-**`Exercise.metre` is singular.** A real part changes time signature; the type
-holds one `Metre`. There are **42 non-test reads of `.metre`** across ten
-files: `render/spacing.ts`, `render/review.ts`, `render/system.ts`,
-`render/surface.ts`, `exercise/phrases.ts`, `exercise/theme.ts`,
-`exercise/generate.ts`, `engine/session.ts`, `ui/PlayScreen.tsx`,
-`ui/ResultsScreen.tsx`.
+**`Exercise.metre` was singular.** It is now `Exercise.metres: MetreChange[]`,
+built on the shape `keys` had already proven. Done on 2026-08-11, before the
+importer rather than after, because the alternative was an importer that either
+rejected any part changing time signature or silently kept the first one — and
+silently keeping the first one is the fault v1.33.0 had just fixed elsewhere.
 
-The fix is already written down in the same file. `Exercise.keys` is a list of
-`KeyChange` for exactly this reason, and its comment names the parallel:
+`domain/metre.ts` gained:
 
-> A list rather than one number because a part changes key, often several
-> times — **the same reason `metre` is a shape of its own** rather than a loose
-> numerator. Ask it with `keyAt`; a single-key exercise is a list of one and
-> costs nothing.
+| | |
+|---|---|
+| `MetreChange` | `{ fromBeat, metre }`, in beat order from 0 |
+| `metreAt(changes, beat)` | the metre in force, exactly as `keyAt` |
+| `changesMetre(changes)` | for callers that only care whether it ever moves |
+| `barCount(changes, totalBeats)` | replaced seven copies of `Math.ceil(totalBeats / barBeats)` |
 
-So the shape to copy exists and is proven: `keyAt(changes, beat)` in
-`domain/keys.ts`, with `changesKey` for the many callers that only care
-whether it ever changes. A `metreAt`/`changesMetre` pair alongside it, and the
-42 sites migrated, is the work.
+and **`barAt` / `beatOfBar` now take the list**, because bar numbering is the
+thing a metre change actually breaks: `beat / barBeats` is right up to the
+change and wrong for every bar after it. There is one way to ask, not two.
 
-Worth doing before the importer rather than after: the importer would otherwise
-have to either reject any part that changes metre, or silently keep the first
-one.
+A generated exercise is a list of one and behaves exactly as before — 620 tests,
+build and lint green on the migration. The generator still works in a single
+`Metre` internally and `assembleExercise` wraps it, which keeps the plural shape
+at the one boundary that needs it.
+
+**A change is assumed to fall on a bar line.** Music does write a short bar
+before one, but that is a *partial bar* — its own thing, and not something to be
+inferred from a change landing in an odd place. Recorded in `MetreChange`.
+
+### What the migration deliberately did not do
+
+Three places take the metre the piece **opens in** and would have to learn to
+follow a change. None of them can be exercised yet, since nothing generates such
+a part; all three are commented at the call site.
+
+- **The transport** (`engine/session.ts`) is told `pulseBeats` once at
+  construction. That is the conversion from the player's chosen beat to
+  crotchets, so a part turning from 4/4 into 6/8 changes what their number
+  means. The metronome *does* follow the change — it walks bar by bar, and a
+  test holds it to 2/4 then 6/8.
+- **The conductor panel** (`ui/PlayScreen.tsx`) gets one `Metre`. It already
+  changes pattern when the tempo steps across a threshold (v1.36.0); doing the
+  same on a metre change is the same kind of move.
+- **The renderer draws no mid-line signature.** Bar lines land correctly through
+  a change and each system's header states what is in force where the line
+  begins, but a change part-way along a line is not engraved where it falls.
+  Key changes already are — `drawKeyChange` in `render/system.ts` is the model,
+  and this is the same job.
+
+The header widths in `render/review.ts` and `render/surface.ts` already reserve
+room for the **widest signature the piece reaches**, on the same reasoning that
+made them reserve room for the widest key: a panel that resized mid-exercise
+would shift the strike line and the notation would appear to lurch.
+
+## What has been decided
+
+**Unfold.** Settled by the player on 2026-08-11. The importer resolves repeats,
+endings and jumps once, and hands the rest of the app a flat list of measures in
+playing order — the shape every existing consumer already understands, so the
+renderer, the transport and the scoring window need no change at all.
+
+The cost is accepted and worth stating so it is not rediscovered as a bug: an
+unfolded piece is **longer than the printed part**, and the printed structure is
+**gone from the page**. A part with a repeat renders as two passes written out.
+That is the trade, and live navigation — which keeps the page as engraved and
+jumps the playhead — remains possible later without being the price of the first
+version.
 
 ## What has not been decided
 
-1. **Unfold, or navigate live?** Unfolding produces a flat exercise that every
-   existing consumer already understands, at the cost of a longer piece and of
-   losing the printed structure. Live navigation keeps the page as written and
-   follows the repeats during play, which is what a player actually reads from,
-   but touches the transport, the renderer and the scoring window. The
-   recommendation is **unfold first** — it is the smaller change, it is
-   independently testable, and it can feed live navigation later — but this is
-   the player's call.
-2. **What happens to an unusable file.** Rejecting outright is honest;
+1. **What happens to an unusable file.** Rejecting outright is honest;
    importing what can be read and naming what could not may be more useful.
-3. **Whether multi-bar rests are played, skipped, or counted.** For practice
+2. **Whether multi-bar rests are played, skipped, or counted.** For practice
    there is a case for all three.
-4. **Where imported music lives** — one at a time, or a library.
+3. **Where imported music lives** — one at a time, or a library.

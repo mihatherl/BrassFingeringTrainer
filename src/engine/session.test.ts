@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { metreFor } from '../domain/metre';
+import { beatOfBar, metreFor, type MetreChange } from '../domain/metre';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Voice } from '../audio/sampler';
 import { spellInKey } from '../domain/keys';
@@ -65,7 +65,7 @@ function tiedExercise(): Exercise {
     instrumentId: 'eb-bass',
     clef: 'treble',
     keys: [{ fromBeat: 0, fifths: 0 }],
-    metre: metreFor(2, 4),
+    metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
     tempo: [],
     totalBeats: 4,
     chosenBeats: 4,
@@ -198,7 +198,7 @@ describe('a session across a step change', () => {
       instrumentId: 'eb-bass',
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
-      metre: metreFor(2, 4),
+      metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
       // Doubling at the second bar line, so every figure below is legible.
       tempo: [{ kind: 'tempo', atBeat: 2, bpm: 120 }],
       totalBeats: 4,
@@ -256,7 +256,7 @@ describe('the offer to carry on', () => {
       instrumentId: 'eb-bass',
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
-      metre: metreFor(2, 4),
+      metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
       tempo: [],
       totalBeats: 24,
       chosenBeats,
@@ -521,7 +521,7 @@ describe('reaching the end of the paper', () => {
       instrumentId: 'eb-bass',
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
-      metre: metreFor(2, 4),
+      metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
       tempo: [],
       totalBeats: 12,
       chosenBeats: 4,
@@ -577,7 +577,7 @@ describe('the metronome in compound time', () => {
    * gives you — puts three clicks in a bar of 6/8, in places where nobody is
    * counting and very little of the music falls.
    */
-  function clicksFor(metre: Exercise['metre'], bars: number): number[] {
+  function clicksFor(metres: MetreChange[], bars: number): number[] {
     const at: number[] = [];
     const metronome: string[] = [];
     void metronome;
@@ -587,10 +587,10 @@ describe('the metronome in compound time', () => {
       instrumentId: 'eb-bass',
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
-      metre,
+      metres,
       tempo: [],
-      totalBeats: bars * metre.barBeats,
-      chosenBeats: bars * metre.barBeats,
+      totalBeats: beatOfBar(metres, bars),
+      chosenBeats: beatOfBar(metres, bars),
       seed: 1,
       kind: 'random',
     };
@@ -618,7 +618,7 @@ describe('the metronome in compound time', () => {
   }
 
   it('clicks twice a bar in 6/8, on the dotted crotchets', () => {
-    const clicks = clicksFor(metreFor(6, 8), 2);
+    const clicks = clicksFor([{ fromBeat: 0, metre: metreFor(6, 8) }], 2);
     /*
      * At a setting of 60 the clicks are a second apart, because the number
      * counts the beat that is conducted — sixty dotted crotchets a minute,
@@ -633,7 +633,29 @@ describe('the metronome in compound time', () => {
   });
 
   it('still clicks every crotchet in 4/4', () => {
-    const clicks = clicksFor(metreFor(4, 4), 2);
+    const clicks = clicksFor([{ fromBeat: 0, metre: metreFor(4, 4) }], 2);
     expect(clicks.filter((t) => t >= 0 && t <= 7)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('changes rate where the metre changes', () => {
+    /*
+     * Two bars of 2/4 and then two of 6/8, which is the case the whole metre
+     * list exists for. The clock does not change: the setting names the beat
+     * the piece opened in, so a crotchet is a second throughout.
+     *
+     * What changes is where the clicks fall. Two to a bar in both, but a bar of
+     * 2/4 is two crotchets and a bar of 6/8 is three, so the second pair spaces
+     * out to a beat and a half — 4 and 5.5, not 4 and 5. A single pulse length
+     * taken from the opening metre would click straight through the change and
+     * count the second half of the piece in a metre it is no longer in.
+     */
+    const clicks = clicksFor(
+      [
+        { fromBeat: 0, metre: metreFor(2, 4) },
+        { fromBeat: 4, metre: metreFor(6, 8) },
+      ],
+      4,
+    );
+    expect(clicks.filter((t) => t >= 0 && t <= 8.5)).toEqual([0, 1, 2, 3, 4, 5.5, 7, 8.5]);
   });
 });
