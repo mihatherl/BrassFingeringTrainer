@@ -184,9 +184,35 @@ describe('what gets dropped, and what does not', () => {
   });
 
   it('reads only the upper voice, and says it did', () => {
+    /*
+     * A `<backup>` winds the cursor back so a second voice can be written over
+     * the same bar. Reading on past it would lay that voice end-to-end after
+     * the first and make the bar twice as long as it is.
+     */
     const twoVoices = note('C4', 4) + '<backup><duration>96</duration></backup>' + note('E3', 4);
-    const { problems } = importing(score(twoVoices));
+    const { exercise, problems } = importing(score(twoVoices));
+
     expect(problems).toContain('1 bar had a second voice, and only the upper one was read');
+    expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['C4']);
+    expect(exercise?.totalBeats).toBe(4);
+  });
+
+  it('fills a bar written with forward rather than with rests', () => {
+    /*
+     * `<forward>` moves the cursor without sounding anything, which is how a
+     * bar of nothing gets written — and a real part had two of them in a row.
+     * Skipped, they left the bar empty *and short*, and every bar line after
+     * them landed six beats adrift of the music.
+     */
+    const { exercise } = importing(
+      score(note('C4', 4), '<forward><duration>96</duration></forward>', note('D4', 4)),
+    );
+
+    expect(exercise?.totalBeats).toBe(12);
+    expect(exercise?.notes.map((n) => n.startBeat)).toEqual([0, 8]);
+    // The empty bar reads as silence, which is what it is.
+    expect(exercise?.rests.map((r) => r.startBeat)).toEqual([4]);
+    expect(exercise && barAt(exercise.metres, 8)).toBe(2);
   });
 });
 

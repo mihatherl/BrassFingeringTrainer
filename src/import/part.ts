@@ -109,9 +109,16 @@ interface MeasureBody {
    * covers. `null` where the measure says nothing about one.
    */
   repeatStyle: { type: string; bars: number } | null;
-  notes: Element[];
-  /** A `<backup>`, which is how a second voice is written. */
-  hasBackup: boolean;
+  /**
+    * The measure's timeline: notes, and the `<forward>` and `<backup>` elements
+    * that move the cursor without sounding anything, in document order.
+    *
+    * All three together rather than the notes alone, because the cursor is what
+    * decides where the next note falls — a measure whose notes are read without
+    * its forwards is a measure that comes out short, and every bar line after it
+    * lands adrift by that much.
+    */
+  items: Element[];
   /** A short bar the engraver has told us not to count — a pickup. */
   implicit: boolean;
   number: string;
@@ -150,8 +157,9 @@ function readBody(measure: Element): MeasureBody {
     clef: readClef(measure),
     multiRest: number(measure, 'attributes > measure-style > multiple-rest'),
     repeatStyle: readRepeatStyle(measure),
-    notes: [...measure.querySelectorAll(':scope > note')],
-    hasBackup: measure.querySelector(':scope > backup') !== null,
+    items: [...measure.children].filter((child) =>
+      child.tagName === 'note' || child.tagName === 'forward' || child.tagName === 'backup',
+    ),
     implicit: measure.getAttribute('implicit') === 'yes',
     number: measure.getAttribute('number') ?? '?',
   };
@@ -191,8 +199,8 @@ function fillBarRepeats(bodies: MeasureBody[]): MeasureBody[] {
     if (from < 0 || pattern < 1 || from - pattern < 0) continue;
     // Already written out, which is what the format asks for. Leave it alone
     // rather than overwriting a bar the publisher varied on purpose.
-    if (filled[i].notes.length > 0) continue;
-    filled[i] = { ...filled[i], notes: filled[from - pattern + ((i - from) % pattern)].notes };
+    if (filled[i].items.some((item) => item.tagName === 'note')) continue;
+    filled[i] = { ...filled[i], items: filled[from - pattern + ((i - from) % pattern)].items };
   }
 
   return filled;
@@ -264,7 +272,35 @@ function readEvents(body: MeasureBody, divisions: number, tally: Tally): Event[]
     chord = [];
   };
 
-  for (const note of body.notes) {
+  for (const item of body.items) {
+    /*
+     * A `<backup>` winds the cursor back to write another voice over the same
+     * bar. Only the first voice is read, so this measure is finished — reading
+     * on would lay the second voice end-to-end after the first and double the
+     * bar's length.
+     */
+    if (item.tagName === 'backup') {
+      tally.voices++;
+      break;
+    }
+
+    /*
+     * A `<forward>` moves the cursor without sounding anything, which is how a
+     * bar of nothing is written. It is silence and becomes a rest: skipping it
+     * would leave the bar short and every bar line after it adrift — which is
+     * exactly what a real part did, six beats' worth, before this existed.
+     */
+    if (item.tagName === 'forward') {
+      flush();
+      const ticks = number(item, 'duration') ?? 0;
+      const beats = ticks / divisions;
+      if (beats > 0) {
+        events.push({ beats, pitch: null, tiedFromPrevious: false, tiedToNext: false });
+      }
+      continue;
+    }
+
+    const note = item;
     // A grace note occupies no counted time, so dropping it moves nothing.
     if (note.querySelector(':scope > grace')) {
       tally.grace++;
@@ -347,8 +383,6 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     }
     if (keys.length === 0) keys.push({ fromBeat: 0, fifths });
     if (metres.length === 0) metres.push({ fromBeat: 0, metre });
-
-    if (body.hasBackup) tally.voices++;
 
     /*
      * A pickup: the part begins part-way through its first bar, which nearly
