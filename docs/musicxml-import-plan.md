@@ -171,10 +171,113 @@ That is the trade, and live navigation — which keeps the page as engraved and
 jumps the playhead — remains possible later without being the price of the first
 version.
 
-## What has not been decided
+## An unusable file — three tiers, not two
 
-1. **What happens to an unusable file.** Rejecting outright is honest;
-   importing what can be read and naming what could not may be more useful.
-2. **Whether multi-bar rests are played, skipped, or counted.** For practice
-   there is a case for all three.
-3. **Where imported music lives** — one at a time, or a library.
+Settled on 2026-08-11. The player's framing was "if it does not parse, fail
+gracefully; if it parses but is missing bits, warn and substitute rests". Right
+at both ends; the middle tier is the one where rests would be actively wrong.
+
+**Tier 1 — nothing to read.** Not XML, or XML that is not MusicXML. Refuse, and
+name why. Note the trap: `DOMParser` **does not throw** — it returns a document
+containing a `parsererror` node, so the importer has to go looking for one.
+
+**Tier 2 — the music reads, the navigation does not.** A `dalsegno` naming a
+segno that is not in the file, a backward repeat with nothing to repeat to, an
+`ending` that starts and never stops. **Nothing is missing here**, so nothing
+should be replaced by a rest: every note is present and correct, and only the
+route through them is broken. Import it **as printed and play it straight
+through**, saying the repeats were not followed. A piece played once through is
+a legitimate practice object; a piece unfolded halfway is not.
+
+**Tier 3 — the music reads, but some of it is not representable.** Here rests
+are right, under one rule:
+
+> **A rest is the correct substitute only for something that occupies time.**
+
+| what | what happens |
+|---|---|
+| dynamics, articulations, slurs, text | occupy no time, change no fingering — dropped silently |
+| grace notes | occupy no counted time — dropped, mentioned once as a count |
+| chords | occupy time and are *playable* — take the top note, since the instrument is single-line and the top note is the part |
+| a bar that cannot be read at all | a rest of exactly the right length |
+
+And the principle underneath all of it, which is the actual reason a rest is the
+fallback:
+
+> **Whatever is dropped, the bar count must not shift.**
+
+A player navigates by bar number — "from 47", "four before B". A dropped element
+that silently shortened a bar would misnumber every bar after it and make the
+part useless against the rest of the band. So every substitution preserves time,
+and a rest is the only thing that occupies time while asking nothing.
+
+**Warnings are countable, never vague.** "Bars 12, 45, 46 unreadable, replaced
+by rests" can be checked against the printed part; "some content could not be
+imported" cannot. The same principle as v1.33.0: never show one thing and hold
+another.
+
+## Multi-bar rests — skip the long ones, on the player's say-so
+
+Settled on 2026-08-11, by the player, in this form: **a multi-bar rest lasting
+more than ten seconds at the designated tempo offers to be skipped, and the skip
+comes back in at the bar directly before it.**
+
+Under ten seconds it is played as written — silence you can count through is
+part of the practice.
+
+Three things follow:
+
+- **"The designated tempo" already has a mechanism.** `steppedTempoAt` draws
+  exactly that line: what has been *declared* over the stave, as against what
+  the clock is doing this instant. A sixteen-bar rest printed under 60 is
+  measured at 60 even if a rit. is bending through it.
+- **Keeping the bar before is musically exact** — you need a bar to get the
+  instrument up. It is distinct from the app's count-in, which is a separate
+  thing at the start of a run.
+- **Asked once per import, not once per rest.** "This part has 4 rests over ten
+  seconds — 22, 16, 31 and 12 bars. Skip them?" Four questions during one import
+  is worse than one.
+
+**This exposes two pieces of missing work**, both of which brass band parts make
+unavoidable rather than optional:
+
+- **There is no multi-bar rest glyph.** `drawRest` in `render/notes.ts` draws
+  single rests only; the thick bar with the count over it does not exist.
+- **The app draws no bar numbers at all.** Given everything above about bar
+  counts being the thing a player navigates by, this is a prerequisite for
+  imported music rather than a nicety.
+
+## Where imported music lives — an IndexedDB library
+
+Settled on 2026-08-11. The player's instinct was that on an iPhone this would be
+obvious — the app's own local data store — and it does translate; IndexedDB is
+that thing. Chosen over picking a file each session, over a cache-with-re-link
+scheme, and over pointing at a folder on disk.
+
+**`localStorage` was ruled out rather than considered.** Roughly 5MB for the
+whole origin, already shared with settings, stats and the licence flag,
+synchronous so it blocks the main thread, and strings only. Everything the app
+stores today lives there, which is exactly why music must not.
+
+**The File System Access API was ruled out on reach.** `showDirectoryPicker` on
+a folder of parts is elegant on a desktop and is Chromium-only — no Safari, no
+Firefox, and not on iOS. For a player who may want this at a rehearsal on a
+phone, the platform gap is the whole story.
+
+So: **a library, in IndexedDB, holding many pieces with their metadata**, async,
+quota a share of free disk rather than 5MB, working offline like the rest of the
+app.
+
+Two things hold whatever else changes:
+
+- **Import is `<input type="file">`.** It works on every browser including iOS,
+  needs no permission prompt and no API that might not be there.
+- **Keep the original file bytes alongside the parsed result.** A later
+  improvement to the importer can then re-import without asking the player to go
+  and find the file again — which they may no longer have.
+
+**Eviction is the one real risk and needs checking on a device before it is
+relied on.** Browser storage is evictable; `navigator.storage.persist()` asks
+for exemption, and installing to the Home Screen is understood to change what
+Safari does about it. Neither is currently used anywhere in the app — treat the
+behaviour as something to verify on the actual phone, not to assume.
