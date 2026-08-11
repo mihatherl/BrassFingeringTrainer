@@ -497,7 +497,7 @@ export function exerciseFromTheme(theme: Theme, options: RealiseOptions): Exerci
     instrument: options.instrument,
     clef: options.clef,
     keys: realised.keys,
-    metre: options.metre,
+    metres: [{ fromBeat: 0, metre: options.metre }],
     totalBeats: realised.beats,
     seed: 0,
     kind: 'phrases',

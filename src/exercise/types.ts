@@ -138,7 +138,22 @@ export interface Exercise {
   kind: ExerciseKind;
 }
 
-export type ExerciseKind = 'random' | 'scales' | 'arpeggios' | 'phrases' | 'themes';
+/**
+ * Where an exercise came from.
+ *
+ * `imported` is deliberately **not** in `EXERCISE_KINDS`: that list drives the
+ * chooser on the settings screen, and imported music is not something the
+ * generator can be asked for — it arrives with a file. The union carries it so
+ * that everything downstream can tell an imported part from a generated one,
+ * and the chooser lists only what can actually be chosen.
+ */
+export type ExerciseKind =
+  | 'random'
+  | 'scales'
+  | 'arpeggios'
+  | 'phrases'
+  | 'themes'
+  | 'imported';
 
 export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blurb: string }> = [
   { id: 'random', name: 'Random notes', blurb: 'Unpredictable intervals — pure fingering reflex.' },

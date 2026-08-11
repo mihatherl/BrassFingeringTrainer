@@ -1,0 +1,352 @@
+// @vitest-environment happy-dom
+
+import { describe, expect, it } from 'vitest';
+import { instrumentById } from '../domain/instruments';
+import { barAt, changesMetre } from '../domain/metre';
+import { changesKey } from '../domain/keys';
+import { formatPitch } from '../domain/pitch';
+import { parseMusicXml } from './musicxml';
+import { importPart } from './part';
+
+/**
+ * Reading a part into an exercise.
+ *
+ * The documents are written by hand and are as small as the case allows. What
+ * is being checked is the reading and the substitution rules — whether the
+ * order of measures is right is `unfold.test.ts`'s job, and whether the result
+ * is beamed correctly is `assemble`'s, since an imported part goes through the
+ * same assembler the generator does.
+ */
+
+const EB_BASS = instrumentById('eb-bass');
+
+/** Twenty-four ticks to a crotchet, which divides by two, three and four. */
+const DIVISIONS = 24;
+
+function attributes(extra = ''): string {
+  return `<attributes>
+    <divisions>${DIVISIONS}</divisions>
+    <key><fifths>0</fifths></key>
+    <time><beats>4</beats><beat-type>4</beat-type></time>
+    <clef><sign>G</sign><line>2</line></clef>
+    ${extra}
+  </attributes>`;
+}
+
+/** A note of `beats` crotchets, or a rest when the pitch is null. */
+function note(pitch: string | null, beats: number, extra = ''): string {
+  const ticks = Math.round(beats * DIVISIONS);
+  if (pitch === null) return `<note><rest/><duration>${ticks}</duration></note>`;
+  const [letter, octave] = [pitch[0], pitch[pitch.length - 1]];
+  const alter = pitch.includes('#') ? 1 : pitch.includes('b') ? -1 : 0;
+  return `<note>
+    <pitch><step>${letter}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${octave}</octave></pitch>
+    <duration>${ticks}</duration>
+    ${extra}
+  </note>`;
+}
+
+function score(...measures: string[]): string {
+  const bars = measures
+    .map((body, i) => `<measure number="${i + 1}">${i === 0 ? attributes() : ''}${body}</measure>`)
+    .join('');
+  return `<score-partwise version="4.0">
+    <part-list><score-part id="P1"><part-name>Eb Bass</part-name></score-part></part-list>
+    <part id="P1">${bars}</part>
+  </score-partwise>`;
+}
+
+function importing(xml: string) {
+  const parsed = parseMusicXml(xml);
+  if ('problem' in parsed) throw new Error(parsed.problem);
+  return importPart(parsed.doc, { instrument: EB_BASS });
+}
+
+/** The written pitches, as a player would name them. */
+function readsAs(xml: string): string[] {
+  const { exercise } = importing(xml);
+  return (exercise?.notes ?? []).map((n) => formatPitch(n.pitch));
+}
+
+describe('reading the notes', () => {
+  it('reads pitch, and spells it as the part does', () => {
+    // The publisher wrote G flat. Re-deriving the spelling from the key would
+    // be the app overruling the page, and in C it would come back as F sharp.
+    expect(readsAs(score(note('Gb4', 1) + note('F#4', 1) + note('C4', 2)))).toEqual([
+      'Gb4',
+      'F#4',
+      'C4',
+    ]);
+  });
+
+  it('measures durations in divisions, so a crotchet is a beat', () => {
+    const { exercise } = importing(score(note('C4', 1) + note('D4', 0.5) + note('E4', 0.5) + note('F4', 2)));
+    expect(exercise?.notes.map((n) => n.startBeat)).toEqual([0, 1, 1.5, 2]);
+    expect(exercise?.totalBeats).toBe(4);
+  });
+
+  it('writes a length no single value says as tied notes, not as silence', () => {
+    /*
+     * Two and a half beats is not unwritable — it is a minim tied to a quaver,
+     * which is what a publisher prints. Calling it unreadable and replacing it
+     * with a rest would throw away a note the part plainly contains.
+     */
+    const { exercise, problems } = importing(score(note('C4', 1) + note('E4', 2.5) + note('F4', 0.5)));
+
+    expect(problems).toEqual([]);
+    expect(exercise?.notes.map((n) => n.startBeat)).toEqual([0, 1, 3, 3.5]);
+    // One sound, not two: the middle pair is a tie.
+    expect(exercise?.notes[1].tiedToNext).toBe(true);
+    expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['C4', 'E4', 'E4', 'F4']);
+    expect(exercise?.rests).toEqual([]);
+  });
+
+  it('reads a triplet, which the tick arithmetic gives for nothing', () => {
+    const third = 1 / 3;
+    const { exercise } = importing(
+      score(note('C4', third) + note('D4', third) + note('E4', third) + note('F4', 3)),
+    );
+    expect(exercise?.notes.slice(0, 3).map((n) => n.duration.tuplet)).toEqual([3, 3, 3]);
+  });
+
+  it('reads rests', () => {
+    const { exercise } = importing(score(note('C4', 1) + note(null, 2) + note('D4', 1)));
+    expect(exercise?.rests.map((r) => r.startBeat)).toEqual([1]);
+    expect(exercise?.notes).toHaveLength(2);
+  });
+
+  it('gives the player their own instrument, whatever the part was written for', () => {
+    // The written pitches are what is on the page; the sounding ones follow
+    // from whatever the player is holding. That is what lets a tuba player read
+    // a cornet part.
+    const { exercise } = importing(score(note('C4', 4)));
+    expect(exercise?.instrumentId).toBe('eb-bass');
+    expect(exercise?.notes[0].acceptedMasks.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ties', () => {
+  it('joins a note tied over a bar line into one sound', () => {
+    const { exercise } = importing(
+      score(
+        note('C4', 4, '<tie type="start"/>'),
+        note('C4', 4, '<tie type="stop"/>'),
+      ),
+    );
+    expect(exercise?.notes[0].tiedToNext).toBe(true);
+    expect(exercise?.notes).toHaveLength(2);
+  });
+
+  it('drops a tie whose far end is not the note that follows', () => {
+    /*
+     * Unfolding can separate the two ends of a tie — one out of the last bar of
+     * a repeat lands somewhere else on the second pass. A tie into a different
+     * pitch would make the assembler clone a note that is not there.
+     */
+    const { exercise } = importing(
+      score(note('C4', 4, '<tie type="start"/>'), note('G4', 4, '<tie type="stop"/>')),
+    );
+    expect(exercise?.notes[0].tiedToNext).toBe(false);
+    expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['C4', 'G4']);
+  });
+});
+
+describe('what gets dropped, and what does not', () => {
+  it('takes the top note of a chord and says how many', () => {
+    // A chord occupies time and is playable, so it gives up its other notes
+    // rather than becoming a rest — and the top note is the part.
+    const chord =
+      note('C4', 4) +
+      '<note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>96</duration></note>' +
+      '<note><chord/><pitch><step>G</step><octave>4</octave></pitch><duration>96</duration></note>';
+    const { exercise, problems } = importing(score(chord));
+
+    expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['G4']);
+    expect(problems).toContain('1 chord reduced to the top note');
+  });
+
+  it('compares chord notes by pitch, not by octave alone', () => {
+    // B3 against C4: the higher octave number is the lower note.
+    const chord =
+      note('B3', 4) +
+      '<note><chord/><pitch><step>C</step><octave>4</octave></pitch><duration>96</duration></note>';
+    expect(readsAs(score(chord))).toEqual(['C4']);
+  });
+
+  it('drops grace notes, which occupy no counted time', () => {
+    const grace =
+      '<note><grace/><pitch><step>B</step><octave>3</octave></pitch></note>' + note('C4', 4);
+    const { exercise, problems } = importing(score(grace));
+
+    expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['C4']);
+    expect(exercise?.totalBeats).toBe(4);
+    expect(problems).toContain('1 grace note left out');
+  });
+
+  it('reads only the upper voice, and says it did', () => {
+    const twoVoices = note('C4', 4) + '<backup><duration>96</duration></backup>' + note('E3', 4);
+    const { problems } = importing(score(twoVoices));
+    expect(problems).toContain('1 bar had a second voice, and only the upper one was read');
+  });
+});
+
+describe('a rhythm that cannot be written', () => {
+  it('replaces it with silence of exactly the right length', () => {
+    /*
+     * The rule that everything else rests on: whatever is dropped, the bar
+     * count must not shift. Five ticks of twenty-four is no note this app can
+     * write, so it becomes silence — and the bar after it still starts where a
+     * player counting would put it.
+     */
+    const odd = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>5</duration></note>`;
+    const { exercise, problems } = importing(
+      score(odd + note('D4', 4 - 5 / DIVISIONS), note('E4', 4)),
+    );
+
+    expect(problems.some((p) => p.includes('cannot be written'))).toBe(true);
+    expect(problems.some((p) => p.includes('bar 1'))).toBe(true);
+    // Bar 2 still starts at beat 4, which is the whole point.
+    expect(exercise && barAt(exercise.metres, 4)).toBe(1);
+    expect(exercise?.totalBeats).toBe(8);
+  });
+});
+
+describe('a pickup', () => {
+  it('pads the short first bar so every bar line after it lands right', () => {
+    /*
+     * Nearly every march starts part-way through its first bar. Every bar line
+     * in the piece is placed by counting whole bars from the start, so a first
+     * bar left short would put all of them adrift of the music by the length of
+     * the pickup — and with them every bar number the player navigates by.
+     *
+     * The pickup's own note lands where a player counts it: one beat into
+     * four-four is the fourth beat of bar 1.
+     */
+    const xml = `<score-partwise version="4.0">
+      <part-list><score-part id="P1"/></part-list>
+      <part id="P1">
+        <measure number="0" implicit="yes">${attributes()}${note('G4', 1)}</measure>
+        <measure number="1">${note('C4', 4)}</measure>
+      </part>
+    </score-partwise>`;
+
+    const { exercise } = importing(xml);
+    expect(exercise?.notes.map((n) => n.startBeat)).toEqual([3, 4]);
+    // One rest of three beats, which is a dotted minim — what an engraver
+    // writes there, rather than a minim and a crotchet.
+    expect(exercise?.rests).toEqual([
+      { startBeat: 0, duration: { value: 'half', dotted: true } },
+    ]);
+    // The bar after the pickup is bar 2 by the app's counting, and starts on
+    // the bar line rather than a beat early.
+    expect(exercise && barAt(exercise.metres, 4)).toBe(1);
+  });
+});
+
+describe('key and time signatures', () => {
+  it('follows a key change, at the beat it lands on', () => {
+    const { exercise } = importing(
+      score(
+        note('C4', 4),
+        '<attributes><key><fifths>-3</fifths></key></attributes>' + note('C4', 4),
+      ),
+    );
+    expect(exercise?.keys).toEqual([
+      { fromBeat: 0, fifths: 0 },
+      { fromBeat: 4, fifths: -3 },
+    ]);
+  });
+
+  it('follows a change of time signature', () => {
+    const { exercise } = importing(
+      score(
+        note('C4', 4),
+        '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>' +
+          note('C4', 3),
+      ),
+    );
+    expect(changesMetre(exercise?.metres ?? [])).toBe(true);
+    expect(exercise?.metres[1]).toMatchObject({ fromBeat: 4 });
+    expect(exercise?.metres[1].metre.beatsPerBar).toBe(3);
+    // And the bars are counted through the change rather than divided.
+    expect(exercise && barAt(exercise.metres, 7)).toBe(2);
+  });
+
+  it('does not record a change where nothing changed', () => {
+    /*
+     * Every measure of a MuseScore export can restate the signature, and a
+     * repeated bar meets it twice. An entry per restatement would make a
+     * single-key part report that it changes key, since that is counted by the
+     * length of the list.
+     */
+    const restated = '<attributes><key><fifths>0</fifths></key></attributes>' + note('C4', 4);
+    const { exercise } = importing(score(restated, restated, restated));
+    expect(exercise?.keys).toHaveLength(1);
+    expect(changesKey(exercise?.keys ?? [])).toBe(false);
+  });
+});
+
+describe('multi-bar rests', () => {
+  it('keeps twenty bars off as one rest of twenty bars', () => {
+    // Not expanded: the count is the notation. The measures it covers are in
+    // the file and are stepped over rather than read.
+    const covered = Array.from({ length: 20 }, () => note(null, 4));
+    const { exercise } = importing(
+      score(
+        note('C4', 4),
+        '<attributes><measure-style><multiple-rest>20</multiple-rest></measure-style></attributes>' +
+          note(null, 4),
+        ...covered.slice(1),
+        note('D4', 4),
+      ),
+    );
+
+    const multi = exercise?.rests.filter((r) => (r.bars ?? 1) > 1) ?? [];
+    expect(multi).toHaveLength(1);
+    expect(multi[0]).toMatchObject({ startBeat: 4, bars: 20 });
+    // The music resumes at bar 22 as a player counting would have it.
+    expect(exercise && barAt(exercise.metres, exercise.notes[1].startBeat)).toBe(21);
+  });
+});
+
+describe('repeats reaching the notes', () => {
+  it('plays a repeated bar twice, with its notes both times', () => {
+    const { exercise } = importing(
+      score(
+        '<barline location="left"><repeat direction="forward"/></barline>' + note('C4', 4),
+        note('D4', 4) + '<barline location="right"><repeat direction="backward"/></barline>',
+        note('E4', 4),
+      ),
+    );
+    expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual([
+      'C4',
+      'D4',
+      'C4',
+      'D4',
+      'E4',
+    ]);
+    expect(exercise?.totalBeats).toBe(20);
+  });
+
+  it('marks an imported exercise as imported', () => {
+    // Not in `EXERCISE_KINDS`, because it is not something the generator can be
+    // asked for — but everything downstream can still tell the two apart.
+    expect(importing(score(note('C4', 4))).exercise?.kind).toBe('imported');
+  });
+});
+
+describe('a part with nothing to read', () => {
+  it('says so rather than handing back an empty exercise', () => {
+    const { exercise, problems } = importing(score(''));
+    expect(exercise).toBeNull();
+    expect(problems.join(' ')).toContain('nothing playable');
+  });
+
+  it('says so when the part asked for is not there', () => {
+    const parsed = parseMusicXml(score(note('C4', 4)));
+    if ('problem' in parsed) throw new Error(parsed.problem);
+    const { exercise, problems } = importPart(parsed.doc, { instrument: EB_BASS, partIndex: 4 });
+    expect(exercise).toBeNull();
+    expect(problems[0]).toContain('not in this file');
+  });
+});

@@ -118,7 +118,7 @@ export function tripletFigure(): Exercise {
       instrument: instrumentById('eb-bass'),
       clef: 'treble',
       keys: [{ fromBeat: 0, fifths: 0 }],
-      metre: metreFor(4, 4),
+      metres: [{ fromBeat: 0, metre: metreFor(4, 4) }],
       tempo: [],
       totalBeats: beat,
       chosenBeats: beat,

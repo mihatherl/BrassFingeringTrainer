@@ -14,8 +14,8 @@ import { acceptedMasks as fingeringMasks, primaryFingering } from '../domain/fin
 import { soundingFromWritten, type Clef, type Instrument } from '../domain/instruments';
 import { keyAt, needsAccidental, spellInKey, type KeyChange } from '../domain/keys';
 import { isBeamable, snapBeat, type Duration } from '../domain/rhythm';
-import { barAt, beatOfBar, metreAt, type Metre, type MetreChange } from '../domain/metre';
-import type { Letter } from '../domain/pitch';
+import { barAt, beatOfBar, metreAt, type MetreChange } from '../domain/metre';
+import { midiOf, type Letter, type SpelledPitch } from '../domain/pitch';
 import type { TempoEvent } from '../domain/tempo';
 import { isTieContinuation } from './ties';
 import type { Exercise, ExerciseKind, NoteEvent, RestEvent } from './types';
@@ -29,11 +29,28 @@ export interface Slot {
   tiedFromPrevious: boolean;
 }
 
+/**
+ * A pitch handed to the assembler, either way round.
+ *
+ * A **number** is a written MIDI note to be spelled in the key in force, which
+ * is what the generator produces: it chose a pitch and the key decides whether
+ * that is F sharp or G flat.
+ *
+ * A **`SpelledPitch`** is a spelling already settled, which is what an imported
+ * part produces: the publisher wrote F sharp, and re-deriving it from the key
+ * would be the app overruling the page. The two cannot be the same call.
+ */
+export type SlotPitch = number | SpelledPitch;
+
 export interface AssembleOptions {
   instrument: Instrument;
   clef: Clef;
   keys: KeyChange[];
-  metre: Metre;
+  /**
+   * The metre and any changes of it. A generated exercise passes a list of one;
+   * an imported part passes what the part does.
+   */
+  metres: MetreChange[];
   totalBeats: number;
   seed: number;
   kind: ExerciseKind;
@@ -52,10 +69,10 @@ export interface AssembleOptions {
  */
 export function assembleExercise(
   slots: readonly Slot[],
-  pitches: readonly number[],
+  pitches: readonly SlotPitch[],
   options: AssembleOptions,
 ): Exercise {
-  const { instrument, clef, keys, metre } = options;
+  const { instrument, clef, keys, metres } = options;
 
   /*
    * Every position snapped once, here, because this is where every producer
@@ -88,16 +105,20 @@ export function assembleExercise(
       });
       continue;
     }
-    const writtenMidi = pitches[pitchIndex++];
+    const given = pitches[pitchIndex++];
+    // Spelled in the key in force where it falls, unless the spelling arrived
+    // already settled: F sharp and G flat are one sound and two different
+    // things to read, and which one is right moves with the key — but a part
+    // that says which is not to be second-guessed.
+    const pitch =
+      typeof given === 'number' ? spellInKey(given, keyAt(keys, slot.startBeat)) : given;
+    const writtenMidi = typeof given === 'number' ? given : midiOf(given);
     const soundingMidi = soundingFromWritten(writtenMidi, instrument, clef);
     const primary = primaryFingering(soundingMidi, instrument);
     notes.push({
       writtenMidi,
       soundingMidi,
-      // Spelled in the key in force where it falls: F sharp and G flat are one
-      // sound and two different things to read, and which one is right moves
-      // with the key.
-      pitch: spellInKey(writtenMidi, keyAt(keys, slot.startBeat)),
+      pitch,
       startBeat: slot.startBeat,
       duration: slot.duration,
       acceptedMasks: [...fingeringMasks(soundingMidi, instrument)],
@@ -108,11 +129,6 @@ export function assembleExercise(
       showAccidental: false,
     });
   }
-
-  // The generator works in one metre throughout, so the exercise's list is one
-  // entry long. It is a list because an imported part is not, and everything
-  // downstream counts bars through the list either way.
-  const metres: MetreChange[] = [{ fromBeat: 0, metre }];
 
   assignTupletGroups(notes);
   assignBeamGroups(notes, rests, metres);
