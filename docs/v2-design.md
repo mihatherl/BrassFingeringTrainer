@@ -1600,6 +1600,14 @@ Coda*, a coda sign, first and second time bars, and repeats. Either the importer
 unfolds all of it into playing order, or the app navigates it live. This is the
 thing most likely to be underestimated: it is a bigger question than key changes.
 
+*Since answered, in part.* **MusicXML states all of it as data**, not as text to
+be interpreted: `<sound>` carries `segno`, `dalsegno`, `coda`, `tocoda`,
+`dacapo`, `fine`, `forward-repeat` and `time-only`, `<ending>` carries its
+number and type, and `<repeat>` carries `after-jump`. Verified against the
+4.0.3 binding. So unfolding is mechanical rather than heuristic — see
+`musicxml-import-plan.md`. Which of unfold or navigate-live to build is still
+open.
+
 **Multi-bar rests.** Eight bars of counted rest in one place. A trainer needs a
 position on whether it counts them for you.
 
