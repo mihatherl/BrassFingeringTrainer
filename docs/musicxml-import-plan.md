@@ -238,14 +238,51 @@ Three things follow:
   seconds — 22, 16, 31 and 12 bars. Skip them?" Four questions during one import
   is worse than one.
 
-**This exposes two pieces of missing work**, both of which brass band parts make
-unavoidable rather than optional:
+**Both pieces of missing work this exposed are now built**, since brass band
+parts make them unavoidable rather than optional:
 
-- **There is no multi-bar rest glyph.** `drawRest` in `render/notes.ts` draws
-  single rests only; the thick bar with the count over it does not exist.
-- **The app draws no bar numbers at all.** Given everything above about bar
-  counts being the thing a player navigates by, this is a prerequisite for
-  imported music rather than a nicety.
+- **Bar numbers** — v1.38.0. At the head of each system, every fifth bar on the
+  scrolling line, counted from one, never on the opening bar.
+- **The multi-bar rest** — v1.39.0. `RestEvent.bars`, drawn as the thick bar
+  with its count in the time-signature figures.
+
+## Bar repeats — unfolded, unlike the rest
+
+The player raised the percent-like sign that means *play the previous bar
+again*, and asked whether it needs unfolding. **It does**, and the reason draws
+the line that decides every case like it.
+
+Verified against the ProxyMusic binding, so these are the schema rather than a
+recollection of it. All three live inside `<measure-style>`:
+
+| element | fields | means |
+|---|---|---|
+| `measure-repeat` | `value` (1 or 2), `type` (start/stop), `slashes` | the bars that follow repeat the preceding one or two |
+| `beat-repeat` / `slash` | `slash-type`, `slash-dot`, `use-dots`, `use-stems` | the same shorthand *within* a bar |
+| `multiple-rest` | `value` (bar count), `use-symbols` | N bars rest, as one object |
+
+**The bars carrying a `measure-repeat` are empty in the file.** That is what
+makes ignoring it worse than a missing feature: an importer that skipped
+`measure-style` would produce not a wrong-looking page but *silence* where the
+tune is, and silence that looks deliberate. It is the same class of fault as
+keeping the first metre and calling it the whole piece.
+
+So the rule, and it is a general one:
+
+> **Unfold what is shorthand for music. Keep what is shorthand for reading.**
+
+A bar repeat, a `beat-repeat`, a D.S., a first-time bar — all shorthand for
+music that has to sound, all expanded. A multi-bar rest is shorthand for
+*reading*: the count is the notation, and a player counts twenty bars from the
+number, so expanding it destroys the only information it carries. `RestEvent`
+records this at the type, and `exercise/rests.ts` holds what follows from it.
+
+Two details worth having written down before the unfolder meets them:
+
+- **`value` is 1 or 2**, so a two-bar repeat copies a *pair*, and the sign is
+  drawn once per repeated bar. Copying the wrong number of bars is the easy bug.
+- **`slashes` is presentation, not meaning.** How many strokes to draw; it says
+  nothing about how many bars to copy, and the two are easily conflated.
 
 ## Where imported music lives — an IndexedDB library
 
