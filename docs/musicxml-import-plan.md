@@ -1,8 +1,13 @@
 # My Music — MusicXML import
 
-**Status: researched, not agreed, not started.** No code exists. This records
-what was established on 2026-08-11 so the next session does not re-derive it,
-and states plainly which decisions are still the player's to make.
+**Status: built and shipping, v1.46.0.** A part exported from MuseScore can be
+opened, read and played. What remains is the library that keeps it — see *What
+is still to do*.
+
+This page records what was established rather than what was guessed, and every
+claim in it was checked against the schema, the binding or a real file. Where an
+earlier version of it was wrong, the correction is left in place and marked, so
+that nobody re-derives the mistake from confident-sounding prose.
 
 The scope was set by the player and is worth quoting, because it settles a
 question that would otherwise recur:
@@ -133,18 +138,37 @@ rather than by a test: `<forward>` ignored so two bars came out empty and six
 beats short; a demisemiquaver dropped for want of a note value; a time signature
 change never drawn; and bars nothing reached going unreported.
 
+## The front door — built, v1.42.0 and after
+
+My Music on the settings screen: a plain `<input type="file">` reading
+`.musicxml` or `.mxl`, a part chooser where a score has more than one, the
+warnings shown *before* anything is played, and Play it.
+
+`.mxl` is opened without a dependency — a zip is a few offsets and
+`DecompressionStream('deflate-raw')` is built in. Compressed or not is decided
+from the first four bytes rather than the extension.
+
+**Where a part divides**, the player says which line to read (v1.45.0). One line
+is read, not both, because one notehead is drawn and one octave is heard, and
+drawing two while sounding one would be three stories on one stem. At the octave
+— how a bass part nearly always divides — the fingering is the same either way,
+so the choice costs the octave you read and hear rather than the practice.
+
 ## What is still to do
 
-- **Bar repeats are not expanded.** The rule is settled — unfold what is
-  shorthand for music — and `measure-repeat` / `beat-repeat` are unbuilt. This
-  is the next piece of reading, and it is the one that produces *silence* rather
-  than a wrong-looking page if left out.
-- **Nothing carries the file into the app.** No `<input type="file">`, no
-  IndexedDB library, no part chooser — `partNames` exists to ask with and
-  nothing asks. This is the feature's front half and none of it is built.
+- **Nothing is kept.** The IndexedDB library is unbuilt, so a part must be
+  re-picked every session. This is the last thing between here and **2.0.0**,
+  under the rule proposed on 2026-08-12: *a major version lands when you can
+  open your own part and it is still there tomorrow.*
 - **Tempo marks are not read.** `<sound tempo>` is quarter-notes per minute and
   the app's tempo names the *pulse*, so it needs the v1.30.0 conversion. Cheap,
-  and deliberately left until the front half exists.
+  and deliberately left until the library exists.
+- **`<transpose>` is ignored, by design and untested.** The written pitches are
+  taken off the page and the player's own instrument decides the fingerings,
+  which is what lets a tuba player read a cornet part. No file carrying a
+  transposition has been through it yet.
+- **The part chooser has not met a real multi-part score.** Its logic is
+  covered; a real one has not been tried.
 - **The long-rest skip is not offered.** The ruling — over ten seconds at the
   designated tempo, ask, and come back in at the bar before — needs a screen to
   ask on.
