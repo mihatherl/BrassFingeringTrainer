@@ -20,11 +20,12 @@ import {
   watchEntitlements,
 } from '../licensing/licence';
 import { loadStats, noteWeights, recordSession, type NoteStats } from '../storage/stats';
+import { ImportScreen } from './ImportScreen';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
 
-type Screen = 'settings' | 'play' | 'results';
+type Screen = 'settings' | 'play' | 'results' | 'import';
 
 interface Finished {
   summary: SessionSummary;
@@ -114,9 +115,21 @@ export function App() {
   }, [build]);
 
   const repeat = useCallback(() => {
-    if (finished) setExercise(build(finished.exercise.seed));
+    /*
+     * Imported music is not regenerated. `build` makes an exercise from the
+     * settings and a seed, which is the whole story for generated material and
+     * none of it for a part that came out of a file — asking for it again would
+     * hand back a random exercise wearing the same seed.
+     */
+    if (finished && finished.exercise.kind === 'imported') setExercise(finished.exercise);
+    else if (finished) setExercise(build(finished.exercise.seed));
     setScreen('play');
   }, [build, finished]);
+
+  const playImported = useCallback((imported: Exercise) => {
+    setExercise(imported);
+    setScreen('play');
+  }, []);
 
   const updateSettings = useCallback((next: Settings) => {
     setChosen(next);
@@ -141,6 +154,16 @@ export function App() {
           exercise={exercise}
           onFinish={onFinish}
           onExit={() => setScreen('settings')}
+        />
+      );
+    }
+
+    if (screen === 'import') {
+      return (
+        <ImportScreen
+          settings={chosen}
+          onPlay={playImported}
+          onBack={() => setScreen('settings')}
         />
       );
     }
@@ -174,9 +197,10 @@ export function App() {
         entitlements={entitlements}
         onChange={updateSettings}
         onStart={startNew}
+        onImport={() => setScreen('import')}
       />
     );
-  }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings]);
+  }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings, playImported]);
 
   return <div className="app">{content}</div>;
 }

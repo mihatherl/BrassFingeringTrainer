@@ -89,6 +89,8 @@ interface SettingsScreenProps {
   entitlements: Entitlements;
   onChange: (settings: Settings) => void;
   onStart: () => void;
+  /** Opens My Music, where a part is read out of a file rather than generated. */
+  onImport: () => void;
 }
 
 export function SettingsScreen({
@@ -96,6 +98,7 @@ export function SettingsScreen({
   entitlements,
   onChange,
   onStart,
+  onImport,
 }: SettingsScreenProps) {
   /*
    * What will actually be played, as against what is stored.
@@ -685,6 +688,9 @@ export function SettingsScreen({
       </p>
 
       <div className="actions actions--sticky">
+        <button type="button" className="button button--large" onClick={onImport}>
+          My Music
+        </button>
         <button type="button" className="button button--primary button--large" onClick={onStart}>
           Start
         </button>

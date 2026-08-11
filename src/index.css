@@ -976,3 +976,64 @@ input[type='checkbox'] {
     padding: 0;
   }
 }
+
+/* --- My Music ------------------------------------------------------------ */
+
+/*
+ * The file input is driven by its label, which is styled as a button: the
+ * native control cannot be styled and reads differently on every platform,
+ * while a label wrapping it keeps the click target and the keyboard behaviour
+ * the browser already gives.
+ */
+.import__choose {
+  display: block;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.import__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.import__problem {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--wrong);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.import__summary {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.import__summary h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.0625rem;
+}
+
+.import__count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.import__warnings-heading {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.import__warnings {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
