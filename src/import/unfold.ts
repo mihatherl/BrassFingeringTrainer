@@ -85,6 +85,17 @@ export interface Unfolded {
   order: number[];
   /** Empty when the navigation was followed to the end. */
   problems: string[];
+  /**
+   * Measures the walk never arrives at, by source index.
+   *
+   * Not a failure — the navigation resolved, and a piece may legitimately leave
+   * a bar unplayed. But a *stretch* of them almost always means a jump is in
+   * the wrong place, and it is invisible from the page: nothing about a D.S.
+   * sitting a page too early looks wrong until you count what it skipped. So it
+   * is reported and left to the reader to judge, which is the same bargain as
+   * every other warning here.
+   */
+  unreached: number[];
 }
 
 /**
@@ -179,7 +190,7 @@ function appliesOnPass(m: MeasureNav, pass: number): boolean {
 export function unfold(measures: readonly MeasureNav[]): Unfolded {
   const problems: string[] = [];
   const straight = () => measures.map((_, i) => i);
-  if (measures.length === 0) return { order: [], problems };
+  if (measures.length === 0) return { order: [], problems, unreached: [] };
 
   const endings = endingRegions(measures);
   /*
@@ -200,7 +211,8 @@ export function unfold(measures: readonly MeasureNav[]): Unfolded {
   const named = (m: MeasureNav, i: number) => `bar ${m.number ?? i + 1}`;
   const fail = (message: string): Unfolded => {
     problems.push(message);
-    return { order: straight(), problems };
+    // Straight through reaches everything, so nothing is unreached.
+    return { order: straight(), problems, unreached: [] };
   };
 
   const order: number[] = [];
@@ -304,5 +316,7 @@ export function unfold(measures: readonly MeasureNav[]): Unfolded {
     i++;
   }
 
-  return { order, problems };
+  const played = new Set(order);
+  const unreached = measures.map((_, i) => i).filter((i) => !played.has(i));
+  return { order, problems, unreached };
 }

@@ -27,7 +27,7 @@ describe('a part with nothing in it', () => {
   });
 
   it('survives being empty', () => {
-    expect(unfold([])).toEqual({ order: [], problems: [] });
+    expect(unfold([])).toEqual({ order: [], problems: [], unreached: [] });
   });
 });
 
@@ -219,6 +219,43 @@ describe('time-only', () => {
     bars[2].timeOnly = [2];
     // One pass through the repeat, then C, whose D.C. does not apply on pass 1.
     expect(played(bars)).toBe('A B A B C');
+  });
+});
+
+describe('bars the navigation never reaches', () => {
+  it('names them, because a jump in the wrong place looks like nothing', () => {
+    /*
+     * A real part came in with its D.S. a page too early: the walk went out to
+     * the coda and twenty-one of forty-two bars were never arrived at. Nothing
+     * about that is visible from the page — the marks all look ordinary — and
+     * it is only apparent if something counts what was skipped.
+     */
+    const bars = plain(6);
+    bars[0].segno = 's';
+    bars[1].tocoda = 'c';
+    bars[2].dalsegno = 's';
+    bars[5].coda = 'c';
+
+    const { order, problems, unreached } = unfold(bars);
+    expect(problems).toEqual([]);
+    // A, B, C, back to A, B, then out to the coda at F. D and E never play.
+    expect(order).toEqual([0, 1, 2, 0, 1, 5]);
+    expect(unreached).toEqual([3, 4]);
+  });
+
+  it('reports nothing where every bar is reached', () => {
+    const bars = plain(3);
+    bars[0].forwardRepeat = true;
+    bars[2].backwardRepeat = {};
+    expect(unfold(bars).unreached).toEqual([]);
+  });
+
+  it('reports nothing when the part is played straight through', () => {
+    // A part that could not be unfolded reaches everything by definition, so
+    // saying bars were skipped on top of that would be noise.
+    const bars = plain(3);
+    bars[2].dalsegno = 'nowhere';
+    expect(unfold(bars).unreached).toEqual([]);
   });
 });
 

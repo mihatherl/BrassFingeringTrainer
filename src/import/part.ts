@@ -369,10 +369,24 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const source = parts(doc)[partIndex];
   if (!source) return { exercise: null, problems: ['that part is not in this file'] };
 
-  const { order, problems: navProblems } = unfold(readNavigation(doc, partIndex));
+  const nav = readNavigation(doc, partIndex);
+  const { order, problems: navProblems, unreached } = unfold(nav);
   problems.push(...navProblems);
   if (navProblems.length > 0) {
     problems.push('the repeats were not followed, so this is the part as printed');
+  }
+  /*
+   * A stretch of bars the navigation never arrives at. Almost always a jump in
+   * the wrong place — and invisible from the page, since nothing about a D.S.
+   * sitting a page too early looks wrong until you count what it skipped.
+   */
+  if (unreached.length > 0) {
+    const named = unreached.map((i) => nav[i].number ?? String(i + 1));
+    const span =
+      named.length > 3 ? `bars ${named[0]}–${named[named.length - 1]}` : `bar${named.length > 1 ? 's' : ''} ${named.join(', ')}`;
+    problems.push(
+      `${named.length} of ${nav.length} bars are never reached — ${span}. Check where the jumps sit.`,
+    );
   }
 
   const bodies = fillBarRepeats([...source.querySelectorAll(':scope > measure')].map(readBody));
