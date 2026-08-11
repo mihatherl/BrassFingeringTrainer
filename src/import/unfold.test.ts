@@ -325,3 +325,66 @@ describe('a part that cannot be unfolded', () => {
     expect(problems[0]).toContain('never closes');
   });
 });
+
+/**
+ * Two jumps in one piece, which is where an unfolder stops being arithmetic.
+ *
+ * Suggested by a deliberately awful "Happy Birthday" doing the rounds — the
+ * shape rather than a transcription of it: a D.C. al Coda *and* a D.S. al Fine,
+ * a segno inside the music the D.C. replays, and a coda with a repeat of its
+ * own. Nothing sane is written this way, which is the point; every rule here
+ * has to hold while another rule is already in force.
+ *
+ *   A  |: and "To Coda"
+ *   B
+ *   C  first-time bar, :|
+ *   D  second-time bar
+ *   E  segno
+ *   F  D.C. al Coda
+ *   G  Fine
+ *   H  coda, |:
+ *   I  :| and "D.S. al Fine"
+ */
+describe('a piece with two jumps', () => {
+  function awful(): MeasureNav[] {
+    const bars = plain(9);
+    bars[0].forwardRepeat = true;
+    bars[0].tocoda = 'c';
+    bars[2].endingStart = [1];
+    bars[2].endingStop = true;
+    bars[2].backwardRepeat = {};
+    bars[3].endingStart = [2];
+    bars[3].endingStop = true;
+    bars[4].segno = 's';
+    bars[5].dacapo = true;
+    bars[6].fine = true;
+    bars[7].coda = 'c';
+    bars[7].forwardRepeat = true;
+    bars[8].backwardRepeat = {};
+    bars[8].dalsegno = 's';
+    return bars;
+  }
+
+  it('takes them in turn, and each one only once', () => {
+    /*
+     * A B C, back for A B D — the endings, before anything has jumped. Then E
+     * and the D.C., which sends it to the top; A now leaves at the To Coda,
+     * which did nothing on either earlier pass. The coda's own repeat is not
+     * taken, being past a jump. Then the D.S. goes to the segno and the Fine
+     * finally stops it.
+     */
+    expect(played(awful())).toBe('A B C A B D E F A H I E F G');
+  });
+
+  it('does not let the first jump fire again on the way to the second', () => {
+    // The walk passes F twice after the D.C. has been taken. A jump that fired
+    // again there would loop the piece for ever.
+    const order = unfold(awful()).order;
+    expect(order.filter((i) => i === 5)).toHaveLength(2);
+    expect(unfold(awful()).problems).toEqual([]);
+  });
+
+  it('reaches every bar, awful or not', () => {
+    expect(unfold(awful()).unreached).toEqual([]);
+  });
+});

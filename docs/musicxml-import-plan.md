@@ -114,9 +114,24 @@ Two rules the tests found rather than confirmed:
   bar line is placed by counting whole bars from the start — a short first bar
   would put all of them adrift, and with them every bar number.
 
-Checked end to end on a march-shaped part and **looked at**: fifteen written
-bars unfold to thirty played, the multi-bar rest is drawn twice because the
-section is played twice, and the key returns to Eb where the D.S. sends it back.
+### A real part, end to end
+
+On 2026-08-12 the player exported a part from MuseScore and it read correctly:
+**42 written bars unfolding to 61 played**, every bar reached, the only warning
+being the divided notes. It exercised, on genuine output rather than on anything
+written here:
+
+- a repeat with first- and second-time bars, and two more interior repeats
+- a D.S. to a named segno, a To Coda that stayed silent until the jump armed it,
+  and a coda
+- a change of time signature, 4/4 into 3/4
+- four key changes, landing at **played** beats 0, 12, 52 and 181 rather than
+  where they sit on the page — the playing-order rule doing real work
+
+Getting there took four fixes, and every one of them was found by the file
+rather than by a test: `<forward>` ignored so two bars came out empty and six
+beats short; a demisemiquaver dropped for want of a note value; a time signature
+change never drawn; and bars nothing reached going unreported.
 
 ## What is still to do
 
