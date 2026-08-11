@@ -87,17 +87,54 @@ That last one was found by a test rather than reasoned out in advance.
 an unresolvable part plays straight through and says why. A ceiling guards
 against a corrupt `times`, which is the one unbounded quantity in the format.
 
-### What the unfolder does not do yet
+## The part reader — built, v1.41.0
 
-- **Bar repeats are not expanded.** `measure-repeat` and `beat-repeat` are
-  navigation-adjacent but are about a measure's *content*, so they belong with
-  the reader that pulls out notes rather than with this one. The rule is
-  settled — see above — and the work is not done.
-- **Nothing reads the notes.** This resolves the order of measures; turning
-  those measures into an `Exercise` is the next piece, and it is where the
-  metre list, the multi-bar rest and the tier-3 substitution rules all get used.
-- **Part choice is an index.** `partNames` exists for a chooser; nothing asks
-  the player yet.
+`src/import/part.ts`. Reads what is in the measures and ends at
+`assembleExercise` — the same function the generator ends at, so an imported
+part is beamed, bracketed and given its accidentals by the code that draws
+generated material rather than by a second set of rules.
+
+Two small changes made that possible: `AssembleOptions` takes a metre list
+rather than one metre, and a pitch handed to it may be a `SpelledPitch` rather
+than a MIDI number. The generator chose a pitch and the key decides its
+spelling; a publisher who wrote G flat is not to be second-guessed.
+
+**Everything is read in playing order, not written order.** A key change inside
+a repeated section comes into force twice at two different beats, and a D.S.
+back to the top restores the opening key. Changes are recorded only where
+something changed — a MuseScore export restates the signature every bar, and
+`changesKey` counts entries.
+
+Two rules the tests found rather than confirmed:
+
+- **A length no single value says is written as tied notes, not silence.** Two
+  and a half beats is a minim tied to a quaver. Only what falls off the grid
+  entirely is dropped, and its time still passes.
+- **A pickup is padded to the bar line.** Nearly every march has one, and every
+  bar line is placed by counting whole bars from the start — a short first bar
+  would put all of them adrift, and with them every bar number.
+
+Checked end to end on a march-shaped part and **looked at**: fifteen written
+bars unfold to thirty played, the multi-bar rest is drawn twice because the
+section is played twice, and the key returns to Eb where the D.S. sends it back.
+
+## What is still to do
+
+- **Bar repeats are not expanded.** The rule is settled — unfold what is
+  shorthand for music — and `measure-repeat` / `beat-repeat` are unbuilt. This
+  is the next piece of reading, and it is the one that produces *silence* rather
+  than a wrong-looking page if left out.
+- **Nothing carries the file into the app.** No `<input type="file">`, no
+  IndexedDB library, no part chooser — `partNames` exists to ask with and
+  nothing asks. This is the feature's front half and none of it is built.
+- **Tempo marks are not read.** `<sound tempo>` is quarter-notes per minute and
+  the app's tempo names the *pulse*, so it needs the v1.30.0 conversion. Cheap,
+  and deliberately left until the front half exists.
+- **The long-rest skip is not offered.** The ruling — over ten seconds at the
+  designated tempo, ask, and come back in at the bar before — needs a screen to
+  ask on.
+- **`.mxl` is not opened.** The mechanism was confirmed to exist
+  (`DecompressionStream('deflate-raw')`, no dependency) and is not built.
 
 **Not every exporter writes the `<sound>` layer.** MuseScore, Sibelius and
 Finale do; it is what it is for. The Audiveris output generated this session
