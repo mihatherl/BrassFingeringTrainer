@@ -12,7 +12,7 @@
  */
 
 import { keyAt } from '../domain/keys';
-import { beatOfBar, metreAt } from '../domain/metre';
+import { beatOfBar, metreAt, type Metre } from '../domain/metre';
 import type { TempoEvent } from '../domain/tempo';
 import { insideMultiRest, isMultiRest, multiRestSpans } from '../exercise/rests';
 import type { Exercise } from '../exercise/types';
@@ -36,6 +36,7 @@ import {
   drawStaveLines,
   drawTimeSignature,
   layoutKeySignature,
+  timeSignatureWidth,
   type StaveMetrics,
 } from './stave';
 import type { StaveTheme } from './surface';
@@ -60,10 +61,25 @@ const DOUBLE_BAR_GAP = 0.45;
 const KEY_CHANGE_LEAD = 0.5;
 
 /**
- * Room a change of key needs, beyond what the bar line already takes.
+ * A change of signature part-way along a line: a key, a metre, or both.
  *
- * The double bar, the gap after it, and the signature itself — which for a
- * change is wider than an ordinary one, since it carries the naturals
+ * One shape rather than two mechanisms, because they are one event to a reader
+ * — a double bar and then whatever is being restated — and a part that turns
+ * into 3/4 and into D major at the same bar must print one double bar, not two
+ * side by side.
+ */
+export interface SignatureChange {
+  /** The key being left and the one being joined, when the key changes. */
+  key?: { from: number; to: number };
+  /** The signature coming into force, when the metre changes. */
+  metre?: Metre;
+}
+
+/**
+ * Room a change of signature needs, beyond what the bar line already takes.
+ *
+ * The double bar, the gap after it, and whatever is restated — a key signature
+ * for a change being wider than an ordinary one, since it carries the naturals
  * cancelling the key being left as well as the accidentals of the key being
  * joined.
  *
@@ -72,9 +88,13 @@ const KEY_CHANGE_LEAD = 0.5;
  * spacing must reserve exactly this or the change will be drawn over the note
  * before it.
  */
-export function keyChangeRoom(metrics: StaveMetrics, from: number, to: number): number {
-  const { width } = layoutKeySignature(metrics, to, from);
-  return width + metrics.staveSpace * (KEY_CHANGE_LEAD + DOUBLE_BAR_GAP);
+export function signatureChangeRoom(metrics: StaveMetrics, change: SignatureChange): number {
+  const key = change.key ? layoutKeySignature(metrics, change.key.to, change.key.from).width : 0;
+  const metre = change.metre
+    ? timeSignatureWidth(metrics, change.metre.beatsPerBar, change.metre.beatUnit)
+    : 0;
+  if (key === 0 && metre === 0) return 0;
+  return key + metre + metrics.staveSpace * (KEY_CHANGE_LEAD + DOUBLE_BAR_GAP);
 }
 
 export interface SystemOptions {
@@ -244,24 +264,78 @@ export function tempoMarkBeat(event: TempoEvent): number | null {
  * playhead crossed it, with nothing travelling towards the strike line to say
  * it was coming.
  */
-export function drawKeyChange(
+/**
+ * Draws a change of signature where it falls, ahead of the downbeat it governs.
+ *
+ * Laid out backwards from the downbeat, because that is the fixed point: the
+ * note is positioned by the spacing and the apparatus has to fit in front of
+ * it, in the room `signatureChangeRoom` reserved. Reading order is double bar,
+ * then key, then metre — the same order the head of a line states them in.
+ */
+/**
+ * Changes of signature falling strictly inside a stretch of music.
+ *
+ * Strictly, at both ends: a change at `fromBeat` is already stated by the
+ * signature at the head of the line, and one at `toBeat` belongs to the line
+ * after. Key and metre are collected into one entry per beat, because a part
+ * that turns into 3/4 and into D major at the same bar prints one double bar
+ * and two signatures — not two changes side by side.
+ *
+ * Shared by the two drawing paths, which is the point: a change the scrolling
+ * line drew and the paged one did not would be the same music reading
+ * differently in the two modes.
+ */
+export function signatureChangesIn(
+  exercise: Exercise,
+  fromBeat: number,
+  toBeat: number,
+): Map<number, SignatureChange> {
+  const changes = new Map<number, SignatureChange>();
+  const inside = (beat: number) => beat > fromBeat && beat < toBeat;
+
+  for (const change of exercise.keys) {
+    if (!inside(change.fromBeat)) continue;
+    changes.set(change.fromBeat, {
+      // The key being left, which is whatever was in force just before.
+      key: { from: keyAt(exercise.keys, change.fromBeat - 1e-6), to: change.fifths },
+    });
+  }
+
+  for (const change of exercise.metres) {
+    if (!inside(change.fromBeat)) continue;
+    const already = changes.get(change.fromBeat) ?? {};
+    changes.set(change.fromBeat, { ...already, metre: change.metre });
+  }
+
+  return changes;
+}
+
+export function drawSignatureChange(
   ctx: CanvasRenderingContext2D,
   metrics: StaveMetrics,
   downbeatX: number,
-  to: number,
-  from: number,
+  change: SignatureChange,
   colour: string,
 ): void {
   const { staveSpace } = metrics;
-  const { width } = layoutKeySignature(metrics, to, from);
-  const signatureX = downbeatX - BAR_LINE_SETBACK * staveSpace - width;
-  const lineX = signatureX - staveSpace * KEY_CHANGE_LEAD;
+  const keyWidth = change.key ? layoutKeySignature(metrics, change.key.to, change.key.from).width : 0;
+  const metreWidth = change.metre
+    ? timeSignatureWidth(metrics, change.metre.beatsPerBar, change.metre.beatUnit)
+    : 0;
+  if (keyWidth === 0 && metreWidth === 0) return;
+
+  const startX = downbeatX - BAR_LINE_SETBACK * staveSpace - keyWidth - metreWidth;
+  const lineX = startX - staveSpace * KEY_CHANGE_LEAD;
 
   ctx.strokeStyle = colour;
   drawBarLine(ctx, metrics, lineX);
   drawBarLine(ctx, metrics, lineX - staveSpace * DOUBLE_BAR_GAP);
+
   ctx.fillStyle = colour;
-  drawKeySignature(ctx, metrics, signatureX, to, from);
+  if (change.key) drawKeySignature(ctx, metrics, startX, change.key.to, change.key.from);
+  if (change.metre) {
+    drawTimeSignature(ctx, metrics, startX + keyWidth, change.metre.beatsPerBar, change.metre.beatUnit);
+  }
 }
 
 /**
@@ -365,21 +439,16 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   const musicLeft = drawTimeSignature(ctx, metrics, x, beatsPerBar, beatUnit);
 
   /*
-   * Changes of key falling inside this system, as opposed to at its head —
-   * the one at the head is already stated by the signature above.
+   * Changes of key or metre falling inside this system, as opposed to at its
+   * head — the one at the head is already stated by the signature above.
    *
    * Each takes the full apparatus a part prints: a double bar to say something
    * structural is happening, the naturals cancelling what is being left, then
    * the new signature. All of it has to sit between the last note of the old
-   * key and the first note of the new one, which is why `keyChangeRoom` is
-   * reserved in the spacing before any of this is drawn.
+   * key and the first note of the new one, which is why `signatureChangeRoom`
+   * is reserved in the spacing before any of this is drawn.
    */
-  const changes = new Map<number, number>();
-  for (const change of exercise.keys) {
-    if (change.fromBeat <= firstBeat || change.fromBeat >= lastBeat) continue;
-    // The key being left, which is whatever was in force just before.
-    changes.set(change.fromBeat, keyAt(exercise.keys, change.fromBeat - 1e-6));
-  }
+  const changes = signatureChangesIn(exercise, firstBeat, lastBeat);
 
   /*
    * Every bar line except the one at the head of the system, which the start
@@ -398,8 +467,8 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
     drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);
   }
 
-  for (const [beat, from] of changes) {
-    drawKeyChange(ctx, metrics, xForBeat(beat), keyAt(exercise.keys, beat), from, theme.stave);
+  for (const [beat, change] of changes) {
+    drawSignatureChange(ctx, metrics, xForBeat(beat), change, theme.stave);
   }
 
   /*

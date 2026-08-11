@@ -115,7 +115,7 @@ export interface SpacingOptions {
    * being left as well as the accidentals of the one being joined. Returns 0
    * for a beat where nothing changes.
    */
-  keyChangeRoomAt?: (beat: number) => number;
+  signatureRoomAt?: (beat: number) => number;
 }
 
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
@@ -237,12 +237,12 @@ function floorWidth(
   const barLine = barBoundaries.has(columns[index + 1]) ? (options.barLineRoom ?? 0) : 0;
   // Summed with the bar line's own room rather than replacing it: a change
   // sits on a bar line and the double bar has to clear the note before it.
-  const keyChange = options.keyChangeRoomAt?.(columns[index + 1]) ?? 0;
+  const signature = options.signatureRoomAt?.(columns[index + 1]) ?? 0;
 
   return (
     options.minColumnWidth +
     barLine +
-    keyChange +
+    signature +
     (extra === undefined || here === undefined ? 0 : extra(here).after) +
     (extra === undefined || next === undefined ? 0 : extra(next).before)
   );

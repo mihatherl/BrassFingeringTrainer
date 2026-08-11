@@ -51,11 +51,12 @@ import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
 import {
   BAR_LINE_SETBACK,
   drawBarNumber,
-  drawKeyChange,
+  drawSignatureChange,
   drawSystem,
   drawTempoEvent,
   justifiedX,
-  keyChangeRoom,
+  signatureChangeRoom,
+  signatureChangesIn,
   MUSIC_MARGIN,
   SCROLLING_BAR_NUMBER_EVERY,
   tempoMarkBeat,
@@ -553,7 +554,7 @@ export class StaveRenderer {
         maxBarWidth: this.usableWidth(),
         extraWidthFor: (index) => this.extraWidthFor(index),
         barLineRoom: BAR_LINE_SETBACK * staveSpace,
-        keyChangeRoomAt: (beat) => this.keyChangeRoomAt(beat),
+        signatureRoomAt: (beat) => this.signatureRoomAt(beat),
       });
       this.pixelsPerBeat = this.spacing.averagePixelsPerBeat;
       this.systemStarts = this.planSystems();
@@ -599,13 +600,12 @@ export class StaveRenderer {
    * double bar and the new signature have somewhere to go. Zero everywhere
    * else, which is every beat of a single-key exercise.
    */
-  private keyChangeRoomAt(beat: number): number {
-    const { keys } = this.options.exercise;
-    const change = keys.find((k) => k.fromBeat === beat);
-    // The opening key is not a change — there is nothing in front of it to
-    // cancel and no bar line to double.
-    if (!change || change.fromBeat === 0) return 0;
-    return keyChangeRoom(this.metrics, keyAt(keys, beat - 1e-6), change.fifths);
+  private signatureRoomAt(beat: number): number {
+    // The opening signature is not a change — there is nothing in front of it
+    // to cancel and no bar line to double, which `signatureChangesIn` settles
+    // by taking the span open at both ends.
+    const change = signatureChangesIn(this.options.exercise, 0, Infinity).get(beat);
+    return change ? signatureChangeRoom(this.metrics, change) : 0;
   }
 
   /**
@@ -864,12 +864,7 @@ export class StaveRenderer {
      * The opening key is not a change: there is nothing in front of it to
      * cancel and no bar line to double.
      */
-    const changes = new Map<number, number>();
-    for (const change of exercise.keys) {
-      if (change.fromBeat <= 0) continue;
-      // The key being left, which is whatever was in force just before.
-      changes.set(change.fromBeat, keyAt(exercise.keys, change.fromBeat - 1e-6));
-    }
+    const changes = signatureChangesIn(exercise, 0, Infinity);
 
     ctx.strokeStyle = theme.stave;
     for (let bar = 0; ; bar++) {
@@ -908,13 +903,14 @@ export class StaveRenderer {
      * downbeat is still off the right-hand edge already has its double bar on
      * screen, which is the whole point.
      */
-    for (const [beat, from] of changes) {
-      const to = keyAt(exercise.keys, beat);
+    for (const [beat, change] of changes) {
       const x = xForBeat(beat);
+      // The apparatus reaches back from the downbeat, so a change whose
+      // downbeat is off the right edge may still have its double bar on screen.
       const reach =
-        keyChangeRoom(this.metrics, from, to) + BAR_LINE_SETBACK * this.metrics.staveSpace;
+        signatureChangeRoom(this.metrics, change) + BAR_LINE_SETBACK * this.metrics.staveSpace;
       if (x - reach > this.width || x < this.headerWidth - 20) continue;
-      drawKeyChange(ctx, this.metrics, x, to, from, theme.stave);
+      drawSignatureChange(ctx, this.metrics, x, change, theme.stave);
     }
 
     for (const rest of exercise.rests) {

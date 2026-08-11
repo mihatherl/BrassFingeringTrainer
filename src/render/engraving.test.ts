@@ -39,7 +39,12 @@ import { exerciseFromTheme } from '../exercise/theme';
 import { themeById } from '../exercise/themes';
 import type { Exercise } from '../exercise/types';
 import { planReview } from './review';
-import { multiBarRestFigure, tiedFigure, tripletFigure } from '../../tools/figures.mts';
+import {
+  metreChangeFigure,
+  multiBarRestFigure,
+  tiedFigure,
+  tripletFigure,
+} from '../../tools/figures.mts';
 import { DEFAULT_WIDTH, exerciseToSvg } from '../../tools/render-svg.mts';
 
 /**
@@ -104,6 +109,11 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
     name: 'multi-bar-rest',
     why: 'Twenty bars off with no bar lines through it, its count in the time-signature figures, and the music after it resuming at bar 23.',
     exercise: multiBarRestFigure,
+  },
+  {
+    name: 'metre-change',
+    why: 'A time signature changing part-way along a line, with a key change at the same bar — one double bar, two signatures.',
+    exercise: metreChangeFigure,
   },
   {
     name: 'key-change',

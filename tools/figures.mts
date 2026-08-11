@@ -157,3 +157,56 @@ export function multiBarRestFigure(): Exercise {
     kind: 'random',
   };
 }
+
+/**
+ * A change of time signature part-way along a line, with a change of key at the
+ * same bar.
+ *
+ * The shape of a real part that a player brought in: four bars of 4/4, then 3/4
+ * from bar five. Both changes land together on purpose, because that is the
+ * case where two mechanisms would show — a part that turns into 3/4 and into D
+ * major at the same bar must print *one* double bar with two signatures after
+ * it, not two changes side by side.
+ *
+ * Before this existed the bars simply became shorter with nothing on the page
+ * saying why, which is the notation lying about the music.
+ */
+export function metreChangeFigure(): Exercise {
+  const at = (startBeat: number, midi: number, fifths: number): NoteEvent => ({
+    writtenMidi: midi,
+    soundingMidi: midi - 21,
+    pitch: spellInKey(midi, fifths),
+    startBeat,
+    duration: { value: 'quarter', dotted: false },
+    acceptedMasks: [0],
+    primaryMask: 0,
+    beamGroup: -1,
+    tupletGroup: -1,
+    tiedToNext: false,
+    showAccidental: false,
+  });
+
+  const notes: NoteEvent[] = [];
+  for (let beat = 0; beat < 16; beat++) notes.push(at(beat, 60 + (beat % 7), 0));
+  for (let beat = 16; beat < 34; beat++) notes.push(at(beat, 62 + (beat % 6), 2));
+
+  return {
+    notes,
+    rests: [],
+    instrumentId: 'eb-bass',
+    clef: 'treble',
+    keys: [
+      { fromBeat: 0, fifths: 0 },
+      { fromBeat: 16, fifths: 2 },
+    ],
+    metres: [
+      { fromBeat: 0, metre: metreFor(4, 4) },
+      { fromBeat: 16, metre: metreFor(3, 4) },
+    ],
+    tempo: [],
+    totalBeats: 34,
+    chosenBeats: 34,
+    seed: 0,
+    kind: 'imported',
+  };
+}

@@ -374,6 +374,62 @@ describe('bar repeats', () => {
   });
 });
 
+describe('the shape of a real part that came in', () => {
+  /*
+   * TestPiece.mscz, brought in by the player on 2026-08-12 and knowingly
+   * malformed: 4/4 turning into 3/4 at bar 5, a "To Coda" at bar 13, and a
+   * "D.S. al Coda" at bar 37 pointing at a segno the score does not contain.
+   *
+   * Mirrored here rather than fixtured, because what is being pinned is how the
+   * app answers this *shape* — a legitimate metre change alongside navigation
+   * that cannot be resolved.
+   */
+  const marked = (m: string) => `<direction>${m}</direction>`;
+
+  function testPieceShaped(): string {
+    const bars: string[] = [];
+    bars.push(attributes() + note('C4', 4));
+    bars.push(note('D4', 4));
+    bars.push(note('E4', 4));
+    bars.push('<attributes><key><fifths>2</fifths></key></attributes>' + note('F4', 4));
+    // Bar 5: the time signature changes, and stays changed.
+    bars.push(
+      '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>' +
+        note('G4', 3),
+    );
+    for (let i = 0; i < 7; i++) bars.push(note('A4', 3));
+    bars.push(marked('<sound tocoda="codab"/>') + note('B4', 3));
+    for (let i = 0; i < 3; i++) bars.push(note('C5', 3));
+    bars.push(marked('<sound dalsegno="segno"/>') + note('D5', 3));
+    bars.push(marked('<sound coda="codab"/>') + note('E5', 3));
+    return score(...bars);
+  }
+
+  it('says the D.S. has nowhere to go, and plays the part as printed', () => {
+    const { exercise, problems } = importing(testPieceShaped());
+
+    expect(problems[0]).toContain('segno');
+    expect(problems).toContain('the repeats were not followed, so this is the part as printed');
+    // Every bar once, in written order: nothing is unfolded and nothing is lost.
+    expect(exercise?.notes).toHaveLength(18);
+  });
+
+  it('still follows the change of time signature, which is not in doubt', () => {
+    /*
+     * The navigation being broken says nothing about the metre. Four bars of
+     * 4/4 and fourteen of 3/4 is eighteen bars, and a reader counting from the
+     * top must land on the same number the page does.
+     */
+    const { exercise } = importing(testPieceShaped());
+
+    expect(changesMetre(exercise?.metres ?? [])).toBe(true);
+    expect(exercise?.metres[1]).toMatchObject({ fromBeat: 16 });
+    expect(exercise?.totalBeats).toBe(16 + 14 * 3);
+    expect(exercise && barAt(exercise.metres, 16)).toBe(4);
+    expect(exercise && barAt(exercise.metres, exercise.totalBeats - 3)).toBe(17);
+  });
+});
+
 describe('a part with nothing to read', () => {
   it('says so rather than handing back an empty exercise', () => {
     const { exercise, problems } = importing(score(''));

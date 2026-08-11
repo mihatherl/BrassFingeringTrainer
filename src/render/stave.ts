@@ -305,6 +305,22 @@ function drawDigits(
  * not the clef — see `SystemOptions.clef` in `system.ts` for why a system
  * would want that.
  */
+/**
+ * Room a time signature takes, including the space after it.
+ *
+ * Its own function because a signature is drawn in two places now — at the head
+ * of a line and where the metre changes part-way along one — and the room has
+ * to be reserved in the spacing before either is drawn. Two copies of this
+ * arithmetic would be two answers to how wide a 12/8 is.
+ */
+export function timeSignatureWidth(m: StaveMetrics, beatsPerBar: number, beatUnit: number): number {
+  return (
+    Math.max(digitsWidth(digitGlyphs(beatsPerBar)), digitsWidth(digitGlyphs(beatUnit))) *
+      m.staveSpace +
+    m.staveSpace
+  );
+}
+
 export function measureStaveHeader(
   m: StaveMetrics,
   fifths: number,
@@ -318,10 +334,5 @@ export function measureStaveHeader(
   // agree with it — see `layoutKeySignature`.
   const keyWidth = layoutKeySignature(m, fifths).width;
 
-  const timeWidth =
-    Math.max(digitsWidth(digitGlyphs(beatsPerBar)), digitsWidth(digitGlyphs(beatUnit))) *
-      m.staveSpace +
-    m.staveSpace;
-
-  return clefWidth + keyWidth + timeWidth;
+  return clefWidth + keyWidth + timeSignatureWidth(m, beatsPerBar, beatUnit);
 }

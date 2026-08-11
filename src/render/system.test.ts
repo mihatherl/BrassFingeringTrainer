@@ -1,11 +1,16 @@
-import { metreFor } from '../domain/metre';
+import { metreFor, type MetreChange } from '../domain/metre';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { spellInKey } from '../domain/keys';
 import type { Exercise, NoteEvent } from '../exercise/types';
 import { glyphPath } from './glyphs';
 import { staveMetrics } from './stave';
 import { LIGHT_THEME } from './surface';
-import { drawSystem } from './system';
+import {
+  drawSignatureChange,
+  drawSystem,
+  signatureChangeRoom,
+  signatureChangesIn,
+} from './system';
 
 /**
  * The `clef` option: whether the courtesy clef is drawn at the head of a
@@ -190,5 +195,82 @@ describe('drawSystem bar numbers', () => {
       .pop();
     expect(colourBefore?.args[0]).toBe(LIGHT_THEME.stave);
     expect(LIGHT_THEME.stave).not.toBe(LIGHT_THEME.note);
+  });
+});
+
+/**
+ * Changes of signature drawn where they fall.
+ *
+ * Key changes were drawn from the start; a change of *metre* was not, so a part
+ * that turned from 4/4 into 3/4 simply had shorter bars from then on with
+ * nothing on the page saying why. That is the notation lying about the music,
+ * and it was found by a real part rather than by a test.
+ */
+describe('drawSignatureChange', () => {
+  const fourFour = metreFor(4, 4);
+  const threeFour = metreFor(3, 4);
+
+  function changing(keys: Array<{ fromBeat: number; fifths: number }>, metres: MetreChange[]) {
+    const exercise = { ...exerciseOf(), keys, metres, totalBeats: 16, chosenBeats: 16 };
+    return signatureChangesIn(exercise, 0, 16);
+  }
+
+  it('finds a change of metre, not only a change of key', () => {
+    const changes = changing(
+      [{ fromBeat: 0, fifths: 0 }],
+      [
+        { fromBeat: 0, metre: fourFour },
+        { fromBeat: 4, metre: threeFour },
+      ],
+    );
+    expect(changes.get(4)?.metre?.beatsPerBar).toBe(3);
+  });
+
+  it('joins a key and a metre landing on the same bar into one change', () => {
+    // One double bar with two signatures after it, not two changes side by
+    // side — which is what two mechanisms would have produced.
+    const changes = changing(
+      [
+        { fromBeat: 0, fifths: 0 },
+        { fromBeat: 4, fifths: 2 },
+      ],
+      [
+        { fromBeat: 0, metre: fourFour },
+        { fromBeat: 4, metre: threeFour },
+      ],
+    );
+    expect(changes.size).toBe(1);
+    expect(changes.get(4)).toEqual({ key: { from: 0, to: 2 }, metre: threeFour });
+  });
+
+  it('leaves the opening signature alone, since the head of the line states it', () => {
+    const changes = changing(
+      [{ fromBeat: 0, fifths: 2 }],
+      [{ fromBeat: 0, metre: threeFour }],
+    );
+    expect(changes.size).toBe(0);
+  });
+
+  it('reserves room for the metre, or the double bar lands on the note before', () => {
+    // The apparatus is laid out backwards from the downbeat, so the spacing has
+    // to have reserved exactly what the drawing will use.
+    const metrics = staveMetrics('treble', 0, 20);
+    const keyOnly = signatureChangeRoom(metrics, { key: { from: 0, to: 2 } });
+    const both = signatureChangeRoom(metrics, { key: { from: 0, to: 2 }, metre: threeFour });
+    expect(both).toBeGreaterThan(keyOnly);
+    expect(signatureChangeRoom(metrics, {})).toBe(0);
+  });
+
+  it('draws the double bar and the new signature ahead of the downbeat', () => {
+    const calls: RecordedCall[] = [];
+    const ctx = mockContext(calls);
+    const metrics = staveMetrics('treble', 0, 20);
+
+    drawSignatureChange(ctx, metrics, 500, { metre: threeFour }, LIGHT_THEME.stave);
+
+    // Two bar lines for the double bar, and the digits of the new signature.
+    const lines = calls.filter((c) => c.method === 'moveTo').length;
+    expect(lines).toBeGreaterThanOrEqual(2);
+    expect(calls.some((c) => c.method === 'fill' && c.args.length > 0)).toBe(true);
   });
 });
