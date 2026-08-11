@@ -1012,7 +1012,7 @@ one was the doubtful question and the reason for building a spike at all.
 - **The pattern depends on tempo, and the one pattern is built.** A very fast
   2/4, 3/4 or 3/8 stops being beaten in its pulses at all: the bar becomes a
   single gesture, straight down onto the ictus, a narrow hook, and straight back
-  up. `BEAT_IN_ONE_ABOVE_BPM` is 168 and a guess until played. Four is excluded
+  up. `BEAT_IN_FEWER_ABOVE_BPM` is 168 and a guess until played. Four is excluded
   — a quick common time goes to *two*, which is a different shape and is not
   drawn — and compound is excluded, 6/8 in two being already what a fast one
   wants.
@@ -1026,8 +1026,13 @@ one was the doubtful question and the reason for building a spike at all.
   `panelAspect`, which clamps; the test says *which* patterns need the clamp
   rather than merely that clamping works.
 
-  Still open in the same family: **a fast four beaten in two**, which is a real
-  shape and not drawn.
+  A fast **four** is halved rather than taken to one: alla breve, which the
+  player ruled takes the ordinary two pattern — the same double J a 2/4 uses —
+  rather than wanting a shape of its own. One threshold serves both, and the
+  arithmetic falls out: above it a 2/4 and a 4/4 each give a gesture every two
+  crotchets, a 3/4 one every three. `placeInPattern` needed nothing, deriving
+  the positions from the bar rather than the pulse, so two gestures across four
+  crotchets land on the minims without being told to.
 
 - **Five and seven patterns** are drawn on the reference sheet in `input/` and can
   be added from it. Until then those metres get no conductor.

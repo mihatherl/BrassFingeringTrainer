@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { metreFor } from '../domain/metre';
 import {
-  BEAT_IN_ONE_ABOVE_BPM,
+  BEAT_IN_FEWER_ABOVE_BPM,
   CONDUCTOR_STYLE_RANGE,
   PANEL_ASPECT_RANGE,
   panelAspect,
@@ -74,28 +74,48 @@ describe('choosing a pattern', () => {
     expect(patternFor(metreFor(4, 4), slow)!.length).toBe(4);
   });
 
-  it('beats a fast simple bar in one, and only where the reference does', () => {
+  it('beats a fast simple bar in fewer gestures than it has pulses', () => {
     /*
      * "The one pattern is often used in very fast 2/4, 3/4 and 3/8" — past a
-     * speed a hand cannot make two or three readable ictuses, and beating the
-     * bar is clearer than beating a blur.
+     * speed a hand cannot make an ictus per pulse that anyone can read, and
+     * beating fewer is clearer than beating a blur.
      *
-     * Four is excluded on purpose: a quick common time goes to *two*, which is
-     * a different shape and is not drawn. Compound is excluded too — 6/8 is
-     * already in two, which is what a fast one wants.
+     * A four does not go to one: a quick common time is alla breve, and the
+     * player ruled that takes the ordinary two pattern rather than wanting a
+     * shape of its own. So above the threshold a 2/4 and a 4/4 both give a
+     * gesture every two crotchets, which is the arithmetic working out rather
+     * than a coincidence — it is why one threshold serves both.
      */
-    const fast = BEAT_IN_ONE_ABOVE_BPM + 1;
+    const fast = BEAT_IN_FEWER_ABOVE_BPM + 1;
     expect(patternFor(metreFor(2, 4), fast)!.length).toBe(1);
     expect(patternFor(metreFor(3, 4), fast)!.length).toBe(1);
     expect(patternFor(metreFor(3, 8), fast)!.length).toBe(1);
+    expect(patternFor(metreFor(4, 4), fast)!.length).toBe(2);
 
-    expect(patternFor(metreFor(4, 4), fast)!.length).toBe(4);
+    // Compound is left alone: 6/8 in two is already what a fast one wants.
     expect(patternFor(metreFor(6, 8), fast)!.length).toBe(2);
 
-    // At the threshold itself it is still beaten in its pulses, and with no
-    // tempo given nothing changes for a caller that has not been told the speed.
-    expect(patternFor(metreFor(2, 4), BEAT_IN_ONE_ABOVE_BPM)!.length).toBe(2);
+    // At the threshold itself every metre is still beaten in its pulses, and
+    // with no tempo given nothing changes for a caller not told the speed.
+    expect(patternFor(metreFor(2, 4), BEAT_IN_FEWER_ABOVE_BPM)!.length).toBe(2);
+    expect(patternFor(metreFor(4, 4), BEAT_IN_FEWER_ABOVE_BPM)!.length).toBe(4);
     expect(patternFor(metreFor(3, 4))!.length).toBe(3);
+  });
+
+  it('lands a fast four on the first and third crotchets', () => {
+    /*
+     * Which is what alla breve *means*, and the part a pattern length alone
+     * does not say. Two gestures across a bar of four crotchets puts them on
+     * the minims — beats one and three — and `placeInPattern` derives that from
+     * the bar rather than from the pulse, so it needed nothing added.
+     */
+    const metre = metreFor(4, 4);
+    const pattern = patternFor(metre, BEAT_IN_FEWER_ABOVE_BPM + 1)!;
+    expect(placeInPattern(metre, pattern, 0)).toBe(0);
+    expect(placeInPattern(metre, pattern, 2)).toBeCloseTo(1, 12);
+    expect(placeInPattern(metre, pattern, 4)).toBeCloseTo(2, 12);
+    // And the second crotchet is half way through the first gesture, not on one.
+    expect(placeInPattern(metre, pattern, 1)).toBeCloseTo(0.5, 12);
   });
 
   it('keeps the fast shape where no subdivided one is drawn yet', () => {
@@ -139,7 +159,7 @@ describe('placing a beat in its pattern', () => {
 
   it('runs one position to the bar when the bar is beaten in one', () => {
     const metre = metreFor(3, 4);
-    const pattern = patternFor(metre, BEAT_IN_ONE_ABOVE_BPM + 1)!;
+    const pattern = patternFor(metre, BEAT_IN_FEWER_ABOVE_BPM + 1)!;
     // The whole bar is one gesture, so a bar of three crotchets is one trip
     // round the loop. `pulseAt` would say three and the hand would race.
     expect(placeInPattern(metre, pattern, 0)).toBe(0);
@@ -243,7 +263,7 @@ describe.each(STYLES)('the gesture, at style %s', (STYLE) => {
     // The one pattern is the degenerate case and belongs here for that reason:
     // a single ictus, no "between beats" at all, and a hairpin so narrow that
     // the tip very nearly retraces its own line.
-    { n: 1, pattern: patternFor(metreFor(2, 4), BEAT_IN_ONE_ABOVE_BPM + 1)! },
+    { n: 1, pattern: patternFor(metreFor(2, 4), BEAT_IN_FEWER_ABOVE_BPM + 1)! },
     ...[2, 3, 4].map((n) => ({ n, pattern: patternFor(metreFor(n, 4))! })),
     // The subdivided six is held to every property the others are. It is the
     // most convoluted shape here — two elevated beats and a stroke that loops

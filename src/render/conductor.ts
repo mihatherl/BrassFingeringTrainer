@@ -194,24 +194,25 @@ const PATTERNS: Record<number, ConductorPattern> = {
 export const SUBDIVIDE_BELOW_BPM = 76;
 
 /**
- * Above this many conducted beats a minute, a simple bar beaten in two or three
- * becomes one gesture.
+ * Above this many conducted beats a minute, a simple bar is beaten in fewer
+ * gestures than it has pulses.
  *
- * The one pattern, which the reference gives to "very fast 2/4, 3/4 and 3/8".
- * Past a certain speed a hand cannot make two or three separate ictuses that
- * anyone can read, and beating the bar is clearer than beating a blur — the
- * same reasoning as `SUBDIVIDE_BELOW_BPM`, from the other end.
+ * Past a certain speed a hand cannot make an ictus per pulse that anyone can
+ * read, and beating fewer is clearer than beating a blur — the same reasoning
+ * as `SUBDIVIDE_BELOW_BPM`, arriving from the other end.
  *
- * A guess until played, like every other number here that describes musical
- * judgement rather than arithmetic. 168 puts a waltz in one at about 56 bars a
- * minute, which is quick but not extreme, and leaves the top quarter of the
- * tempo range in one.
+ * **Two and three go to one; four goes to two.** The reference gives the one
+ * pattern to "very fast 2/4, 3/4 and 3/8", and a quick common time is beaten
+ * alla breve rather than in one — which the player ruled takes the ordinary two
+ * pattern, the same double J a 2/4 uses, rather than wanting a shape of its own.
  *
- * Four is deliberately excluded, and 4/4 keeps its four however fast. A quick
- * common time goes to *two*, not one — that is a different shape and it is not
- * drawn yet.
+ * One threshold rather than two, and the arithmetic falls out neatly: above it
+ * a 2/4 and a 4/4 both give a gesture every two crotchets, and a 3/4 one every
+ * three. A guess until played, like every number here describing musical
+ * judgement rather than arithmetic — 168 puts a waltz in one at about 56 bars a
+ * minute, quick without being extreme.
  */
-export const BEAT_IN_ONE_ABOVE_BPM = 168;
+export const BEAT_IN_FEWER_ABOVE_BPM = 168;
 
 /**
  * The pattern for a metre, or null when there is none.
@@ -228,15 +229,11 @@ export function patternFor(metre: Metre, bpm?: number): ConductorPattern | null 
     const subdivided = PATTERNS[metre.beatsPerBar];
     if (subdivided) return subdivided;
   }
-  // Too fast for its own pulses: the bar becomes one gesture. Only where the
-  // reference puts it — a simple two or three — never a four.
-  if (
-    !metre.isCompound &&
-    bpm !== undefined &&
-    bpm > BEAT_IN_ONE_ABOVE_BPM &&
-    (metre.pulsesPerBar === 2 || metre.pulsesPerBar === 3)
-  ) {
-    return PATTERNS[1];
+  // Too fast for its own pulses. A two or a three becomes one gesture for the
+  // bar; a four is halved into the ordinary two pattern, which is alla breve.
+  if (!metre.isCompound && bpm !== undefined && bpm > BEAT_IN_FEWER_ABOVE_BPM) {
+    if (metre.pulsesPerBar === 2 || metre.pulsesPerBar === 3) return PATTERNS[1];
+    if (metre.pulsesPerBar === 4) return PATTERNS[2];
   }
   return PATTERNS[metre.pulsesPerBar] ?? null;
 }
