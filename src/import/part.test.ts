@@ -335,6 +335,45 @@ describe('repeats reaching the notes', () => {
   });
 });
 
+describe('bar repeats', () => {
+  const repeatStyle = (bars: number, type = 'start') =>
+    `<attributes><measure-style><measure-repeat type="${type}">${bars}</measure-repeat></measure-style></attributes>`;
+
+  it('leaves a conforming file alone, because the notes are already there', () => {
+    /*
+     * `measure-repeat` is a display style, not missing music. The schema says
+     * the music "needs to be repeated within each measure of the MusicXML
+     * file", so a conforming export needs nothing done to it — and a bar the
+     * publisher varied on purpose must not be overwritten from the pattern.
+     */
+    const { exercise } = importing(
+      score(note('C4', 4), repeatStyle(1) + note('G4', 4)),
+    );
+    expect(readsAs(score(note('C4', 4), repeatStyle(1) + note('G4', 4)))).toEqual(['C4', 'G4']);
+    expect(exercise?.totalBeats).toBe(8);
+  });
+
+  it('fills an empty bar under the sign, which a careless exporter leaves', () => {
+    // A bar of silence under a repeat sign is silence that looks deliberate,
+    // and the pattern to fill it from is sitting immediately before it.
+    expect(readsAs(score(note('C4', 4), repeatStyle(1)))).toEqual(['C4', 'C4']);
+  });
+
+  it('copies a pair for a two-bar repeat, not the same bar twice', () => {
+    expect(
+      readsAs(
+        score(note('C4', 4), note('G4', 4), repeatStyle(2), '', ''),
+      ),
+    ).toEqual(['C4', 'G4', 'C4', 'G4', 'C4']);
+  });
+
+  it('stops filling where the region stops', () => {
+    expect(
+      readsAs(score(note('C4', 4), repeatStyle(1), repeatStyle(1, 'stop'))),
+    ).toEqual(['C4', 'C4']);
+  });
+});
+
 describe('a part with nothing to read', () => {
   it('says so rather than handing back an empty exercise', () => {
     const { exercise, problems } = importing(score(''));

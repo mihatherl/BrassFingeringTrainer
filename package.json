@@ -1,7 +1,7 @@
 {
   "name": "brass-fingering-trainer",
   "private": true,
-  "version": "1.41.0",
+  "version": "1.41.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

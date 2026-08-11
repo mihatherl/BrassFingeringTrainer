@@ -104,12 +104,28 @@ interface MeasureBody {
   clef: Clef | null;
   /** Bars covered, when this measure opens a multi-bar rest. */
   multiRest: number | null;
+  /**
+   * A `measure-repeat` beginning or ending here, and how many bars its pattern
+   * covers. `null` where the measure says nothing about one.
+   */
+  repeatStyle: { type: string; bars: number } | null;
   notes: Element[];
   /** A `<backup>`, which is how a second voice is written. */
   hasBackup: boolean;
   /** A short bar the engraver has told us not to count — a pickup. */
   implicit: boolean;
   number: string;
+}
+
+function readRepeatStyle(measure: Element): { type: string; bars: number } | null {
+  const element = measure.querySelector('attributes > measure-style > measure-repeat');
+  if (!element) return null;
+  const bars = Number(element.textContent?.trim());
+  return {
+    type: element.getAttribute('type') ?? 'start',
+    // One if the file does not say, which is what a lone percent sign means.
+    bars: Number.isFinite(bars) && bars > 0 ? bars : 1,
+  };
 }
 
 function readClef(measure: Element): Clef | null {
@@ -133,11 +149,53 @@ function readBody(measure: Element): MeasureBody {
     metre: readMetre(measure),
     clef: readClef(measure),
     multiRest: number(measure, 'attributes > measure-style > multiple-rest'),
+    repeatStyle: readRepeatStyle(measure),
     notes: [...measure.querySelectorAll(':scope > note')],
     hasBackup: measure.querySelector(':scope > backup') !== null,
     implicit: measure.getAttribute('implicit') === 'yes',
     number: measure.getAttribute('number') ?? '?',
   };
+}
+
+/**
+ * Gives the notes back to a bar left empty under a repeat sign.
+ *
+ * A `measure-repeat` is a **display style**, not missing music. The schema is
+ * explicit: "the actual music being repeated needs to be repeated within each
+ * measure of the MusicXML file". So a conforming export needs nothing done to
+ * it, and this function leaves every measure that has notes exactly as it is.
+ *
+ * What it defends against is the careless exporter — one that draws the sign
+ * and leaves the measure empty. OMR output is the plausible source. A bar of
+ * silence under a repeat sign is silence that looks deliberate, and the pattern
+ * to fill it from is sitting immediately before the region.
+ *
+ * The pattern is the `bars` measures preceding the start, taken round in turn,
+ * so a two-bar repeat copies a pair rather than the same bar twice.
+ */
+function fillBarRepeats(bodies: MeasureBody[]): MeasureBody[] {
+  const filled = [...bodies];
+  let from = -1;
+  let pattern = 0;
+
+  for (let i = 0; i < filled.length; i++) {
+    const style = filled[i].repeatStyle;
+    if (style?.type === 'stop') {
+      from = -1;
+      continue;
+    }
+    if (style && style.type !== 'stop') {
+      from = i;
+      pattern = style.bars;
+    }
+    if (from < 0 || pattern < 1 || from - pattern < 0) continue;
+    // Already written out, which is what the format asks for. Leave it alone
+    // rather than overwriting a bar the publisher varied on purpose.
+    if (filled[i].notes.length > 0) continue;
+    filled[i] = { ...filled[i], notes: filled[from - pattern + ((i - from) % pattern)].notes };
+  }
+
+  return filled;
 }
 
 /** The spelling MusicXML states outright: a letter, an alteration and an octave. */
@@ -249,7 +307,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     problems.push('the repeats were not followed, so this is the part as printed');
   }
 
-  const bodies = [...source.querySelectorAll(':scope > measure')].map(readBody);
+  const bodies = fillBarRepeats([...source.querySelectorAll(':scope > measure')].map(readBody));
   if (bodies.length === 0) return { exercise: null, problems: [...problems, 'this part has no bars'] };
 
   const tally: Tally = { grace: 0, chords: 0, voices: 0, unreadable: [] };

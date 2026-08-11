@@ -302,43 +302,61 @@ parts make them unavoidable rather than optional:
 - **The multi-bar rest** — v1.39.0. `RestEvent.bars`, drawn as the thick bar
   with its count in the time-signature figures.
 
-## Bar repeats — unfolded, unlike the rest
+## Bar repeats — a display style, not missing music
 
 The player raised the percent-like sign that means *play the previous bar
-again*, and asked whether it needs unfolding. **It does**, and the reason draws
-the line that decides every case like it.
+again*, and asked whether it needs unfolding.
 
-Verified against the ProxyMusic binding, so these are the schema rather than a
-recollection of it. All three live inside `<measure-style>`:
+**An earlier version of this page said it did, and that the bars carrying it are
+empty in the file. That was wrong.** It was written from the ProxyMusic binding,
+which gives the fields and not the meaning. The schema itself — `musicxml.xsd`,
+bundled in the same jar — settles it:
 
-| element | fields | means |
+> The measure-repeat element specifies a notation style for repetitions. **The
+> actual music being repeated needs to be repeated within each measure of the
+> MusicXML file.** This element specifies the notation that indicates the repeat.
+
+`beat-repeat` carries the same sentence. So `measure-style` is an instruction
+about **what to draw**, not about what to play: a conforming file already holds
+the notes, and an importer that ignores it produces the right music written out
+in full rather than as a percent sign. There was never silence to be had here.
+
+What that costs, given the app already unfolds repeats and writes everything
+out: nothing. The printed structure was given up when unfolding was chosen, and
+a percent sign is printed structure.
+
+| element | fields | what an importer must do |
 |---|---|---|
-| `measure-repeat` | `value` (1 or 2), `type` (start/stop), `slashes` | the bars that follow repeat the preceding one or two |
-| `beat-repeat` / `slash` | `slash-type`, `slash-dot`, `use-dots`, `use-stems` | the same shorthand *within* a bar |
-| `multiple-rest` | `value` (bar count), `use-symbols` | N bars rest, as one object |
+| `measure-repeat` | `value` (1 or 2), `type` (start/stop), `slashes` | nothing — the notes are in the measures |
+| `beat-repeat` / `slash` | `slash-type`, `use-dots`, `use-stems` | nothing, for the same reason |
+| `multiple-rest` | `value` (bar count), `use-symbols` | **skip the measures it covers** — this one really is a count standing in for bars, and they are in the file as rests |
 
-**The bars carrying a `measure-repeat` are empty in the file.** That is what
-makes ignoring it worse than a missing feature: an importer that skipped
-`measure-style` would produce not a wrong-looking page but *silence* where the
-tune is, and silence that looks deliberate. It is the same class of fault as
-keeping the first metre and calling it the whole piece.
+**The one thing worth defending against** is an exporter that does not conform —
+one that writes the sign and leaves the measures empty. OMR output is the
+plausible source, and a bar of silence under a repeat sign is silence that looks
+deliberate. So the reader fills an *empty* measure inside a `measure-repeat`
+region from the pattern before it, and leaves a measure that has notes alone.
+Correct against a conforming file and against a careless one.
 
-So the rule, and it is a general one:
+Two details worth keeping:
 
-> **Unfold what is shorthand for music. Keep what is shorthand for reading.**
-
-A bar repeat, a `beat-repeat`, a D.S., a first-time bar — all shorthand for
-music that has to sound, all expanded. A multi-bar rest is shorthand for
-*reading*: the count is the notation, and a player counts twenty bars from the
-number, so expanding it destroys the only information it carries. `RestEvent`
-records this at the type, and `exercise/rests.ts` holds what follows from it.
-
-Two details worth having written down before the unfolder meets them:
-
-- **`value` is 1 or 2**, so a two-bar repeat copies a *pair*, and the sign is
-  drawn once per repeated bar. Copying the wrong number of bars is the easy bug.
+- **`value` is 1 or 2**, so a two-bar repeat copies a *pair*. The pattern is the
+  N measures immediately before the region starts.
 - **`slashes` is presentation, not meaning.** How many strokes to draw; it says
-  nothing about how many bars to copy, and the two are easily conflated.
+  nothing about how many bars are involved, and the two are easily conflated.
+
+### The rule this was supposed to illustrate, corrected
+
+The line still holds, but bar repeats are not an example of it:
+
+> **Unfold what is shorthand for the order of the music. Keep what is shorthand
+> for reading.**
+
+A D.S., a first-time bar and a repeat sign change *which measures are played and
+when*, so they are unfolded. A multi-bar rest is shorthand for reading — the
+count is the notation, and expanding it destroys the only thing it carries. A
+bar repeat is neither: it changes only what is *printed* in a measure whose
+music is already there.
 
 ## Where imported music lives — an IndexedDB library
 
