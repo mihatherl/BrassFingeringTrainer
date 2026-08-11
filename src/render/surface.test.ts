@@ -160,6 +160,39 @@ describe('scrolling renderer', () => {
     expect(calls.some((c) => c.method === 'clip')).toBe(true);
   });
 
+  it('numbers every fifth bar, since a scrolling line has no system heads', () => {
+    /*
+     * A printed part numbers the start of each system. A scrolling line is one
+     * unbroken system and has none, so it numbers periodically instead — and
+     * the opening bar is still not numbered, as no part labels its own first.
+     */
+    const calls: RecordedCall[] = [];
+    const exercise = build('random', 'treble', -3, 24);
+    // Far enough in that a numbered bar is in the reading area: at 100 the beat
+    // is 0.6s, and bar 6 — index 5 — starts at beat 20.
+    const transport = new Transport(fakeAudioContext(19 * 0.6), 100);
+
+    new StaveRenderer({
+      canvas: mockCanvas(calls),
+      exercise,
+      transport,
+      theme: LIGHT_THEME,
+      scrollSpeed: 110,
+      readingMode: 'scrolling',
+      verdictFor: () => undefined,
+    }).draw();
+
+    const numbers = calls
+      .filter((c) => c.method === 'fillText')
+      .map((c) => Number(c.args[0]))
+      .filter((n) => Number.isInteger(n));
+    expect(numbers.length).toBeGreaterThan(0);
+    // Every one is a bar counted from one at a multiple of five bars in: bars
+    // 6, 11, 16 and so on. Never 1.
+    for (const n of numbers) expect((n - 1) % 5, `bar ${n}`).toBe(0);
+    expect(numbers).not.toContain(1);
+  });
+
   it('prints the metronome mark where the tempo steps', () => {
     const calls: RecordedCall[] = [];
     const exercise = build('random', 'treble', -3, 11);

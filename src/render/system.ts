@@ -159,6 +159,58 @@ const MARK_DOT_GAP = 0.3;
 const MARK_RISE = 2.5;
 
 /**
+ * How high above the top line a bar number sits, in stave spaces.
+ *
+ * Below the metronome mark's band, which starts at `MARK_RISE`, so the two
+ * never meet — and they would otherwise meet often, since both anchor to a bar
+ * line and a tempo change is written at one.
+ */
+const BAR_NUMBER_RISE = 1.5;
+
+/**
+ * How often a bar is numbered where there are no systems to number the start
+ * of — the scrolling line, which is one unbroken system.
+ *
+ * Five is what a printed part uses when it numbers periodically rather than by
+ * system. Every bar would be a wall of digits over music being sight-read, and
+ * the number is furniture: it is there to be found when looked for, not read.
+ */
+export const SCROLLING_BAR_NUMBER_EVERY = 5;
+
+/**
+ * Writes a bar's number above the stave, at its bar line.
+ *
+ * **Counted from one**, as a player counts and as every printed part prints —
+ * `bar` is the app's own index, which starts at zero.
+ *
+ * **Bar one is never drawn.** A part does not label its own first bar; the
+ * number is there to be found in the middle of a piece, and "1" over the
+ * opening bar tells a reader nothing they did not know.
+ *
+ * Drawn in the stave colour rather than the note colour, because it is
+ * furniture: it belongs to the page, not to the music, and a player glancing
+ * for the next note should not have it answered by a number.
+ */
+export function drawBarNumber(
+  ctx: CanvasRenderingContext2D,
+  metrics: StaveMetrics,
+  x: number,
+  bar: number,
+  colour: string,
+): void {
+  if (bar <= 0) return;
+  const { staveSpace } = metrics;
+
+  ctx.save();
+  ctx.fillStyle = colour;
+  ctx.font = `500 ${Math.round(staveSpace * 1.1)}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(String(bar + 1), x, metrics.topLineY - staveSpace * BAR_NUMBER_RISE);
+  ctx.restore();
+}
+
+/**
  * The beat a tempo event's mark anchors to on the page, or null for events
  * that print nothing there.
  *
@@ -341,6 +393,18 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   for (const [beat, from] of changes) {
     drawKeyChange(ctx, metrics, xForBeat(beat), keyAt(exercise.keys, beat), from, theme.stave);
   }
+
+  /*
+   * The system's own number, at its head, which is where a printed part puts
+   * one — a reader looking for bar 47 scans down the left margin, not along
+   * the music.
+   *
+   * Placed against `musicLeft` rather than the bar line, because the head of a
+   * system is the one bar line that is not drawn: the clef and signatures stand
+   * in its place, and a number floating left of them would sit outside the
+   * line entirely.
+   */
+  drawBarNumber(ctx, metrics, musicLeft, firstBar, theme.stave);
 
   for (const rest of exercise.rests) {
     if (rest.startBeat < firstBeat || rest.startBeat >= lastBeat) continue;

@@ -48,12 +48,14 @@ import {
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
 import {
   BAR_LINE_SETBACK,
+  drawBarNumber,
   drawKeyChange,
   drawSystem,
   drawTempoEvent,
   justifiedX,
   keyChangeRoom,
   MUSIC_MARGIN,
+  SCROLLING_BAR_NUMBER_EVERY,
   tempoMarkBeat,
 } from './system';
 import {
@@ -870,8 +872,17 @@ export class StaveRenderer {
       const beat = beatOfBar(exercise.metres, bar);
       if (beat > exercise.totalBeats) break;
       const x = xForBeat(beat);
+      const onScreen = x >= this.headerWidth - 20 && x <= this.width + 20;
+      /*
+       * Numbered every so many bars rather than at the head of a system,
+       * because a scrolling line is one unbroken system and has no heads. The
+       * number goes to the right of its bar line, inside the bar it labels.
+       */
+      if (onScreen && bar % SCROLLING_BAR_NUMBER_EVERY === 0) {
+        drawBarNumber(ctx, this.metrics, x, bar, theme.stave);
+      }
       if (changes.has(beat)) continue;
-      if (x < this.headerWidth - 20 || x > this.width + 20) continue;
+      if (!onScreen) continue;
       // Set back from the beat rather than on it. A note is positioned by its
       // centre, so a downbeat drawn at the same x puts the notehead astride the
       // bar line; engraved music always leaves the note clear of it. The line

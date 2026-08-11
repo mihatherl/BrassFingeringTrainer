@@ -20,6 +20,21 @@ import { LIGHT_THEME } from './surface';
 interface RecordedCall {
   method: string;
   args: unknown[];
+  /** Baseline in force when the call was made, which is what tells text apart. */
+  baseline?: string;
+}
+
+/**
+ * Text written *under* the stave, which is what a fingering annotation is.
+ *
+ * Not simply every `fillText`: the page also carries bar numbers, which are
+ * furniture above the stave and would otherwise be counted as marks against
+ * the player. The baseline is the honest discriminator — an annotation hangs
+ * from the top of its box below the stave, a bar number sits on its own
+ * alphabetic baseline above it.
+ */
+function annotations(calls: RecordedCall[]): RecordedCall[] {
+  return calls.filter((c) => c.method === 'fillText' && c.baseline === 'top');
 }
 
 function mockCanvas(calls: RecordedCall[], width = 600) {
@@ -31,7 +46,9 @@ function mockCanvas(calls: RecordedCall[], width = 600) {
 
   const context = {
     fillRect: record('fillRect'),
-    fillText: record('fillText'),
+    fillText: (...args: unknown[]) => {
+      calls.push({ method: 'fillText', args, baseline: context.textBaseline });
+    },
     beginPath: record('beginPath'),
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
@@ -197,7 +214,7 @@ describe('drawing the review', () => {
     drawReview(mockCanvas(calls), { exercise, verdicts, theme: LIGHT_THEME });
 
     const expected = verdicts.filter((v) => v !== undefined && v !== 'correct').length;
-    expect(calls.filter((c) => c.method === 'fillText')).toHaveLength(expected);
+    expect(annotations(calls)).toHaveLength(expected);
   });
 
   it('leaves a clean run unmarked', () => {
@@ -210,7 +227,7 @@ describe('drawing the review', () => {
       theme: LIGHT_THEME,
     });
 
-    expect(calls.filter((c) => c.method === 'fillText')).toHaveLength(0);
+    expect(annotations(calls)).toHaveLength(0);
     expect(calls.some((c) => c.method === 'stroke')).toBe(true);
   });
 
