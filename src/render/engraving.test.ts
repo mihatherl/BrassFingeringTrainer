@@ -39,7 +39,7 @@ import { exerciseFromTheme } from '../exercise/theme';
 import { themeById } from '../exercise/themes';
 import type { Exercise } from '../exercise/types';
 import { planReview } from './review';
-import { tiedFigure, tripletFigure } from '../../tools/figures.mts';
+import { multiBarRestFigure, tiedFigure, tripletFigure } from '../../tools/figures.mts';
 import { DEFAULT_WIDTH, exerciseToSvg } from '../../tools/render-svg.mts';
 
 /**
@@ -99,6 +99,11 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
     name: 'ties-both-directions',
     why: 'A tie hangs below a stem-up note and arches above a stem-down one.',
     exercise: tiedFigure,
+  },
+  {
+    name: 'multi-bar-rest',
+    why: 'Twenty bars off with no bar lines through it, its count in the time-signature figures, and the music after it resuming at bar 23.',
+    exercise: multiBarRestFigure,
   },
   {
     name: 'key-change',

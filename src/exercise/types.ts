@@ -65,6 +65,24 @@ export interface NoteEvent {
 export interface RestEvent {
   startBeat: number;
   duration: Duration;
+  /**
+   * Bars this rest covers when it is a **multi-bar rest** — the thick bar with
+   * a count over it that a brass part is full of. Absent for an ordinary rest,
+   * which is the only kind the generator makes.
+   *
+   * Authoritative for how long the rest lasts, and `duration` stays honest
+   * beside it: a whole-bar rest is written as a semibreve rest whatever the
+   * metre, so `duration` says what *one* of these bars is written as while
+   * `bars` says how many there are. The two only agree in 4/4 and are not
+   * meant to.
+   *
+   * **A multi-bar rest is not unfolded.** It is how the music is read — twenty
+   * bars rest is one object with "20" over it, and writing out twenty bars of
+   * semibreve rests would fill the screen with something no publisher prints.
+   * That is the opposite of a bar repeat, which *is* unfolded, because it is
+   * shorthand for music that has to sound. See `musicxml-import-plan.md`.
+   */
+  bars?: number;
 }
 
 export interface Exercise {

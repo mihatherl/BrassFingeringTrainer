@@ -298,3 +298,47 @@ describe('engraved spacing', () => {
     expect(spacing.barsFitting(1, room)).toBeGreaterThan(spacing.barsFitting(0, room));
   });
 });
+
+/**
+ * A multi-bar rest is one symbol however many bars it stands for, so its width
+ * is a property of the page rather than of how long it lasts. Left to the power
+ * law it would be given room proportional to eighty crotchets and swallow the
+ * line — which is the one thing an engraver's shorthand exists to prevent.
+ */
+describe('a multi-bar rest', () => {
+  function withRest(bars: number): Exercise {
+    const restBeats = bars * 4;
+    const base = exerciseOf([['quarter', 'quarter', 'quarter', 'quarter']]);
+    return {
+      ...base,
+      rests: [{ startBeat: 4, duration: duration('whole'), bars }],
+      totalBeats: 4 + restBeats,
+      chosenBeats: 4 + restBeats,
+    };
+  }
+
+  const widthOf = (bars: number) =>
+    engraveSpacing(withRest(bars), { minColumnWidth: MIN }).width;
+
+  it('is the same width whether it is twenty bars or forty', () => {
+    expect(widthOf(40)).toBeCloseTo(widthOf(20), 6);
+  });
+
+  /*
+   * Both mechanisms are checked by the two tests above and were confirmed to
+   * bite by removing each in turn: the fixed width, and dropping the columns
+   * the interior bar lines would otherwise claim. A third test aimed at the
+   * interior was written and thrown away — it passed under both mutations, so
+   * it was testing nothing.
+   */
+  it('takes a few columns rather than a bar per bar', () => {
+    // Room for the symbol and its count, and nothing like the room forty bars
+    // of played music would have been given.
+    const bar = engraveSpacing(exerciseOf([['quarter', 'quarter', 'quarter', 'quarter']]), {
+      minColumnWidth: MIN,
+    }).width;
+    const rest = widthOf(40) - bar;
+    expect(rest).toBeGreaterThan(MIN);
+    expect(rest).toBeLessThan(bar * 2);
+  });
+});

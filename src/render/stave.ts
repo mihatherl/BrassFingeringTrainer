@@ -241,6 +241,34 @@ export function drawTimeSignature(
   return x + width + m.staveSpace;
 }
 
+/**
+ * Draws a whole number in the time-signature figures, centred on a point.
+ *
+ * Exported because the count over a multi-bar rest is set in these same
+ * numerals — an engraver uses the time-signature figures there rather than
+ * text, and the app already carries them as glyphs, so the count matches the
+ * signature at the head of the line instead of being the page's one number in
+ * a different alphabet.
+ */
+export function drawNumberGlyphs(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  value: number,
+  centreX: number,
+  centreY: number,
+  scale = 1,
+): void {
+  const glyphs = digitGlyphs(value);
+  const size = m.staveSpace * scale;
+  const width = digitsWidth(glyphs) * size;
+  let cursor = centreX - width / 2;
+  for (const glyph of glyphs) {
+    const { top, bottom } = GLYPHS[glyph].bbox;
+    drawGlyph(ctx, glyph, cursor, centreY - ((top + bottom) / 2) * size, size);
+    cursor += glyphWidth(glyph) * size;
+  }
+}
+
 function digitGlyphs(value: number): GlyphName[] {
   return String(value)
     .split('')

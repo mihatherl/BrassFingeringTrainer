@@ -24,6 +24,7 @@
  */
 
 import { barCount, beatOfBar } from '../domain/metre';
+import { multiRestSpans, nextBreakableBar, suppressedBarLines } from '../exercise/rests';
 import type { Exercise } from '../exercise/types';
 
 /**
@@ -36,6 +37,20 @@ export const NOTE_CLEARANCE = 1.3;
 
 /** How much room a note keeps when its value is halved. */
 const HALVING_RATIO = 0.75;
+
+/**
+ * Width of a multi-bar rest, in the units the shortest note gets.
+ *
+ * A **fixed** width, deliberately: how wide the symbol is has nothing to do
+ * with how long it lasts, and a forty-bar rest is not twice the width of a
+ * twenty-bar one — the number over it is what says which. Left to the power
+ * law it would be given room proportional to eighty crotchets and swallow the
+ * page, which is the one thing an engraver's shorthand exists to prevent.
+ *
+ * Four notehead columns is about eight stave spaces, which is the room an
+ * engraved H-bar takes and enough for three digits over it.
+ */
+const MULTI_REST_COLUMNS = 4;
 
 /** The power law that ratio implies: width ∝ duration ^ 0.415… */
 const EXPONENT = Math.log2(1 / HALVING_RATIO);
@@ -106,6 +121,7 @@ export interface SpacingOptions {
 export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spacing {
   const { totalBeats, metres } = exercise;
   const totalBars = barCount(metres, totalBeats);
+  const spans = multiRestSpans(exercise);
   const columns = columnBeats(exercise);
 
   // Gaps between consecutive columns are the durations that matter: what a note
@@ -125,7 +141,16 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
    * note's own width. Squeezing that is how a sharp ends up on top of whatever
    * precedes it.
    */
-  const elastic = gaps.map((gap) => unit * gap ** EXPONENT);
+  /*
+   * A multi-bar rest's gap is given a fixed width instead of the power law's,
+   * since it is one symbol however many bars it stands for. Everything else
+   * gets the law.
+   */
+  const restWidth = options.minColumnWidth * MULTI_REST_COLUMNS;
+  const spanFrom = new Set(spans.map((s) => s.fromBeat));
+  const elastic = gaps.map((gap, index) =>
+    spanFrom.has(columns[index]) ? restWidth : unit * gap ** EXPONENT,
+  );
   const noteAt = notesByBeat(exercise);
   const barBoundaries = barBoundaryBeats(exercise);
   const floors = gaps.map((_, index) =>
@@ -183,11 +208,13 @@ export function engraveSpacing(exercise: Exercise, options: SpacingOptions): Spa
     barsFitting(fromBar, available) {
       const start = xOf(beatOfBar(metres, fromBar));
       let bars = 0;
-      while (
-        fromBar + bars < totalBars &&
-        xOf(beatOfBar(metres, fromBar + bars + 1)) - start <= available
-      ) {
-        bars++;
+      while (fromBar + bars < totalBars) {
+        // A line may not break inside a multi-bar rest, so a candidate landing
+        // there is pushed to the far side of it: half a symbol at the end of a
+        // line means nothing.
+        const next = nextBreakableBar(spans, fromBar + bars + 1);
+        if (xOf(beatOfBar(metres, next)) - start > available) break;
+        bars = next - fromBar;
       }
       // A bar too wide for the space still has to be shown; the alternative is
       // a page holding nothing.
@@ -228,13 +255,18 @@ function notesByBeat(exercise: Exercise): Map<number, number> {
   return byBeat;
 }
 
-/** Every beat a bar line falls on, including the closing one. */
+/**
+ * Every beat a bar line falls on, including the closing one — and not the ones
+ * a multi-bar rest swallows, which are neither drawn nor given room.
+ */
 function barBoundaryBeats(exercise: Exercise): Set<number> {
   const { totalBeats, metres } = exercise;
   const bars = barCount(metres, totalBeats);
+  const hidden = suppressedBarLines(metres, multiRestSpans(exercise));
   const beats = new Set<number>([totalBeats]);
   for (let bar = 1; bar < bars; bar++) {
-    beats.add(beatOfBar(metres, bar));
+    const beat = beatOfBar(metres, bar);
+    if (!hidden.has(beat)) beats.add(beat);
   }
   return beats;
 }
@@ -253,8 +285,12 @@ function columnBeats(exercise: Exercise): number[] {
   for (const rest of exercise.rests) beats.add(rest.startBeat);
   const { totalBeats, metres } = exercise;
   const bars = barCount(metres, totalBeats);
+  // Bars inside a multi-bar rest get no column of their own: the whole rest is
+  // one column, so that its width follows the symbol rather than its length.
+  const hidden = suppressedBarLines(metres, multiRestSpans(exercise));
   for (let bar = 0; bar < bars; bar++) {
-    beats.add(beatOfBar(metres, bar));
+    const beat = beatOfBar(metres, bar);
+    if (!hidden.has(beat)) beats.add(beat);
   }
   return [...beats].sort((a, b) => a - b);
 }

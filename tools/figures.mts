@@ -127,3 +127,33 @@ export function tripletFigure(): Exercise {
     },
   );
 }
+
+/**
+ * Music, a long rest, then music again — the shape of nearly every brass band
+ * part ever written for a bass.
+ *
+ * Twenty bars off is deliberately more than fits anywhere, because the whole
+ * point of the symbol is that its width has nothing to do with its length. The
+ * figure pins three things a rule was written for and none of which is visible
+ * from a passing unit test: that no bar lines are drawn through it, that its
+ * count is set in the time-signature figures rather than as text, and that the
+ * bars still get counted — the music after it resumes at bar 23, not bar 3.
+ */
+export function multiBarRestFigure(): Exercise {
+  const tune = (from: number, at: number) =>
+    [0, 1, 2, 3].map((i) => note(at + i, 1, 65 + ((from + i) % 5)));
+
+  return {
+    notes: [...tune(0, 0), ...tune(1, 4), ...tune(2, 88), ...tune(3, 92)],
+    rests: [{ startBeat: 8, duration: { value: 'whole', dotted: false }, bars: 20 }],
+    instrumentId: 'eb-bass',
+    clef: 'treble',
+    keys: [{ fromBeat: 0, fifths: -3 }],
+    metres: [{ fromBeat: 0, metre: metreFor(4, 4) }],
+    tempo: [],
+    totalBeats: 96,
+    chosenBeats: 96,
+    seed: 0,
+    kind: 'random',
+  };
+}

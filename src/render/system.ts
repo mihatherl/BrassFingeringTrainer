@@ -14,11 +14,13 @@
 import { keyAt } from '../domain/keys';
 import { beatOfBar, metreAt } from '../domain/metre';
 import type { TempoEvent } from '../domain/tempo';
+import { insideMultiRest, isMultiRest, multiRestSpans } from '../exercise/rests';
 import type { Exercise } from '../exercise/types';
 import {
   drawBeamGroup,
   drawTuplet,
   drawFingeringHint,
+  drawMultiBarRest,
   drawNote,
   drawRest,
   drawTie,
@@ -379,14 +381,20 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
     changes.set(change.fromBeat, keyAt(exercise.keys, change.fromBeat - 1e-6));
   }
 
-  // Every bar line except the one at the head of the system, which the start
-  // of the stave already marks, and those belonging to a change, which are
-  // drawn below at the position the signature leaves them.
+  /*
+   * Every bar line except the one at the head of the system, which the start
+   * of the stave already marks; those belonging to a change, which are drawn
+   * below at the position the signature leaves them; and those a multi-bar
+   * rest swallows. An engraved multi-bar rest has a line at each end and
+   * nothing between — the count says how many bars are in there, and drawing
+   * nineteen lines through it would contradict the number and be unreadable.
+   */
+  const spans = multiRestSpans(exercise);
   ctx.strokeStyle = theme.stave;
   for (let bar = firstBar + 1; ; bar++) {
     const beat = beatOfBar(exercise.metres, bar);
     if (beat > lastBeat) break;
-    if (changes.has(beat)) continue;
+    if (changes.has(beat) || insideMultiRest(spans, beat)) continue;
     drawBarLine(ctx, metrics, xForBeat(beat) - BAR_LINE_SETBACK * staveSpace);
   }
 
@@ -408,7 +416,25 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
 
   for (const rest of exercise.rests) {
     if (rest.startBeat < firstBeat || rest.startBeat >= lastBeat) continue;
+    if (isMultiRest(rest)) continue;
     drawRest(ctx, metrics, xForBeat(rest.startBeat), rest.duration, theme.stave);
+  }
+
+  /*
+   * Multi-bar rests, drawn between their two bar lines rather than at a point.
+   * Inset by the same setback the lines themselves take, so the bar sits inside
+   * the bar it fills instead of running into the lines at either end.
+   */
+  for (const span of spans) {
+    if (span.fromBeat < firstBeat || span.fromBeat >= lastBeat) continue;
+    drawMultiBarRest(
+      ctx,
+      metrics,
+      xForBeat(span.fromBeat) + staveSpace,
+      xForBeat(span.toBeat) - BAR_LINE_SETBACK * staveSpace - staveSpace,
+      span.bars,
+      theme.stave,
+    );
   }
 
   /*

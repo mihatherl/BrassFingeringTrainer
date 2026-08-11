@@ -29,6 +29,7 @@
  */
 
 import { keyAt, widestKey } from '../domain/keys';
+import { insideMultiRest, isMultiRest, multiRestSpans } from '../exercise/rests';
 import { barAt, barCount, beatOfBar, metreAt } from '../domain/metre';
 import { durationBeats } from '../domain/rhythm';
 import type { Transport } from '../engine/clock';
@@ -39,6 +40,7 @@ import {
   dotRoom,
   drawBeamGroup,
   drawFingeringHint,
+  drawMultiBarRest,
   drawNote,
   drawRest,
   drawTie,
@@ -853,6 +855,8 @@ export class StaveRenderer {
     ctx.strokeStyle = theme.stave;
     drawStaveLines(ctx, this.metrics, this.headerWidth, this.width);
 
+    const spans = multiRestSpans(exercise);
+
     /*
      * Where the key changes, so the ordinary bar line can give way to the
      * double one the change brings with it.
@@ -881,7 +885,7 @@ export class StaveRenderer {
       if (onScreen && bar % SCROLLING_BAR_NUMBER_EVERY === 0) {
         drawBarNumber(ctx, this.metrics, x, bar, theme.stave);
       }
-      if (changes.has(beat)) continue;
+      if (changes.has(beat) || insideMultiRest(spans, beat)) continue;
       if (!onScreen) continue;
       // Set back from the beat rather than on it. A note is positioned by its
       // centre, so a downbeat drawn at the same x puts the notehead astride the
@@ -914,9 +918,26 @@ export class StaveRenderer {
     }
 
     for (const rest of exercise.rests) {
+      if (isMultiRest(rest)) continue;
       const x = xForBeat(rest.startBeat);
       if (x < -60 || x > this.width + 60) continue;
       drawRest(ctx, this.metrics, x, rest.duration, theme.stave);
+    }
+
+    // Multi-bar rests span two bar lines, so they are kept while either end is
+    // anywhere near the screen rather than only their start.
+    for (const span of spans) {
+      const from = xForBeat(span.fromBeat);
+      const to = xForBeat(span.toBeat) - BAR_LINE_SETBACK * this.metrics.staveSpace;
+      if (to < -60 || from > this.width + 60) continue;
+      drawMultiBarRest(
+        ctx,
+        this.metrics,
+        from + this.metrics.staveSpace,
+        to - this.metrics.staveSpace,
+        span.bars,
+        theme.stave,
+      );
     }
 
     // Tempo marks travel with the music they govern, culled like the bar

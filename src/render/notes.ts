@@ -9,7 +9,7 @@
 import { diatonicStep, type SpelledPitch } from '../domain/pitch';
 import { NOTE_VALUE_FLAGS, type Duration } from '../domain/rhythm';
 import { drawGlyph, glyphWidth, type GlyphName } from './glyphs';
-import { isOnLine, yForStep, type StaveMetrics } from './stave';
+import { drawNumberGlyphs, isOnLine, yForStep, type StaveMetrics } from './stave';
 
 export interface LayoutNote {
   /** X of the notehead's left edge. */
@@ -290,6 +290,57 @@ export function drawTie(
   ctx.quadraticCurveTo(midX, y + 2 * rise, toX, y);
   ctx.quadraticCurveTo(midX, y + 2 * (rise - thickness), fromX, y);
   ctx.fill();
+}
+
+/**
+ * How thick the bar of a multi-bar rest is, and how far its end caps reach
+ * past it — both in stave spaces, and both measured from the middle line.
+ *
+ * One space thick with caps a half-space either side puts the caps on the
+ * second and fourth lines, which is where an engraved H-bar sits.
+ */
+const MULTI_REST_THICKNESS = 1;
+const MULTI_REST_CAP_RISE = 0.5;
+/** How high above the top line the count sits, and how big it is set. */
+const MULTI_REST_COUNT_RISE = 2;
+const MULTI_REST_COUNT_SCALE = 0.8;
+
+/**
+ * A multi-bar rest: the thick bar, its end caps, and the count above.
+ *
+ * Drawn between two x positions rather than from one, because its width is a
+ * property of the page and not of how long it lasts — a forty-bar rest is not
+ * twice the width of a twenty-bar one, and the number is what says which it
+ * is. The caller has already reserved the room; this fills it.
+ */
+export function drawMultiBarRest(
+  ctx: CanvasRenderingContext2D,
+  m: StaveMetrics,
+  fromX: number,
+  toX: number,
+  bars: number,
+  colour: string,
+): void {
+  const { staveSpace, middleLineY } = m;
+  const thickness = staveSpace * MULTI_REST_THICKNESS;
+  const rise = staveSpace * MULTI_REST_CAP_RISE;
+  const top = middleLineY - thickness / 2;
+  // Never thinner than a pixel, the same floor the stems and bar lines take.
+  const capWidth = Math.max(1, staveSpace * 0.16);
+
+  ctx.fillStyle = colour;
+  ctx.fillRect(fromX, top, toX - fromX, thickness);
+  ctx.fillRect(fromX, top - rise, capWidth, thickness + rise * 2);
+  ctx.fillRect(toX - capWidth, top - rise, capWidth, thickness + rise * 2);
+
+  drawNumberGlyphs(
+    ctx,
+    m,
+    bars,
+    (fromX + toX) / 2,
+    m.topLineY - staveSpace * MULTI_REST_COUNT_RISE,
+    MULTI_REST_COUNT_SCALE,
+  );
 }
 
 export function drawRest(
