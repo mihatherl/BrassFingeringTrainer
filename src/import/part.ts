@@ -47,9 +47,34 @@ import type { Exercise, RestEvent } from '../exercise/types';
 import { parts, readNavigation } from './musicxml';
 import { unfold } from './unfold';
 
+/**
+ * Which line to take where a part is divided.
+ *
+ * Brass band bass parts are written divided on one stave — most often the same
+ * note an octave apart — and the section agrees who plays which. The app cannot
+ * know that agreement, so it asks rather than choosing.
+ *
+ * **One line is read, not both**, because a choice is unavoidable: `NoteEvent`
+ * holds one pitch and one sounding note, so exactly one notehead is drawn and
+ * exactly one octave is heard. Drawing two while sounding one and accepting
+ * either would be three different stories on one stem — the fault v1.33.0
+ * exists to prevent.
+ *
+ * **What the choice does not cost is the fingering.** A tuba's octave is the
+ * same valve combination on a different harmonic, so at the octave — which is
+ * how a bass part nearly always divides — either line drills the same thing,
+ * and picking the one your section did not give you costs you the octave you
+ * read and hear rather than the practice. Where a part divides by something
+ * other than an octave the fingerings do differ, and then the choice is the
+ * whole of it.
+ */
+export type Divisi = 'upper' | 'lower';
+
 export interface ImportOptions {
   /** The instrument the player is reading on, which decides the fingerings. */
   instrument: Instrument;
+  /** Which line to read where the part divides. Upper if not said. */
+  divisi?: Divisi;
   /** Which part of the score. `partNames` is there to ask with. */
   partIndex?: number;
   /**
@@ -242,7 +267,12 @@ interface Tally {
  * a first note followed by notes carrying `<chord/>`, and the top of it is
  * wanted, which cannot be known until the group has been seen.
  */
-function readEvents(body: MeasureBody, divisions: number, tally: Tally): Event[] {
+function readEvents(
+  body: MeasureBody,
+  divisions: number,
+  divisi: Divisi,
+  tally: Tally,
+): Event[] {
   const events: Event[] = [];
   let chord: Element[] = [];
 
@@ -253,12 +283,13 @@ function readEvents(body: MeasureBody, divisions: number, tally: Tally): Event[]
       .filter((entry): entry is { note: Element; pitch: SpelledPitch } => entry.pitch !== null);
 
     if (chord.length > 1) tally.chords++;
-    // The top note. A chord occupies time and is playable, so it gives up its
-    // other notes rather than becoming a rest — and on a single-line brass
-    // instrument the top note is the part.
+    // One line of it. A chord occupies time and is playable, so it gives up its
+    // other notes rather than becoming a rest; which line is the player's
+    // agreement with their section, so it is asked for rather than assumed.
     let best = pitched[0] ?? null;
     for (const entry of pitched) {
-      if (midiOf(entry.pitch) > midiOf(best.pitch)) best = entry;
+      const higher = midiOf(entry.pitch) > midiOf(best.pitch);
+      if (divisi === 'upper' ? higher : !higher) best = entry;
     }
 
     const lead = chord[0];
@@ -334,6 +365,7 @@ function readEvents(body: MeasureBody, divisions: number, tally: Tally): Event[]
 export function importPart(doc: Document, options: ImportOptions): Imported {
   const problems: string[] = [];
   const partIndex = options.partIndex ?? 0;
+  const divisi = options.divisi ?? 'upper';
   const source = parts(doc)[partIndex];
   if (!source) return { exercise: null, problems: ['that part is not in this file'] };
 
@@ -397,7 +429,10 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
      * counts it.
      */
     if (step === 0 && body.implicit) {
-      const held = readEvents(body, divisions, { ...tally }).reduce((sum, e) => sum + e.beats, 0);
+      const held = readEvents(body, divisions, divisi, { ...tally }).reduce(
+        (sum, e) => sum + e.beats,
+        0,
+      );
       const missing = metre.barBeats - held;
       if (missing > 1e-9) {
         for (const duration of writeAs(missing).pieces) {
@@ -424,7 +459,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
       continue;
     }
 
-    for (const event of readEvents(body, divisions, tally)) {
+    for (const event of readEvents(body, divisions, divisi, tally)) {
       const { pieces, leftover } = writeAs(event.beats);
 
       /*
@@ -466,7 +501,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     }
   }
 
-  problems.push(...describe(tally));
+  problems.push(...describe(tally, divisi));
 
   if (slots.length === 0 && multiRests.length === 0) {
     return { exercise: null, problems: [...problems, 'this part has nothing playable in it'] };
@@ -535,12 +570,14 @@ function writeAs(beats: number): { pieces: Duration[]; leftover: number } {
 }
 
 /** Turns the tally into sentences a player can check against the printed part. */
-function describe(tally: Tally): string[] {
+function describe(tally: Tally, divisi: Divisi): string[] {
   const said: string[] = [];
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
   if (tally.chords > 0) {
-    said.push(`${plural(tally.chords, 'chord', 'chords')} reduced to the top note`);
+    // Named rather than merely counted: which line was taken is the thing the
+    // player needs to check against what their section agreed.
+    said.push(`${plural(tally.chords, 'divided note', 'divided notes')} read on the ${divisi} line`);
   }
   if (tally.grace > 0) {
     said.push(`${plural(tally.grace, 'grace note', 'grace notes')} left out`);

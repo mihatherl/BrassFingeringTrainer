@@ -4,7 +4,7 @@ import { barCount } from '../domain/metre';
 import type { Exercise } from '../exercise/types';
 import { readScoreFile } from '../import/container';
 import { parseMusicXml, partNames } from '../import/musicxml';
-import { importPart } from '../import/part';
+import { importPart, type Divisi } from '../import/part';
 import type { Settings } from '../storage/settings';
 
 /**
@@ -39,6 +39,8 @@ interface Read {
   problems: string[];
   part: string;
   from: string;
+  /** Whether the part divides anywhere, which decides whether to offer a choice. */
+  divides: boolean;
 }
 
 export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
@@ -46,13 +48,16 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
   const [read, setRead] = useState<Read | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [divisi, setDivisi] = useState<Divisi>('upper');
+  const [partIndex, setPartIndex] = useState(0);
 
   const readPart = useCallback(
-    (source: Loaded, index: number) => {
+    (source: Loaded, index: number, line: Divisi) => {
       const { exercise, problems } = importPart(source.doc, {
         instrument: instrumentById(settings.instrumentId),
         partIndex: index,
         clef: settings.clef,
+        divisi: line,
       });
 
       if (!exercise) {
@@ -66,6 +71,7 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
         problems,
         part: source.names[index] ?? 'the part',
         from: source.fileName,
+        divides: problems.some((line) => line.includes('divided note')),
       });
     },
     [settings.instrumentId, settings.clef],
@@ -101,12 +107,13 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
         fileName: file.name,
       };
       setLoaded(source);
+      setPartIndex(0);
       // Straight to the first part: a single-part file is the common case and
       // should not need a choice made about it.
-      readPart(source, 0);
+      readPart(source, 0, divisi);
       setBusy(false);
     },
-    [readPart],
+    [readPart, divisi],
   );
 
   return (
@@ -140,7 +147,12 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
         <label className="field">
           <span className="field__label">Which part</span>
           <select
-            onChange={(event) => readPart(loaded, Number(event.target.value))}
+            value={partIndex}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setPartIndex(next);
+              readPart(loaded, next, divisi);
+            }}
           >
             {loaded.names.map((name, index) => (
               <option key={`${name}-${index}`} value={index}>
@@ -148,6 +160,28 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
               </option>
             ))}
           </select>
+        </label>
+      )}
+
+      {loaded && read?.divides && (
+        <label className="field">
+          <span className="field__label">Where the part divides, play the</span>
+          <select
+            value={divisi}
+            onChange={(event) => {
+              const next = event.target.value as Divisi;
+              setDivisi(next);
+              readPart(loaded, partIndex, next);
+            }}
+          >
+            <option value="upper">Upper line</option>
+            <option value="lower">Lower line</option>
+          </select>
+          <p className="field__note">
+            One line is read, so the notation, the playback and what you are marked against all
+            agree — whichever your section gave you. Where the two are an octave apart the
+            fingering is the same either way.
+          </p>
         </label>
       )}
 

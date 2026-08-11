@@ -152,9 +152,10 @@ describe('ties', () => {
 });
 
 describe('what gets dropped, and what does not', () => {
-  it('takes the top note of a chord and says how many', () => {
+  it('reads one line of a divided note, and says which', () => {
     // A chord occupies time and is playable, so it gives up its other notes
-    // rather than becoming a rest — and the top note is the part.
+    // rather than becoming a rest. Which line is the section's agreement, so
+    // the warning names it rather than only counting it.
     const chord =
       note('C4', 4) +
       '<note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>96</duration></note>' +
@@ -162,7 +163,30 @@ describe('what gets dropped, and what does not', () => {
     const { exercise, problems } = importing(score(chord));
 
     expect(exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['G4']);
-    expect(problems).toContain('1 chord reduced to the top note');
+    expect(problems).toContain('1 divided note read on the upper line');
+  });
+
+  it('reads the lower line when that is what the section agreed', () => {
+    /*
+     * A bass part divided at the octave — the shape a real one turned up in.
+     * Both lines are never rendered: they are different fingerings, so
+     * accepting either would mean the player could not get those notes wrong,
+     * and a fingering trainer that cannot be wrong teaches nothing at exactly
+     * the bars the section had to think about.
+     */
+    const octave =
+      note('B3', 4) +
+      '<note><chord/><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration></note>';
+    const xml = score(octave);
+    const parsed = parseMusicXml(xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+
+    const upper = importPart(parsed.doc, { instrument: EB_BASS, divisi: 'upper' });
+    const lower = importPart(parsed.doc, { instrument: EB_BASS, divisi: 'lower' });
+
+    expect(upper.exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['B4']);
+    expect(lower.exercise?.notes.map((n) => formatPitch(n.pitch))).toEqual(['B3']);
+    expect(lower.problems).toContain('1 divided note read on the lower line');
   });
 
   it('compares chord notes by pitch, not by octave alone', () => {
@@ -171,6 +195,31 @@ describe('what gets dropped, and what does not', () => {
       note('B3', 4) +
       '<note><chord/><pitch><step>C</step><octave>4</octave></pitch><duration>96</duration></note>';
     expect(readsAs(score(chord))).toEqual(['C4']);
+  });
+
+  it('costs the octave but not the fingering, where the division is an octave', () => {
+    /*
+     * A tuba's octave is the same valve combination on a different harmonic.
+     * So at the octave — which is how a bass part nearly always divides —
+     * either line drills the same fingering, and choosing the one the section
+     * did not give you costs the octave you read and hear rather than the
+     * practice. Worth pinning: it is the reassurance behind offering a choice
+     * at all rather than agonising over the default.
+     */
+    const octave =
+      note('B3', 4) +
+      '<note><chord/><pitch><step>B</step><octave>4</octave></pitch><duration>96</duration></note>';
+    const parsed = parseMusicXml(score(octave));
+    if ('problem' in parsed) throw new Error(parsed.problem);
+
+    const upper = importPart(parsed.doc, { instrument: EB_BASS, divisi: 'upper' });
+    const lower = importPart(parsed.doc, { instrument: EB_BASS, divisi: 'lower' });
+
+    expect(upper.exercise?.notes[0].primaryMask).toBe(lower.exercise?.notes[0].primaryMask);
+    // The octave itself does differ, which is what the choice is for.
+    expect(upper.exercise?.notes[0].soundingMidi).not.toBe(
+      lower.exercise?.notes[0].soundingMidi,
+    );
   });
 
   it('drops grace notes, which occupy no counted time', () => {
