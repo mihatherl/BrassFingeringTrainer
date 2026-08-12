@@ -4,7 +4,7 @@ import { barCount } from '../domain/metre';
 import type { Exercise } from '../exercise/types';
 import { readScoreFile } from '../import/container';
 import { parseMusicXml, partNames } from '../import/musicxml';
-import { importPart, type BarSpan, type Divisi, type ImportedBar } from '../import/part';
+import { importPart, measuresFor, type BarSpan, type Divisi, type ImportedBar } from '../import/part';
 import type { Settings } from '../storage/settings';
 import {
   indexedDbStore,
@@ -174,19 +174,29 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
   /** Builds the practice run from the chosen bars and goes straight to playing it. */
   const practise = useCallback(
     (spans: BarSpan[]) => {
-      if (!loaded) return;
+      if (!loaded || !picking) return;
+      /*
+       * Translated from bars to measures before it is read.
+       *
+       * The picker counts bars as they are drawn; a reading walks measures. On
+       * a tidy export those are the same list, and on a scanned one they are
+       * not — see `measuresFor`, which is where the difference is spelled out.
+       */
       const { exercise } = importPart(loaded.doc, {
         instrument: instrumentById(settings.instrumentId),
         partIndex,
         clef: settings.clef,
         divisi,
-        reading: { kind: 'passage', spans },
+        reading: {
+          kind: 'passage',
+          spans: spans.map((span) => measuresFor(picking.bars, span)),
+        },
       });
       if (!exercise) return;
       setPicking(null);
       onPlay(exercise);
     },
-    [loaded, partIndex, divisi, settings.instrumentId, settings.clef, onPlay],
+    [loaded, picking, partIndex, divisi, settings.instrumentId, settings.clef, onPlay],
   );
 
   const keep = useCallback(async () => {

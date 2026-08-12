@@ -8,7 +8,7 @@ import { formatPitch } from '../domain/pitch';
 import type { Exercise } from '../exercise/types';
 import { readScoreFile } from './container';
 import { parseMusicXml, partNames } from './musicxml';
-import { importPart, type Divisi } from './part';
+import { importPart, measuresFor, type Divisi } from './part';
 
 /**
  * The whole importer, on a file a program actually wrote.
@@ -247,6 +247,45 @@ describe('a real MuseScore export, end to end', () => {
     expect(barCount(exercise!.metres, exercise!.totalBeats)).toBe(4);
     // The key in force there, inherited from the change at bar 4.
     expect(exercise!.keys[0].fifths).toBe(2);
+  });
+
+  it('practises the bars the page names, through both translations', async () => {
+    /*
+     * The whole path a chosen passage takes, end to end: draw the part, pick a
+     * bar off the drawing, and get that bar back.
+     *
+     * Three things count bars and they are not the same count — the bar as
+     * drawn, the measure in the file, and the number on the page. The picker
+     * used to hand a drawn index over as a measure index, and on a scanned
+     * part that was six bars out. Nothing in the unit tests noticed, because
+     * each end was right on its own.
+     */
+    const bytes = readFileSync(FIXTURE);
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    const opened = await readScoreFile(buffer as ArrayBuffer);
+    if ('problem' in opened) throw new Error(opened.problem);
+    const parsed = parseMusicXml(opened.xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+
+    const instrument = instrumentById('eb-bass');
+    const page = importPart(parsed.doc, { instrument, reading: { kind: 'printed' } });
+
+    // Pick the bars the page calls 20 and 21, by finding them where they are
+    // drawn — which is what a tap on those bars gives.
+    const from = page.bars.findIndex((bar) => bar.number === '20');
+    const to = page.bars.findIndex((bar) => bar.number === '21');
+    expect(from).toBeGreaterThan(-1);
+
+    const practice = importPart(parsed.doc, {
+      instrument,
+      reading: {
+        kind: 'passage',
+        spans: [measuresFor(page.bars, { from, to })],
+        times: 1,
+      },
+    });
+
+    expect(practice.bars.map((bar) => bar.number)).toEqual(['20', '21']);
   });
 
   it('resolves every duration onto the tick grid the file declares', () => {

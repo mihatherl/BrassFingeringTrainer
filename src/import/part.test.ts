@@ -6,7 +6,7 @@ import { barAt, barCount, beatOfBar, changesMetre } from '../domain/metre';
 import { changesKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { parseMusicXml } from './musicxml';
-import { importPart, type Reading } from './part';
+import { importPart, measuresFor, type ImportedBar, type Reading } from './part';
 
 /**
  * Reading a part into an exercise.
@@ -1027,6 +1027,52 @@ describe('locating bars against what is drawn', () => {
     expect(barCount(exercise!.metres, exercise!.totalBeats)).toBe(1);
     expect(bars).toHaveLength(1);
     expect(bars[0]).toMatchObject({ number: '1', source: 0 });
+  });
+
+  it('turns a run of drawn bars into the measures it is made of', () => {
+    /*
+     * The translation the picker needs, and the fault it was reported for. A
+     * tap lands on a *drawn bar*; a reading walks *measures*. They are the same
+     * list on a tidy export and nowhere near it on a scanned one — on a real
+     * file, the bar printed "82" was drawn bar 78 and made of measure 84.
+     *
+     * Passing the drawn index straight through asked for measure 78, which is
+     * six printed bars early. That is exactly what the player heard.
+     */
+    const bars: ImportedBar[] = [
+      { number: '1', source: 0, startBeat: 0 },
+      // One drawn bar made of two measures, as a split bar comes out.
+      { number: '2', source: 1, startBeat: 4 },
+      { number: '3', source: 3, startBeat: 8 },
+      { number: '4', source: 4, startBeat: 12 },
+    ];
+
+    expect(measuresFor(bars, { from: 0, to: 0 })).toEqual({ from: 0, to: 0 });
+    // Both halves of the split bar, not just the first: the run has to give up
+    // every measure the bar was drawn from.
+    expect(measuresFor(bars, { from: 1, to: 1 })).toEqual({ from: 1, to: 2 });
+    expect(measuresFor(bars, { from: 1, to: 2 })).toEqual({ from: 1, to: 3 });
+    /*
+     * And the near end is translated too, which is the half that was wrong.
+     * Drawn bar 2 is measure 3, because the split bar before it swallowed two —
+     * so a run starting there must start at 3. Written with a bar whose index
+     * and measure differ on purpose: with them equal, a translation that does
+     * nothing at all looks exactly like one that works.
+     */
+    expect(measuresFor(bars, { from: 2, to: 2 })).toEqual({ from: 3, to: 3 });
+    expect(measuresFor(bars, { from: 2, to: 3 }).from).toBe(3);
+  });
+
+  it('runs the last chosen bar to the end of the part', () => {
+    // Nothing follows it to bound the run, and "everything from here on" is
+    // what the last bar of a selection means. `importPart` clamps it.
+    const bars: ImportedBar[] = [
+      { number: '1', source: 0, startBeat: 0 },
+      { number: '2', source: 1, startBeat: 4 },
+    ];
+    const span = measuresFor(bars, { from: 1, to: 1 });
+    expect(span.from).toBe(1);
+    expect(span.to).toBeGreaterThan(1000);
   });
 
   it('lines an entry up with the bar it starts, one for one', () => {

@@ -78,6 +78,38 @@ export interface BarSpan {
 }
 
 /**
+ * The measures a run of *drawn* bars is made of.
+ *
+ * Three things count bars here and no two of them agree on a scanned part:
+ *
+ * | | on one real file |
+ * |---|---|
+ * | the bar as drawn, which a tap lands on | 78 |
+ * | the measure in the file, which a reading walks | 84 |
+ * | the number printed on the page | "82" |
+ *
+ * They coincide on a tidy export and separate everywhere else. A multi-bar rest
+ * is one measure drawn as twenty bars. A scanner that splits a bar across two
+ * measures gives two measures drawn as one bar, and both carry the same printed
+ * number — which is how a part with 87 measures comes to have 82 bars numbered
+ * up to 84.
+ *
+ * So a selection made by tapping has to be translated before it can be read,
+ * and this is that translation. Without it the picker asked for measure 78 when
+ * the player pointed at the bar printed 82, and got them music six bars early.
+ *
+ * The far end runs up to the bar *after* the last one chosen, so a bar made of
+ * two measures gives up both. Where nothing follows, it runs to the end of the
+ * part: `importPart` clamps, and "everything from here on" is what the last bar
+ * of a selection means.
+ */
+export function measuresFor(bars: readonly ImportedBar[], span: BarSpan): BarSpan {
+  const from = bars[span.from]?.source ?? span.from;
+  const after = bars[span.to + 1]?.source;
+  return { from, to: after === undefined ? Number.MAX_SAFE_INTEGER : after - 1 };
+}
+
+/**
  * Which measures are read, and in what order.
  *
  * Everything the importer can be asked for is a *walk* — a list of measure
