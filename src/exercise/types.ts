@@ -62,6 +62,25 @@ export interface NoteEvent {
   showAccidental: boolean;
 }
 
+/**
+ * Whether the instrument in hand can play this note at all.
+ *
+ * A note outside the instrument's range resolves to no fingering, so
+ * `acceptedMasks` is empty and nothing the player holds can ever match it. That
+ * only arises with imported music — the generator asks `isPlayable` before it
+ * chooses a pitch — and a part written for a cornet can easily reach above what
+ * a tuba has.
+ *
+ * Such a note is **shown and sounded but not judged**, for the same reason the
+ * far end of a tie is not: it asked nothing of the player that they could have
+ * answered, so a verdict on it is not evidence of anything. Left in the totals
+ * it would be a wrong answer nobody could have got right, quietly spoiling the
+ * score for the whole run.
+ */
+export function isUnplayable(note: NoteEvent): boolean {
+  return note.acceptedMasks.length === 0;
+}
+
 export interface RestEvent {
   startBeat: number;
   duration: Duration;

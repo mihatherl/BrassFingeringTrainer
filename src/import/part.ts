@@ -37,7 +37,8 @@
  * of the band.
  */
 
-import type { Clef, Instrument } from '../domain/instruments';
+import { soundingFromWritten, type Clef, type Instrument } from '../domain/instruments';
+import { isPlayable } from '../domain/fingering';
 import type { KeyChange } from '../domain/keys';
 import { metreFor, type Metre, type MetreChange } from '../domain/metre';
 import { midiOf, type Letter, type SpelledPitch } from '../domain/pitch';
@@ -258,6 +259,8 @@ interface Tally {
   chords: number;
   voices: number;
   unreadable: string[];
+  /** Bars holding a note the chosen instrument has no fingering for. */
+  outOfRange: string[];
 }
 
 /**
@@ -392,7 +395,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const bodies = fillBarRepeats([...source.querySelectorAll(':scope > measure')].map(readBody));
   if (bodies.length === 0) return { exercise: null, problems: [...problems, 'this part has no bars'] };
 
-  const tally: Tally = { grace: 0, chords: 0, voices: 0, unreadable: [] };
+  const tally: Tally = { grace: 0, chords: 0, voices: 0, unreadable: [], outOfRange: [] };
   const slots: Slot[] = [];
   const pitches: SlotPitch[] = [];
   const multiRests: RestEvent[] = [];
@@ -443,7 +446,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
      * counts it.
      */
     if (step === 0 && body.implicit) {
-      const held = readEvents(body, divisions, divisi, { ...tally }).reduce(
+      const held = readEvents(body, divisions, divisi, { ...tally, outOfRange: [] }).reduce(
         (sum, e) => sum + e.beats,
         0,
       );
@@ -500,7 +503,20 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
           // split note together, and take no pitch of their own.
           tiedFromPrevious: event.pitch !== null && (index > 0 || joins),
         });
-        if (event.pitch !== null && index === 0 && !joins) pitches.push(event.pitch);
+        if (event.pitch !== null && index === 0 && !joins) {
+          pitches.push(event.pitch);
+          /*
+           * A note this instrument cannot reach. Kept, drawn and sounded — it
+           * is what the part says — but noticed, because it is not judged and a
+           * player is owed the reason their score covers fewer notes than the
+           * page shows. A cornet part read on a tuba is the ordinary way in.
+           */
+          const reading = clef ?? options.clef ?? 'treble';
+          const sounds = soundingFromWritten(midiOf(event.pitch), options.instrument, reading);
+          if (!isPlayable(sounds, options.instrument)) {
+            tally.outOfRange.push(body.number);
+          }
+        }
         beat += durationBeats(duration);
       });
 
@@ -515,7 +531,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     }
   }
 
-  problems.push(...describe(tally, divisi));
+  problems.push(...describe(tally, divisi, options.instrument.name));
 
   if (slots.length === 0 && multiRests.length === 0) {
     return { exercise: null, problems: [...problems, 'this part has nothing playable in it'] };
@@ -584,7 +600,7 @@ function writeAs(beats: number): { pieces: Duration[]; leftover: number } {
 }
 
 /** Turns the tally into sentences a player can check against the printed part. */
-function describe(tally: Tally, divisi: Divisi): string[] {
+function describe(tally: Tally, divisi: Divisi, instrumentName: string): string[] {
   const said: string[] = [];
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -599,6 +615,14 @@ function describe(tally: Tally, divisi: Divisi): string[] {
   if (tally.voices > 0) {
     said.push(
       `${plural(tally.voices, 'bar', 'bars')} had a second voice, and only the upper one was read`,
+    );
+  }
+  if (tally.outOfRange.length > 0) {
+    const bars = [...new Set(tally.outOfRange)];
+    said.push(
+      `${plural(tally.outOfRange.length, 'note is', 'notes are')} outside what ${instrumentName} can play` +
+        ` (${bars.length > 4 ? `bars ${bars.slice(0, 4).join(', ')} and ${bars.length - 4} more` : `bar${bars.length > 1 ? 's' : ''} ${bars.join(', ')}`})` +
+        ` — shown and sounded, but not marked`,
     );
   }
   if (tally.unreadable.length > 0) {

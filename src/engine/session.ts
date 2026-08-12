@@ -7,7 +7,7 @@
  * an offset to remember.
  */
 
-import type { Exercise } from '../exercise/types';
+import { isUnplayable, type Exercise } from '../exercise/types';
 import { isTieContinuation, tiedBeats } from '../exercise/ties';
 import { BrassSynth } from '../audio/synth';
 import type { Voice } from '../audio/sampler';
@@ -351,8 +351,9 @@ export class Session {
       if (now < onset - tolerance) break;
       if (this.noticed[index]) continue;
       // Nothing happens at the far end of a tie, so there is nothing to
-      // confirm; a green flash there would be applause for keeping still.
-      if (isTieContinuation(exercise.notes, index)) continue;
+      // confirm; a green flash there would be applause for keeping still. And
+      // nothing can be confirmed on a note the instrument cannot play.
+      if (isTieContinuation(exercise.notes, index) || isUnplayable(note)) continue;
 
       if (isAlreadyCorrect(note, onset, tolerance, this.input, now)) {
         this.noticed[index] = true;
@@ -377,7 +378,12 @@ export class Session {
       // verdict to reach. Passed over rather than judged, which keeps it out of
       // the totals and out of the per-note accuracy that weak-note drilling
       // reads — a note marked right for being held is not evidence of anything.
-      if (isTieContinuation(exercise.notes, index)) {
+      if (
+        isTieContinuation(exercise.notes, index) ||
+        // Nor is a note this instrument cannot reach. Judged, it would be a
+        // wrong answer nobody could have got right — see `isUnplayable`.
+        isUnplayable(exercise.notes[index])
+      ) {
         this.nextNoteToResolve++;
         continue;
       }

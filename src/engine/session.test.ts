@@ -184,6 +184,56 @@ describe('a session with a tie in it', () => {
   });
 });
 
+describe('a note the instrument cannot play', () => {
+  /**
+   * Four crotchets, the third of which has no fingering at all — which is what
+   * an imported part produces when it reaches above what the player is holding.
+   * A cornet part read on a tuba is the ordinary way in.
+   */
+  function beyondReach(): Exercise {
+    const notes = [note(0, 1), note(1, 1), note(2, 1), note(3, 1)];
+    notes[2] = { ...notes[2], acceptedMasks: [], primaryMask: 0 };
+    return {
+      notes,
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
+      tempo: [],
+      totalBeats: 4,
+      chosenBeats: 4,
+      seed: 1,
+      kind: 'imported',
+    };
+  }
+
+  it('is passed over rather than judged wrong', () => {
+    /*
+     * Nothing the player holds could ever match an empty accepted list, so a
+     * verdict on it is not evidence of anything — the same reason the far end
+     * of a tie is passed over. Judged, it would be a wrong answer nobody could
+     * have got right, quietly spoiling the score for the whole run.
+     */
+    const s = session(beyondReach(), 'off');
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+
+    runTo(s, 4);
+
+    expect(s.judgements.map((j) => j.noteIndex)).toEqual([0, 1, 3]);
+    expect(s.judgements.every((j) => j.verdict === 'correct')).toBe(true);
+  });
+
+  it('is still sounded, because it is what the part says', () => {
+    // Not judged is not the same as not there: the note is on the page and in
+    // the reference playback, and only the marking passes over it.
+    const s = session(beyondReach());
+    runTo(s, 4);
+    expect(played).toHaveLength(4);
+  });
+});
+
 describe('a session across a step change', () => {
   /*
    * The one assertion that matters end to end: an exercise carrying a tempo

@@ -278,6 +278,32 @@ describe('very short notes', () => {
   });
 });
 
+describe('notes the instrument cannot reach', () => {
+  it('names them, and says they are not marked', () => {
+    /*
+     * The instrument is the player's, not the file's — that is what lets a tuba
+     * player read a cornet part, and it is also how a note lands outside what
+     * they are holding. Such a note has no fingering at all, so nothing they
+     * press could ever match it: left in the totals it would be a wrong answer
+     * nobody could have got right.
+     */
+    const high = `<note><pitch><step>G</step><octave>6</octave></pitch><duration>96</duration></note>`;
+    const { exercise, problems } = importing(score(high));
+
+    expect(problems[0]).toContain('outside what Eb Bass (Tuba) can play');
+    expect(problems[0]).toContain('bar 1');
+    expect(problems[0]).toContain('not marked');
+    // Still on the page and still sounded — it is what the part says.
+    expect(exercise?.notes).toHaveLength(1);
+    expect(exercise?.notes[0].acceptedMasks).toEqual([]);
+  });
+
+  it('says nothing where every note is within reach', () => {
+    const { problems } = importing(score(note('G4', 2) + note('C5', 2)));
+    expect(problems).toEqual([]);
+  });
+});
+
 describe('a rhythm that cannot be written', () => {
   it('replaces it with silence of exactly the right length', () => {
     /*

@@ -6,6 +6,7 @@ import { durationBeats, durationFromBeats } from '../domain/rhythm';
 import { DIFFICULTIES, difficultyById } from './difficulty';
 import { generateExercise, type GenerateOptions } from './generate';
 import { isTieContinuation, nextSoundedIndex, soundingHeads, tiedBeats } from './ties';
+import { isUnplayable } from './types';
 import type { NoteEvent } from './types';
 
 const ebBass = instrumentById('eb-bass');
@@ -255,5 +256,32 @@ describe('compound time', () => {
       }
     }
     expect(groupsSeen, 'no beam groups to check').toBeGreaterThan(10);
+  });
+});
+
+/**
+ * A note the instrument cannot play is not judged, for the same reason the far
+ * end of a tie is not: it asked nothing the player could have answered.
+ */
+describe('a note with no fingering', () => {
+  const noteWith = (acceptedMasks: number[]): NoteEvent => ({
+    writtenMidi: 67,
+    soundingMidi: 46,
+    pitch: spellInKey(67, 0),
+    startBeat: 0,
+    duration: { value: 'quarter', dotted: false },
+    acceptedMasks,
+    primaryMask: 0,
+    beamGroup: -1,
+    tupletGroup: -1,
+    tiedToNext: false,
+    showAccidental: false,
+  });
+
+  it('is recognisable from the note alone', () => {
+    // An empty accepted list is not "no alternate fingerings" — it is no
+    // fingering at all, which only an imported part can produce.
+    expect(isUnplayable(noteWith([0b011]))).toBe(false);
+    expect(isUnplayable(noteWith([]))).toBe(true);
   });
 });
