@@ -40,7 +40,7 @@
 import { soundingFromWritten, type Clef, type Instrument } from '../domain/instruments';
 import { isPlayable } from '../domain/fingering';
 import type { KeyChange } from '../domain/keys';
-import { metreFor, type Metre, type MetreChange } from '../domain/metre';
+import { barAt, barCount, beatOfBar, metreFor, type Metre, type MetreChange } from '../domain/metre';
 import { midiOf, type Letter, type SpelledPitch } from '../domain/pitch';
 import { durationBeats, durationFromBeats, snapBeat, type Duration } from '../domain/rhythm';
 import { assembleExercise, type Slot, type SlotPitch } from '../exercise/assemble';
@@ -515,6 +515,50 @@ function inferMetre(held: number, metre: Metre): Metre | null {
  * but `changesMetre` counts entries, and a list saying the metre changed where
  * it did not is a trap for whoever reads it next.
  */
+/**
+ * One entry per bar of the exercise, in bar order.
+ *
+ * The walk records a bar as it reads a measure, and for well-formed music the
+ * two line up one to one. They stop lining up wherever a measure is not a bar:
+ * a multi-bar rest is one measure covering twenty, and a malformed file can put
+ * two short measures inside one bar.
+ *
+ * That mismatch is not cosmetic. Anything choosing bars off the drawn page
+ * counts *bars* — the renderer lays out one rectangle per bar — so a list keyed
+ * by measure hands back the wrong music, further out the further in you go, and
+ * a passage chosen near the end of a part with rests in it comes out as
+ * somewhere else entirely.
+ *
+ * So the entries are re-keyed by the bar they start in, and any bar no measure
+ * starts in inherits the one before it, carrying no printed number of its own.
+ */
+function barsByIndex(
+  entries: readonly ImportedBar[],
+  metres: readonly MetreChange[],
+  totalBars: number,
+): ImportedBar[] {
+  const byBar: Array<ImportedBar | undefined> = [];
+  for (const entry of entries) {
+    const index = barAt(metres, entry.startBeat);
+    if (index >= 0 && byBar[index] === undefined) byBar[index] = entry;
+  }
+
+  const settled: ImportedBar[] = [];
+  let last: ImportedBar | null = null;
+  for (let bar = 0; bar < totalBars; bar++) {
+    const here = byBar[bar];
+    if (here) last = here;
+    settled.push(
+      here ?? {
+        number: null,
+        source: last?.source ?? REST_BAR,
+        startBeat: beatOfBar(metres, bar),
+      },
+    );
+  }
+  return settled;
+}
+
 function settleChanges(changes: MetreChange[]): MetreChange[] {
   const settled: MetreChange[] = [];
   for (const change of changes) {
@@ -873,6 +917,25 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
         duration: { value: 'whole', dotted: false },
         bars: body.multiRest,
       });
+      /*
+       * One entry per bar it covers, not one for the symbol.
+       *
+       * The rest is drawn as a single object and the walk steps over the
+       * measures underneath it — but they are still bars, they are still
+       * numbered on the printed part, and anything choosing bars off that page
+       * counts them. Their numbers come from the measures being stepped over,
+       * which is where the engraver put them.
+       *
+       * The first is already recorded above; these are the rest.
+       */
+      for (let covered = 1; covered < body.multiRest; covered++) {
+        const under = order[step + covered];
+        bars.push({
+          number: bodies[under]?.number ?? null,
+          source: under ?? REST_BAR,
+          startBeat: snapBeat(beat + covered * metre.barBeats),
+        });
+      }
       beat += metre.barBeats * body.multiRest;
       step += body.multiRest - 1;
       previousSounded = null;
@@ -1026,7 +1089,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
       ...exercise,
       rests: [...exercise.rests, ...multiRests].sort((a, b) => a.startBeat - b.startBeat),
     },
-    bars,
+    bars: barsByIndex(bars, settledMetres, barCount(settledMetres, beat)),
     problems,
   };
 }

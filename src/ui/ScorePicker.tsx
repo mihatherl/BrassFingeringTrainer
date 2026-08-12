@@ -51,7 +51,22 @@ interface ScorePickerProps {
  * wide and a system seventy tall, which is roomier than most buttons.
  */
 function scoreSpace(width: number): number {
-  return Math.min(9, Math.max(5, width / 60));
+  /*
+   * Taken from a bucketed width, and that is what stops the page shivering.
+   *
+   * Straight from the width, the scale is a continuous function of it — so any
+   * change at all, of a single pixel, repacks every system and moves every bar
+   * slightly. And selecting a bar *does* change the width: it lengthens the
+   * strip at the foot of the screen, which can bring a scrollbar in, which
+   * takes about fifteen pixels off the canvas. Each selection nudged the whole
+   * score sideways, which is exactly what the player reported.
+   *
+   * At sixty-four pixel steps a scrollbar cannot cross a boundary unless the
+   * width was already within fifteen pixels of one, and the layout only moves
+   * when the window genuinely does.
+   */
+  const bucket = Math.max(240, Math.round(width / 64) * 64);
+  return Math.min(9, Math.max(5, bucket / 60));
 }
 
 export function ScorePicker({ exercise, bars, onPractise, onBack, title }: ScorePickerProps) {
@@ -126,12 +141,6 @@ export function ScorePicker({ exercise, bars, onPractise, onBack, title }: Score
         <h1>{title}</h1>
       </header>
 
-      <p className="field__note muted">
-        {anchor === null
-          ? 'Tap the first bar of a run, then the last. Add as many runs as you like.'
-          : `Bar ${bars[anchor]?.number ?? anchor + 1} — now tap the last bar of the run.`}
-      </p>
-
       <StaveCanvas
         className="score-picker"
         draw={draw}
@@ -140,21 +149,33 @@ export function ScorePicker({ exercise, bars, onPractise, onBack, title }: Score
       />
 
       <div className="actions actions--sticky">
-        {spans.length > 0 && (
-          /*
-           * With the button rather than under the score, and that is not a
-           * detail: under the score it sat behind this very strip, so the one
-           * line saying what you had chosen was the one line you could not see.
-           *
-           * Named in the printed numbers, because that is what the player
-           * checks against the part on the stand.
-           */
-          <p className="field__note">
-            {spans.length === 1 && lengthOf(spans[0]) === 1 ? 'Bar ' : 'Bars '}
-            {spans.map(nameOf).join(', ')}
-            {chosen > 1 && ` — ${chosen} in all`}
-          </p>
-        )}
+        {/*
+          One line, always, whatever state the selection is in.
+
+          It says what to do, then what you have chosen — and it is here rather
+          than above the score for two reasons. Under the score it sat behind
+          this very strip, so the one piece of confirmation on the screen was
+          the one thing you could not see. And a line that comes and goes
+          changes the height of a *fixed* strip, which pushes the page around
+          and can bring in a scrollbar; the score is laid out against the width
+          that scrollbar takes, so every selection nudged the whole thing.
+
+          Named in the printed numbers, because that is what the player checks
+          against the part on the stand.
+        */}
+        <p className="field__note picker__status">
+          {spans.length > 0 ? (
+            <>
+              {spans.length === 1 && lengthOf(spans[0]) === 1 ? 'Bar ' : 'Bars '}
+              {spans.map(nameOf).join(', ')}
+              {chosen > 1 && ` — ${chosen} in all`}
+            </>
+          ) : anchor === null ? (
+            'Tap the first bar of a run, then the last.'
+          ) : (
+            `Bar ${bars[anchor]?.number ?? anchor + 1} — now tap the last bar.`
+          )}
+        </p>
         <button
           type="button"
           className="button button--primary button--large"
@@ -165,18 +186,20 @@ export function ScorePicker({ exercise, bars, onPractise, onBack, title }: Score
             ? 'Choose some bars'
             : `Practise ${chosen} ${chosen === 1 ? 'bar' : 'bars'}`}
         </button>
-        {spans.length > 0 && (
-          <button
-            type="button"
-            className="button"
-            onClick={() => {
-              setSpans([]);
-              setAnchor(null);
-            }}
-          >
-            Start again
-          </button>
-        )}
+        {/* Always here, disabled when there is nothing to clear. Coming and
+            going would change the height of the strip, which is the thing that
+            was moving the score. */}
+        <button
+          type="button"
+          className="button"
+          disabled={spans.length === 0 && anchor === null}
+          onClick={() => {
+            setSpans([]);
+            setAnchor(null);
+          }}
+        >
+          Start again
+        </button>
         <button type="button" className="button button--quiet" onClick={onBack}>
           Back
         </button>

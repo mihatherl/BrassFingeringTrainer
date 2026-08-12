@@ -823,14 +823,15 @@ input[type='checkbox'] {
 }
 
 /*
- * The tempo, riding with the Start button.
+ * A sticky strip that carries text as well as buttons goes solid.
  *
- * The gradient behind the sticky strip fades to transparent at the top, which
- * is fine behind a button and not behind a slider and its label — the music
- * scrolling under a half-legible number is exactly the sort of thing this
- * screen has been quietened to avoid. So the strip goes solid from here down.
+ * The gradient behind it fades to transparent at the top, which is fine behind
+ * a button and not behind a line of text — whatever is scrolling underneath
+ * shows straight through it. The tempo and its label on the settings screen,
+ * and the picker's line saying which bars are chosen, both sit in that band.
  */
-.actions--sticky:has(.tempo) {
+.actions--sticky:has(.tempo),
+.actions--sticky:has(.picker__status) {
   background: var(--bg);
   border-top: 1px solid var(--border);
 }
@@ -1204,4 +1205,17 @@ input[type='checkbox'] {
   display: block;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+/*
+ * The picker's one status line.
+ *
+ * Held to a line's height whatever it says, because this sits in a strip fixed
+ * to the bottom of the screen and the score above is laid out against the width
+ * left over. A line that grew or vanished as bars were chosen changed that
+ * width — via a scrollbar — and moved the whole score a little on every tap.
+ */
+.picker__status {
+  min-height: 1.25rem;
+  margin: 0 0 0.25rem;
 }

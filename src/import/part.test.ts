@@ -972,3 +972,77 @@ describe('a part with nothing to read', () => {
     expect(problems[0]).toContain('not in this file');
   });
 });
+
+describe('locating bars against what is drawn', () => {
+  /*
+   * The bar map is indexed by *bar*, not by measure, and the difference is not
+   * cosmetic. Anything choosing bars off a drawn page counts bars — the
+   * renderer lays out one rectangle per bar — so a list keyed by measure hands
+   * back the wrong music, further out the further in you go.
+   *
+   * A multi-bar rest is where they part company: one measure, twenty bars.
+   */
+  const multiRest = (bars: number) =>
+    `<attributes><measure-style><multiple-rest>${bars}</multiple-rest></measure-style></attributes>` +
+    note(null, 4);
+
+  it('gives every drawn bar an entry, including the ones a rest covers', () => {
+    const covered = Array.from({ length: 4 }, () => note(null, 4));
+    const xml = score(note('C4', 4), multiRest(5), ...covered, note('D4', 4), note('E4', 4));
+    const parsed = parseMusicXml(xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+    const { exercise, bars } = importPart(parsed.doc, {
+      instrument: EB_BASS,
+      reading: { kind: 'printed' },
+    });
+
+    // Eight bars on the page: one, five under the rest, then two.
+    expect(barCount(exercise!.metres, exercise!.totalBeats)).toBe(8);
+    expect(bars).toHaveLength(8);
+    // Numbered as the printed part numbers them, the covered ones included.
+    expect(bars.map((bar) => bar.number)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+    // And each entry says which measure it came from, which is what a chosen
+    // passage is expressed in.
+    expect(bars.map((bar) => bar.source)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('keeps one entry per bar where two measures share one', () => {
+    /*
+     * The other way the two can part company, and the reason the map is re-keyed
+     * by bar rather than trusted from the walk. Two half-length measures sit
+     * inside one bar; the page draws one rectangle, so the map must offer one
+     * entry, or every bar after them is described by the wrong measure.
+     *
+     * The file is malformed and says so loudly elsewhere. It must still not
+     * hand back a selection that plays somewhere else.
+     */
+    const xml = score(note('C4', 2), note('D4', 2));
+    const parsed = parseMusicXml(xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+    const { exercise, bars } = importPart(parsed.doc, {
+      instrument: EB_BASS,
+      reading: { kind: 'printed' },
+    });
+
+    expect(barCount(exercise!.metres, exercise!.totalBeats)).toBe(1);
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toMatchObject({ number: '1', source: 0 });
+  });
+
+  it('lines an entry up with the bar it starts, one for one', () => {
+    // The property the picker depends on: entry i describes bar i. Checked
+    // against the metres rather than assumed from the order things were read.
+    const covered = Array.from({ length: 4 }, () => note(null, 4));
+    const xml = score(note('C4', 4), multiRest(5), ...covered, note('D4', 4));
+    const parsed = parseMusicXml(xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+    const { exercise, bars } = importPart(parsed.doc, {
+      instrument: EB_BASS,
+      reading: { kind: 'printed' },
+    });
+
+    bars.forEach((bar, index) => {
+      expect(barAt(exercise!.metres, bar.startBeat), `bar ${index}`).toBe(index);
+    });
+  });
+});

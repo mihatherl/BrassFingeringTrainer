@@ -337,6 +337,47 @@ describe('finding a bar on the page', () => {
     }
   });
 
+  it('meets the bar lines that are actually drawn', () => {
+    /*
+     * The property that makes a tap land where the eye says it should, and the
+     * one that was wrong: `xForBeat` answers where a bar's first *note column*
+     * sits, and the bar line before it is drawn a setback earlier. Taking the
+     * note column as the edge put every rectangle about a notehead to the right
+     * of its own bar.
+     *
+     * Checked against the lines the drawing actually puts down rather than
+     * against the arithmetic that places them, which would only restate the
+     * implementation. A bar line is a vertical stroke exactly the height of the
+     * stave; a stem is vertical too, and shorter.
+     */
+    const calls: RecordedCall[] = [];
+    const exercise = build('easy', 12);
+    const width = 600;
+    drawReview(mockCanvas(calls, width), { exercise, verdicts: [], theme: LIGHT_THEME });
+
+    const layout = planReview(width, exercise);
+    const staveHeight = layout.staveSpace * 4;
+    const lines: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < calls.length - 1; i++) {
+      if (calls[i].method !== 'moveTo' || calls[i + 1].method !== 'lineTo') continue;
+      const [x1, y1] = calls[i].args as number[];
+      const [x2, y2] = calls[i + 1].args as number[];
+      if (Math.abs(x1 - x2) > 0.01) continue;
+      if (Math.abs(Math.abs(y2 - y1) - staveHeight) > 0.5) continue;
+      lines.push({ x: x1, y: Math.min(y1, y2) });
+    }
+    expect(lines.length).toBeGreaterThan(4);
+
+    const rects = barRects(exercise, layout);
+    const starts = new Set(layout.systemStarts);
+    for (const [bar, rect] of rects.entries()) {
+      // The first bar of a line begins at the margin, before any bar line.
+      if (starts.has(bar)) continue;
+      const nearest = Math.min(...lines.map((line) => Math.abs(line.x - rect.x)));
+      expect(nearest, `bar ${bar} at x=${Math.round(rect.x)}`).toBeLessThan(1.5);
+    }
+  });
+
   it('finds the bar a point falls in', () => {
     const exercise = build('easy', 12);
     const rects = barRects(exercise, planReview(600, exercise));

@@ -218,12 +218,24 @@ export function barRects(exercise: Exercise, layout: ReviewLayout): BarRect[] {
       !final,
     );
 
+    /*
+     * Measured to the bar *lines*, which is where the eye puts a bar's edges.
+     *
+     * `xForBeat` answers where a bar's first note column sits, and the bar line
+     * before it is drawn a setback earlier — see `drawSystem`, which places
+     * every one at `xForBeat(beat) - BAR_LINE_SETBACK * staveSpace`. Taking the
+     * note column as the edge puts every rectangle about a notehead's width to
+     * the right of the bar it marks, so a tap just after a bar line lands in
+     * the bar before it and the wash sits visibly off its bar.
+     */
+    const setback = BAR_LINE_SETBACK * layout.staveSpace;
+
     for (let bar = firstBar; bar < lastBar; bar++) {
       // The first bar of a line takes the header with it: a tap on the clef is
       // a tap on the bar it belongs to, not on nothing.
-      const left = bar === firstBar ? 0 : xForBeat(beatOfBar(exercise.metres, bar));
+      const left = bar === firstBar ? 0 : xForBeat(beatOfBar(exercise.metres, bar)) - setback;
       const nextBeat = Math.min(exercise.totalBeats, beatOfBar(exercise.metres, bar + 1));
-      const right = bar + 1 >= lastBar ? headerWidth + usableWidth : xForBeat(nextBeat);
+      const right = bar + 1 >= lastBar ? headerWidth + usableWidth : xForBeat(nextBeat) - setback;
       rects.push({
         x: left,
         y: system * systemHeight,
