@@ -161,12 +161,6 @@ export const MAJOR_KEYS: readonly KeySignature[] = [
   { fifths: 7, name: 'C#', relativeMinor: 'A#' },
 ];
 
-export function keyByFifths(fifths: number): KeySignature {
-  const key = MAJOR_KEYS.find((k) => k.fifths === fifths);
-  if (!key) throw new Error(`No key signature with ${fifths} fifths`);
-  return key;
-}
-
 /** How a key signature's accidentals are usually described, e.g. "2 sharps". */
 export function describeFifths(fifths: number): string {
   if (fifths === 0) return 'no sharps or flats';
@@ -260,10 +254,6 @@ export function scalePitchClasses(fifths: number): Set<number> {
 export function tonicPitchClass(fifths: number): number {
   // Each step round the circle of fifths moves the tonic up a fifth.
   return pitchClass(fifths * 7);
-}
-
-export function isDiatonic(midi: number, fifths: number): boolean {
-  return scalePitchClasses(fifths).has(pitchClass(midi));
 }
 
 /** Does this note need an accidental drawn, given the key signature? */

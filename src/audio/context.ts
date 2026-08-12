@@ -84,7 +84,3 @@ export async function unlockAudio(): Promise<AudioContext> {
 
   return ctx;
 }
-
-export function isAudioUnlocked(): boolean {
-  return context !== null && isRunning(context);
-}

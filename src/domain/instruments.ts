@@ -157,29 +157,8 @@ export function soundingFromWritten(
   return writtenMidi + transpositionFor(instrument, clef);
 }
 
-export function writtenFromSounding(
-  soundingMidi: number,
-  instrument: Instrument,
-  clef: Clef,
-): number {
-  return soundingMidi - transpositionFor(instrument, clef);
-}
-
 /** The instrument's playable range expressed in written pitch for a given clef. */
 export function writtenRange(instrument: Instrument, clef: Clef): [number, number] {
   const t = transpositionFor(instrument, clef);
   return [instrument.soundingRange[0] - t, instrument.soundingRange[1] - t];
-}
-
-/**
- * The middle of the instrument's compass, as a sounding pitch.
- *
- * Used as the fallback when a player is making a sound the app cannot otherwise
- * account for. Expressed relative to each instrument's own range rather than as
- * a fixed pitch, so it means "somewhere comfortable" on a tuba as much as on a
- * cornet — for an Eb bass reading treble clef it lands on written E4.
- */
-export function middleSounding(instrument: Instrument, clef: Clef): number {
-  const [low, high] = writtenRange(instrument, clef);
-  return soundingFromWritten(Math.round((low + high) / 2), instrument, clef);
 }

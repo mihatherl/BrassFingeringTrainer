@@ -72,10 +72,6 @@ export function durationBeats(duration: Duration): number {
   return duration.tuplet ? (dotted * 2) / duration.tuplet : dotted;
 }
 
-export function quarterNote(): Duration {
-  return { value: 'quarter', dotted: false };
-}
-
 /**
  * Nearest exact duration for a beat count, or null if it isn't representable.
  *

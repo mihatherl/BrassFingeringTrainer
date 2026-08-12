@@ -242,8 +242,3 @@ export class Sampler implements Voice {
     });
   }
 }
-
-/** Discards decoded audio; used by tests, and if memory ever becomes a concern. */
-export function clearSampleCache(): void {
-  cache.clear();
-}

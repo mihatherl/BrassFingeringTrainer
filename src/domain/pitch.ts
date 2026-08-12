@@ -60,10 +60,6 @@ export function pitchClass(midi: number): number {
   return ((midi % 12) + 12) % 12;
 }
 
-export function octaveOf(midi: number): number {
-  return Math.floor(midi / 12) - 1;
-}
-
 export function formatPitch(p: SpelledPitch): string {
   const acc = p.alter === 0 ? '' : p.alter > 0 ? '#'.repeat(p.alter) : 'b'.repeat(-p.alter);
   return `${p.letter}${acc}${p.octave}`;

@@ -83,14 +83,6 @@ export function recordSession(
   return merged;
 }
 
-export function clearStats(instrumentId: string, clef: Clef): void {
-  try {
-    localStorage.removeItem(keyFor(instrumentId, clef));
-  } catch {
-    // Ignore.
-  }
-}
-
 /** Below this, a note has not been seen often enough to call it weak. */
 export const MIN_ATTEMPTS_TO_JUDGE = 2;
 
