@@ -28,15 +28,28 @@ export { CONDUCTOR_STYLE_RANGE };
 export interface Settings {
   instrumentId: string;
   clef: Clef;
-  /** Written key signature the exercise opens in, on the circle of fifths. */
+  /**
+   * Written key signature the exercise opens in, on the circle of fifths.
+   *
+   * **Derived: it is `keySet[0]`**, and `sanitise` keeps it so. There is one
+   * control for keys and it is the set — a second control naming the starting
+   * key said something the first one already said, and needed a rule of its own
+   * (the starting key's chip could not be deselected) that existed only because
+   * there were two of them.
+   *
+   * Still a field rather than a lookup because most of the app wants the
+   * opening key and has no interest in the set: the generator, the span
+   * arithmetic and the renderer's header all ask for exactly this.
+   */
   fifths: number;
   /**
-   * Every key the exercise may move through, `fifths` among them.
+   * Every key the exercise may move through, in the order they were chosen.
    *
-   * One entry means no key changes, which is the default and what most
-   * practice wants. More than one and the generator modulates between them,
-   * ordering them by closeness on the circle of fifths so the joins sound like
-   * music rather than like a list.
+   * Never empty. The first is where the exercise opens; the rest are the keys
+   * it may reach, ordered for playing by closeness on the circle of fifths
+   * rather than by the order here, so the joins sound like music rather than
+   * like a list. One entry means no key changes, which is the default and what
+   * most practice wants.
    */
   keySet: number[];
   tempo: number;
@@ -124,26 +137,41 @@ export const SCROLL_SPEED_RANGE = { min: 50, max: 220 } as const;
 
 export const TIMING_TOLERANCE_RANGE = { min: 0.5, max: 3 } as const;
 
-export const PLAYBACK_MODES: ReadonlyArray<{ id: PlaybackMode; name: string; blurb: string }> = [
-  {
-    id: 'reference',
-    name: 'Play the notes',
-    blurb: 'A brass tone sounds the exercise as written, so you can hear what it should be.',
-  },
-  { id: 'off', name: 'Silent', blurb: 'Metronome only.' },
+/**
+ * A choice offered as a card.
+ *
+ * `blurb` is optional, and left off wherever the name is the whole of it.
+ * "Silent" does not need a sentence under it, and the screen used to carry
+ * several like that: standing prose explaining a control that explains itself,
+ * read once and then in the way for good. What earns a blurb is a choice whose
+ * *consequence* is not in its name.
+ */
+interface Choice<T> {
+  id: T;
+  name: string;
+  blurb?: string;
+}
+
+export const PLAYBACK_MODES: ReadonlyArray<Choice<PlaybackMode>> = [
+  { id: 'reference', name: 'Play the notes' },
+  { id: 'off', name: 'Silent' },
 ];
 
-export const READING_MODES: ReadonlyArray<{ id: ReadingMode; name: string; blurb: string }> = [
+export const READING_MODES: ReadonlyArray<Choice<ReadingMode>> = [
   {
     id: 'scrolling',
     name: 'Scrolling line',
-    blurb: 'Notes scroll to a fixed line, which tells you exactly when to play. Best for learning fingerings.',
+    blurb: 'A fixed line shows when to play.',
   },
   {
     id: 'paged',
     name: 'Read the page',
-    blurb:
-      'Notes stay put and the page turns as you approach the end. Nothing in the music marks the beat — you count for yourself, as you would from a part, against the metronome or the conductor. Each bar reveals how you did only once you finish it, so you know which bar you are in without being told the beat.',
+    // The consequence, which the name does not carry: this is the mode that
+    // stops doing the counting for you. Everything else the old paragraph said
+    // — how bars reveal their verdict, what the page turn does — is either
+    // visible the moment you play it or is said by the warning that appears
+    // when nothing is keeping time.
+    blurb: 'You count the beat yourself.',
   },
 ];
 
@@ -275,27 +303,31 @@ export function sanitise(settings: Settings): Settings {
     ? settings.difficultyId
     : DEFAULT_SETTINGS.difficultyId;
 
-  const fifths = MAJOR_KEYS.some((k) => k.fifths === settings.fifths)
+  /*
+   * The set decides, and the starting key follows it.
+   *
+   * The other way round while there were two controls: the screen named a
+   * starting key and this forced it into the set. Now there is one control, the
+   * set carries its own order, and the key the exercise opens in is simply the
+   * first one chosen.
+   *
+   * Still does the three jobs the old rule did. A set edited to nonsense is
+   * filtered back to keys that exist; an empty one falls back to the stated
+   * starting key, which is also how a settings file written before the set
+   * existed migrates; and the two fields cannot disagree, because one is
+   * derived from the other rather than checked against it.
+   */
+  const stated = MAJOR_KEYS.some((k) => k.fifths === settings.fifths)
     ? settings.fifths
     : DEFAULT_SETTINGS.fifths;
 
-  /*
-   * The set always holds the key the exercise starts in, whatever a stored
-   * file says.
-   *
-   * That single rule does three jobs: it repairs a set edited to nonsense, it
-   * keeps the set honest after the starting key is changed, and it migrates a
-   * settings file written before the set existed — where the merge over the
-   * defaults would otherwise leave someone playing in B flat with E flat's
-   * default set.
-   */
-  const chosen = Array.isArray(settings.keySet) ? settings.keySet : [];
-  const keySet = [
-    fifths,
-    ...chosen.filter((f) => f !== fifths && MAJOR_KEYS.some((k) => k.fifths === f)),
-  ]
+  const chosen = (Array.isArray(settings.keySet) ? settings.keySet : [])
+    .filter((f) => MAJOR_KEYS.some((k) => k.fifths === f))
     .filter((f, index, all) => all.indexOf(f) === index)
     .slice(0, MAX_KEYS_IN_PLAY);
+
+  const keySet = chosen.length > 0 ? chosen : [stated];
+  const fifths = keySet[0];
 
   const timeSignature =
     TIME_SIGNATURES.find(

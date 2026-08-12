@@ -17,6 +17,7 @@ import {
   CYCLE_OPTIONS,
   REGISTERS,
   THEME_OPTIONS,
+  DEFAULT_SETTINGS,
   MAX_KEYS_IN_PLAY,
   constrainToEntitlements,
   sanitise,
@@ -67,6 +68,18 @@ function Panel({ id, title, values, open, onToggle, children }: PanelProps) {
 /** Joins the parts of a collapsed section's summary line. */
 function summarise(...parts: Array<string | undefined>): string {
   return parts.filter(Boolean).join(' · ');
+}
+
+/**
+ * A key's accidentals as a symbol and a count: `3♭`, `2♯`, or nothing for C.
+ *
+ * Enough for a player to recognise a key they half-know without the sentence
+ * the dropdown used to spell out. The full wording is still there for a screen
+ * reader, which cannot make anything of a sharp sign on its own.
+ */
+function accidentalCount(fifths: number): string {
+  if (fifths === 0) return '';
+  return `${Math.abs(fifths)}${fifths > 0 ? '♯' : '♭'}`;
 }
 
 function describeSpan(semitones: number): string {
@@ -182,11 +195,24 @@ export function SettingsScreen({
       material?.name,
       patternKind ? difficulty.patterns.label : difficulty.name,
     ),
-    reading: summarise(reading?.name),
-    playback: summarise(
-      `${settings.tempo} bpm`,
-      settings.variableTempo ? 'variable' : undefined,
+    playing: summarise(
+      reading?.name,
       sound?.name,
+      settings.conductorEnabled ? 'conductor' : settings.metronomeEnabled ? 'metronome' : undefined,
+    ),
+    // Only what has been moved off its default, so a section nobody has opened
+    // says nothing rather than reciting the settings it came with.
+    advanced: summarise(
+      settings.variableTempo ? 'variable tempo' : undefined,
+      settings.countInBars !== DEFAULT_SETTINGS.countInBars
+        ? settings.countInBars === 0
+          ? 'no count-in'
+          : `${settings.countInBars}-bar count-in`
+        : undefined,
+      settings.timingTolerance !== DEFAULT_SETTINGS.timingTolerance ? 'timing' : undefined,
+      settings.scrollSpeed !== DEFAULT_SETTINGS.scrollSpeed ? 'scroll speed' : undefined,
+      settings.conductorStyle !== DEFAULT_SETTINGS.conductorStyle ? 'conductor style' : undefined,
+      shown.weakNoteDrilling !== DEFAULT_SETTINGS.weakNoteDrilling ? 'weak notes' : undefined,
     ),
   };
 
@@ -303,61 +329,65 @@ export function SettingsScreen({
 
       <Panel id="exercise" title="Exercise" values={panelValues.exercise} open={isOpen('exercise')} onToggle={setOpen}>
 
-        <label className="field">
-          <span className="field__label">Key signature (as written)</span>
-          <select
-            value={shown.fifths}
-            onChange={(event) => {
-              // The set always holds the key you start in; `sanitise` enforces
-              // it, so changing the start carries the old one into the set
-              // rather than dropping it.
-              const fifths = Number(event.target.value);
-              onChange(sanitise({ ...settings, fifths }));
-            }}
-          >
-            {MAJOR_KEYS.map((key) => (
-              <option key={key.fifths} value={key.fifths} disabled={locked.key(key.fifths)}>
-                {key.name} major ({describeFifths(key.fifths)}) / {key.relativeMinor} minor
-              </option>
-            ))}
-          </select>
-        </label>
+        {/*
+          One control for keys, not two.
 
+          There used to be a dropdown naming the starting key and a grid naming
+          the keys in play, which said the same thing twice: `keySet[0]` *is*
+          the starting key and always was. The pair also needed a rule to keep
+          them agreeing — the starting key's chip could not be deselected —
+          which is a rule that only existed because there were two controls.
+
+          Pick keys in the order you want them. The first is where the exercise
+          opens; the collapsed summary spells the whole route out, so the order
+          is never a secret you have to remember choosing.
+        */}
         <div className="field">
-          <span className="field__label">Change key during the exercise</span>
+          <span className="field__label">Keys</span>
           <div className="segmented segmented--wrap">
             {MAJOR_KEYS.map((key) => {
               const chosen = shown.keySet.includes(key.fifths);
-              const start = key.fifths === shown.fifths;
+              const start = shown.keySet[0] === key.fifths;
               const full = shown.keySet.length >= MAX_KEYS_IN_PLAY;
+              const only = chosen && shown.keySet.length === 1;
               return (
                 <button
                   key={key.fifths}
                   type="button"
-                  // The starting key is always in play and cannot be removed;
-                  // beyond the cap, only what is already chosen can be undone.
-                  // Neither of those is a *withheld* control, which is why the
-                  // locked marker is separate from the disabled attribute.
-                  disabled={start || (!chosen && full) || locked.key(key.fifths)}
-                  className={`segmented__option ${chosen ? 'is-selected' : ''} ${
-                    locked.key(key.fifths) ? 'is-locked' : ''
-                  }`}
-                  onClick={() =>
-                    onChange(
-                      sanitise({
-                        ...settings,
-                        keySet: chosen
-                          ? settings.keySet.filter((f) => f !== key.fifths)
-                          : [...settings.keySet, key.fifths],
-                      }),
-                    )
-                  }
+                  /*
+                   * Beyond the cap only what is already chosen can be undone,
+                   * and the last one standing cannot be — an exercise has to be
+                   * in some key. Neither is a *withheld* control, which is why
+                   * the locked marker is separate from the disabled attribute.
+                   */
+                  disabled={only || (!chosen && full) || locked.key(key.fifths)}
+                  aria-pressed={chosen}
+                  // The accidentals are shown as "3♭" beside the name, which a
+                  // screen reader would spell out as a number and a symbol.
+                  aria-label={`${key.name} major, ${describeFifths(key.fifths)}`}
+                  className={`segmented__option key ${chosen ? 'is-selected' : ''} ${
+                    start ? 'is-start' : ''
+                  } ${locked.key(key.fifths) ? 'is-locked' : ''}`}
+                  onClick={() => {
+                    const next = chosen
+                      ? settings.keySet.filter((f) => f !== key.fifths)
+                      : [...settings.keySet, key.fifths];
+                    if (next.length === 0) return;
+                    onChange(sanitise({ ...settings, keySet: next }));
+                  }}
                 >
-                  {key.name}
+                  <span className="key__name">{key.name}</span>
+                  <span className="key__accidentals muted">{accidentalCount(key.fifths)}</span>
                 </button>
               );
             })}
           </div>
+          {shown.keySet.length > 1 && (
+            <p className="field__note muted">
+              Starts in {MAJOR_KEYS.find((k) => k.fifths === shown.keySet[0])?.name}, and changes
+              key as it goes.
+            </p>
+          )}
         </div>
 
         <div className="field">
@@ -496,7 +526,7 @@ export function SettingsScreen({
         )}
       </Panel>
 
-      <Panel id="reading" title="Reading mode" values={panelValues.reading} open={isOpen('reading')} onToggle={setOpen}>
+      <Panel id="playing" title="Playing" values={panelValues.playing} open={isOpen('playing')} onToggle={setOpen}>
 
         <div className="field">
           <div className="cards">
@@ -511,7 +541,7 @@ export function SettingsScreen({
                 onClick={() => update('readingMode', mode.id)}
               >
                 <strong>{mode.name}</strong>
-                <span className="muted">{mode.blurb}</span>
+                {mode.blurb && <span className="muted">{mode.blurb}</span>}
               </button>
             ))}
           </div>
@@ -526,72 +556,6 @@ export function SettingsScreen({
                 keeps time for you.
               </p>
             )}
-        </div>
-      </Panel>
-
-      <Panel id="playback" title="Playback" values={panelValues.playback} open={isOpen('playback')} onToggle={setOpen}>
-
-        <label className="field">
-          <span className="field__label">
-            Tempo <strong>{settings.tempo}</strong> bpm
-          </span>
-          <input
-            type="range"
-            min={TEMPO_RANGE.min}
-            max={TEMPO_RANGE.max}
-            step={1}
-            value={settings.tempo}
-            onChange={(event) => update('tempo', Number(event.target.value))}
-          />
-          {/* Said out loud only where it is not obvious. In 4/4 the beat is
-              the crotchet and nobody needs telling; in 6/8 the number counts
-              dotted crotchets, two to the bar, which is the beat conducted
-              and the one a march is quoted in. */}
-          {metre.isCompound && (
-            <p className="field__note muted">
-              Dotted crotchets — {metre.pulsesPerBar} to the bar, the beat you count.
-            </p>
-          )}
-        </label>
-
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={settings.variableTempo}
-            onChange={(event) => update('variableTempo', event.target.checked)}
-          />
-          <span>Variable tempo</span>
-        </label>
-
-        <label className="field">
-          <span className="field__label">
-            Scroll speed <strong>{settings.scrollSpeed}</strong>
-          </span>
-          <input
-            type="range"
-            min={SCROLL_SPEED_RANGE.min}
-            max={SCROLL_SPEED_RANGE.max}
-            step={10}
-            value={settings.scrollSpeed}
-            onChange={(event) => update('scrollSpeed', Number(event.target.value))}
-          />
-        </label>
-
-        <div className="field">
-          <span className="field__label">Sound</span>
-          <div className="cards">
-            {PLAYBACK_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                className={`card ${settings.playbackMode === mode.id ? 'is-selected' : ''}`}
-                onClick={() => update('playbackMode', mode.id)}
-              >
-                <strong>{mode.name}</strong>
-                <span className="muted">{mode.blurb}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         <label className="field field--inline">
@@ -611,6 +575,77 @@ export function SettingsScreen({
           />
           <span>Conductor</span>
         </label>
+
+        <div className="field">
+          <span className="field__label">Sound</span>
+          <div className="cards">
+            {PLAYBACK_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                className={`card ${settings.playbackMode === mode.id ? 'is-selected' : ''}`}
+                onClick={() => update('playbackMode', mode.id)}
+              >
+                <strong>{mode.name}</strong>
+                {mode.blurb && <span className="muted">{mode.blurb}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="field field--inline">
+          <input
+            type="checkbox"
+            checked={settings.fingeringHints}
+            onChange={(event) => update('fingeringHints', event.target.checked)}
+          />
+          <span>Show fingerings for notes I get wrong</span>
+        </label>
+      </Panel>
+
+      {/*
+        Everything with a sensible answer already in it.
+
+        Not lesser settings — the conductor's liveliness is a difficulty axis
+        and the timing tolerance decides what counts as right. But every one of
+        them is abstract until you have played a few exercises, and a beginner
+        meeting "Scroll speed 110" on the way to their first note has been asked
+        a question they have no way to answer. The defaults are what the app
+        would have used anyway; this is where to go once the number means
+        something to you.
+      */}
+      <Panel id="advanced" title="Advanced" values={panelValues.advanced} open={isOpen('advanced')} onToggle={setOpen}>
+
+        <label className="field field--inline">
+          <input
+            type="checkbox"
+            checked={settings.variableTempo}
+            onChange={(event) => update('variableTempo', event.target.checked)}
+          />
+          <span>Variable tempo</span>
+        </label>
+
+        {/* Only where it does something. Paged reading holds the music still
+            and engraves it; `layout` returns before this is ever read, so in
+            that mode the slider was a control that moved nothing. */}
+        {settings.readingMode === 'scrolling' && (
+          <label className="field">
+            <span className="field__label">
+              Scroll speed <strong>{settings.scrollSpeed}</strong>
+            </span>
+            <input
+              type="range"
+              min={SCROLL_SPEED_RANGE.min}
+              max={SCROLL_SPEED_RANGE.max}
+              step={10}
+              value={settings.scrollSpeed}
+              onChange={(event) => update('scrollSpeed', Number(event.target.value))}
+            />
+            <p className="field__note muted">
+              How fast the music travels, whatever the tempo. Spacing follows it.
+            </p>
+          </label>
+        )}
 
         {/* Only when there is a conductor to have a style. The screen was
             quietened on purpose, and a slider shaping something switched off
@@ -633,25 +668,6 @@ export function SettingsScreen({
             </p>
           </label>
         )}
-
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={shown.weakNoteDrilling}
-            disabled={!entitlements.weakNoteDrilling}
-            onChange={(event) => update('weakNoteDrilling', event.target.checked)}
-          />
-          <span>Favour notes I get wrong</span>
-        </label>
-
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={settings.fingeringHints}
-            onChange={(event) => update('fingeringHints', event.target.checked)}
-          />
-          <span>Show fingerings for notes I get wrong</span>
-        </label>
 
         <label className="field">
           <span className="field__label">
@@ -683,6 +699,16 @@ export function SettingsScreen({
             <option value={2}>2 bars</option>
           </select>
         </label>
+
+        <label className="field field--inline">
+          <input
+            type="checkbox"
+            checked={shown.weakNoteDrilling}
+            disabled={!entitlements.weakNoteDrilling}
+            onChange={(event) => update('weakNoteDrilling', event.target.checked)}
+          />
+          <span>Favour notes I get wrong</span>
+        </label>
       </Panel>
 
       {/* CC-BY requires the attribution to travel with the app itself, not only
@@ -700,7 +726,39 @@ export function SettingsScreen({
         v{__APP_VERSION__} · build {__BUILD_TIME__}
       </p>
 
+      {/*
+        Tempo sits with Start rather than inside a panel.
+
+        It is the one setting a player reaches for every single time — the same
+        exercise slower is most of what practice *is* — and it was two taps down
+        inside a collapsed section, beneath things that get chosen once and left
+        alone. Nothing else on this screen has that pattern of use, so nothing
+        else joins it here.
+      */}
       <div className="actions actions--sticky">
+        <label className="field tempo">
+          <span className="field__label">
+            Tempo <strong>{settings.tempo}</strong> bpm
+          </span>
+          <input
+            type="range"
+            min={TEMPO_RANGE.min}
+            max={TEMPO_RANGE.max}
+            step={1}
+            value={settings.tempo}
+            onChange={(event) => update('tempo', Number(event.target.value))}
+          />
+          {/* Said out loud only where it is not obvious. In 4/4 the beat is
+              the crotchet and nobody needs telling; in 6/8 the number counts
+              dotted crotchets, two to the bar, which is the beat conducted
+              and the one a march is quoted in. */}
+          {metre.isCompound && (
+            <p className="field__note muted">
+              Dotted crotchets — {metre.pulsesPerBar} to the bar, the beat you count.
+            </p>
+          )}
+        </label>
+
         <button type="button" className="button button--primary button--large" onClick={onStart}>
           Start
         </button>

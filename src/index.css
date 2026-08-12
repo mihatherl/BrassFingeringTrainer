@@ -696,6 +696,51 @@ input[type='checkbox'] {
   color: var(--accent-text);
 }
 
+/* A key chip: the name, with its accidental count under it. */
+.key {
+  display: grid;
+  gap: 0.0625rem;
+  justify-items: center;
+  min-width: 3.25rem;
+  flex: 0 1 auto;
+  position: relative;
+}
+
+.key__accidentals {
+  font-size: 0.75rem;
+  /* Reserves the line whether or not the key has any, so a row of chips sits on
+     one baseline instead of C standing a few pixels taller than the rest. */
+  min-height: 1em;
+}
+
+/* The chip's own text goes to the accent colour when selected, and the muted
+   accidentals would otherwise stay grey against it. */
+.key.is-selected .key__accidentals {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/*
+ * Where the exercise opens.
+ *
+ * A dot rather than a word: it marks one chip out of up to four, in a row where
+ * every other chip is already carrying two lines of text. Backed by the note
+ * under the grid, which names the starting key in full whenever more than one
+ * key is in play — the dot is a reminder of something already said, not the
+ * only place it is said.
+ */
+.key.is-start::after {
+  content: '';
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+
 .cards {
   display: grid;
   gap: 0.5rem;
@@ -775,6 +820,48 @@ input[type='checkbox'] {
   bottom: 0;
   padding: 0.75rem 0 1rem;
   background: linear-gradient(to top, var(--bg) 65%, transparent);
+}
+
+/*
+ * The tempo, riding with the Start button.
+ *
+ * The gradient behind the sticky strip fades to transparent at the top, which
+ * is fine behind a button and not behind a slider and its label — the music
+ * scrolling under a half-legible number is exactly the sort of thing this
+ * screen has been quietened to avoid. So the strip goes solid from here down.
+ */
+.actions--sticky:has(.tempo) {
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+/*
+ * Label and slider on one row.
+ *
+ * Stacked, as every other field on the screen is, this strip stood twice the
+ * height of the Start button it sits above — and it is fixed to the bottom, so
+ * that height is taken from the music-setting panels on every screen and most
+ * of them on a phone held sideways, where the whole viewport is 27rem. Sideways
+ * showed My Music and one panel before the strip began.
+ *
+ * The note beneath — the dotted-crotchet reminder in compound time — spans both
+ * columns, so it appears under the pair rather than squeezing the slider.
+ */
+.tempo {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.tempo .field__label {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.tempo .field__note {
+  grid-column: 1 / -1;
 }
 
 /* --- Results ------------------------------------------------------------ */

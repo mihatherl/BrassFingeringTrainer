@@ -101,10 +101,37 @@ describe('the app', () => {
         .find((panel) => panel.querySelector('.panel__title')?.textContent === title)
         ?.querySelector('.panel__values')?.textContent;
 
-    // The defaults: Eb bass in treble, Eb major, random notes, Easy, 80bpm.
+    // The defaults: Eb bass in treble, Eb major, random notes, Easy.
     expect(valuesOf('Instrument')).toBe('Eb Bass (Tuba) · Treble');
     expect(valuesOf('Exercise')).toBe('Eb major · Random notes · Easy');
-    expect(valuesOf('Playback')).toBe('80 bpm · Play the notes');
+    expect(valuesOf('Playing')).toBe('Scrolling line · Play the notes · metronome');
+    // Advanced says nothing until something in it has been moved off its
+    // default, rather than reciting the settings the app came with.
+    expect(valuesOf('Advanced')).toBe('');
+  });
+
+  it('keeps the tempo out of the panels, where it can be reached in one tap', () => {
+    /*
+     * The one setting a player changes every single time — the same exercise
+     * slower is most of what practice is — and it used to be two taps down
+     * inside a collapsed section, beneath things chosen once and left alone.
+     */
+    render(<App />);
+    const tempo = screen.getByLabelText(/^Tempo/);
+    expect(tempo.closest('details.panel')).toBeNull();
+    expect(tempo.closest('.actions--sticky')).not.toBeNull();
+  });
+
+  it('hides the scroll speed in the mode where it does nothing', () => {
+    // Paged reading engraves the music standing still; `layout` returns before
+    // the speed is read. A slider that moves nothing is worse than no slider.
+    render(<App />);
+    fireEvent.click(screen.getByText('Advanced'));
+    expect(screen.getByLabelText(/^Scroll speed/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Playing'));
+    fireEvent.click(screen.getByRole('button', { name: /Read the page/ }));
+    expect(screen.queryByLabelText(/^Scroll speed/)).toBeNull();
   });
 
   it('keeps the summary in step with what is chosen', () => {
@@ -131,6 +158,70 @@ describe('the app', () => {
     render(<App />);
     expect(screen.getByLabelText('Instrument')).toBeTruthy();
     expect(screen.getByText(/Timing tolerance/)).toBeTruthy();
+  });
+
+  describe('choosing keys', () => {
+    /*
+     * One control, not two. There used to be a dropdown naming the starting key
+     * beside a grid naming the keys in play, which said the same thing twice —
+     * `keySet[0]` is the starting key and always was.
+     */
+    const key = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} major`) });
+    const exerciseValues = () =>
+      [...document.querySelectorAll<HTMLDetailsElement>('details.panel')]
+        .find((panel) => panel.querySelector('.panel__title')?.textContent === 'Exercise')
+        ?.querySelector('.panel__values')?.textContent;
+
+    it('starts in the first key chosen, and says the whole route', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      // Eb is the default and the only one selected, so it is the start.
+      expect(exerciseValues()).toContain('Eb major');
+
+      fireEvent.click(key('Bb'));
+      fireEvent.click(key('F'));
+      // Ordered for playing by closeness from the opening key, not by the order
+      // they were tapped — but Eb still leads, because it was chosen first.
+      expect(exerciseValues()).toContain('Eb → Bb → F');
+    });
+
+    it('will not let the last key be turned off', () => {
+      // An exercise has to be in some key. With one chosen there is nothing to
+      // deselect, which is the whole of the rule — no separate starting key to
+      // protect, as there was when two controls had to be kept agreeing.
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+      expect(key('Eb')).toHaveProperty('disabled', true);
+
+      fireEvent.click(key('Bb'));
+      expect(key('Eb')).toHaveProperty('disabled', false);
+    });
+
+    it('hands the start to the next key when the first is dropped', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      fireEvent.click(key('Bb'));
+      fireEvent.click(key('Eb'));
+      expect(exerciseValues()).toContain('Bb major');
+    });
+
+    it('stops at four keys, and lets them be swapped', () => {
+      // The cap is real: the scrolling header is sized for the widest key in
+      // the set and holds that width for the whole exercise.
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      for (const name of ['Bb', 'F', 'Ab']) fireEvent.click(key(name));
+      expect(key('C')).toHaveProperty('disabled', true);
+      // What is already chosen can still be undone, which is how you change
+      // your mind at the cap rather than being stuck.
+      expect(key('Ab')).toHaveProperty('disabled', false);
+
+      fireEvent.click(key('Ab'));
+      expect(key('C')).toHaveProperty('disabled', false);
+    });
   });
 
   it('lets the player back out of an exercise', () => {
@@ -207,7 +298,10 @@ describe('a copy that withholds things', () => {
     fireEvent.click(screen.getByText('Exercise'));
 
     // A key, a material and a difficulty the free tier does not include.
-    expect(screen.getByRole('button', { name: 'D' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'D major, 2 sharps' })).toHaveProperty(
+      'disabled',
+      true,
+    );
     expect(screen.getByRole('button', { name: /Arpeggios/ })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Expert' })).toHaveProperty('disabled', true);
     // And one of each that it does.
