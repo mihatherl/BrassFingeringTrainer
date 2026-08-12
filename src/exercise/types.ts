@@ -155,6 +155,25 @@ export interface Exercise {
   seed: number;
   /** How the material was generated, for the results screen. */
   kind: ExerciseKind;
+  /**
+   * What each bar is called on the printed part, where there is one.
+   *
+   * Absent for generated material, which has no printed part and is numbered
+   * by counting: bar one, bar two. Present for an imported one, and then it
+   * wins — because the whole worth of a bar number here is that it means the
+   * same thing to the player, the app, and whoever is standing in front of the
+   * band saying "from bar thirty-three".
+   *
+   * They are not the same list. A part opening with a pickup numbers that bar
+   * nothing and calls the next one bar 1, while the app pads the pickup into a
+   * full bar and would count it as the first — so counting puts every number
+   * one ahead of the paper for the whole piece. A scanned part with a bar split
+   * across two measures drifts by another one further on.
+   *
+   * `null` for a bar the app inserted and the page does not have, which is the
+   * rest between two chosen passages.
+   */
+  barNumbers?: Array<string | null>;
 }
 
 /**

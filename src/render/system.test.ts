@@ -6,6 +6,8 @@ import { glyphPath } from './glyphs';
 import { staveMetrics } from './stave';
 import { LIGHT_THEME } from './surface';
 import {
+  barLabel,
+  drawBarNumber,
   drawSignatureChange,
   drawSystem,
   signatureChangeRoom,
@@ -272,5 +274,59 @@ describe('drawSignatureChange', () => {
     const lines = calls.filter((c) => c.method === 'moveTo').length;
     expect(lines).toBeGreaterThanOrEqual(2);
     expect(calls.some((c) => c.method === 'fill' && c.args.length > 0)).toBe(true);
+  });
+});
+
+describe('what a bar is called', () => {
+  /*
+   * Two numbering systems used to run side by side and disagree.
+   *
+   * The stave counted bars — index plus one — while the labels on the picker
+   * and every import warning used the numbers off the page. They agree on a
+   * part numbered from 1, and part company on one that opens with a pickup:
+   * the printed part numbers the pickup nothing and calls the next bar 1,
+   * while the app pads that pickup into a full bar and counts it as the first.
+   *
+   * A player following "from bar thirty-three" against the app was a bar out
+   * for the whole piece, which is the one thing a bar number must never be.
+   */
+  const generated = exerciseOf();
+  /** As a part with a pickup arrives: the pickup numbered 0, then 1, 2, 3. */
+  const imported: Exercise = { ...generated, barNumbers: ['0', '1', '2', '3'] };
+
+  it('counts bars where there is no printed part to read them off', () => {
+    expect(barLabel(generated, 1)).toBe('2');
+    expect(barLabel(generated, 5)).toBe('6');
+  });
+
+  it('takes the page over its own counting, wherever the page has an answer', () => {
+    // The bar the app counts as the second is the one the part calls 1.
+    expect(barLabel(imported, 1)).toBe('1');
+    expect(barLabel(imported, 2)).toBe('2');
+  });
+
+  it('never labels the first bar of anything', () => {
+    // A part does not label its own opening, and "1" over the first bar tells
+    // a reader nothing they did not know. Nor does a pickup want a "0" on it.
+    expect(barLabel(generated, 0)).toBeNull();
+    expect(barLabel(imported, 0)).toBeNull();
+  });
+
+  it('says nothing for a bar the app inserted', () => {
+    // The rest between two chosen passages is not on anybody's page, so it has
+    // no number to print.
+    const withGap: Exercise = { ...generated, barNumbers: ['2', '3', null, '9'] };
+    expect(barLabel(withGap, 2)).toBeNull();
+    expect(barLabel(withGap, 3)).toBe('9');
+  });
+
+  it('draws nothing at all when there is nothing to call it', () => {
+    const calls: RecordedCall[] = [];
+    const metrics = staveMetrics('treble', 0, 10);
+    drawBarNumber(mockContext(calls), metrics, 40, null, '#000');
+    expect(calls.filter((c) => c.method === 'fillText')).toHaveLength(0);
+
+    drawBarNumber(mockContext(calls), metrics, 40, '17', '#000');
+    expect(calls.filter((c) => c.method === 'fillText')[0].args[0]).toBe('17');
   });
 });

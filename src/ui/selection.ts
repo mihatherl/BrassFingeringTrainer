@@ -48,7 +48,36 @@ export function tapBar(selection: Selection, bar: number): Selection {
     };
   }
 
-  if (selection.anchor === null) return { spans: selection.spans, anchor: bar };
+  if (selection.anchor === null) {
+    /*
+     * A tap on the bar just outside a run grows it, rather than starting a
+     * fresh one.
+     *
+     * Two taps to a run means tapping along a phrase — 2, 3, 4, 5 — makes two
+     * runs with a bar of rests wedged between them, which is not what anyone
+     * tapping along a phrase means. The player hit exactly that.
+     *
+     * The run to the *left* wins where a tap sits between two, because that is
+     * the one being extended forwards as you read. It leaves the two abutting
+     * rather than joining them: bars deliberately chosen as two passages stay
+     * two passages, and tapping the new bar again undoes it.
+     */
+    const touching = selection.spans.findIndex(
+      (span) => bar === span.from - 1 || bar === span.to + 1,
+    );
+    if (touching !== -1) {
+      const span = selection.spans[touching];
+      return {
+        spans: selection.spans.map((existing, index) =>
+          index === touching
+            ? { from: Math.min(span.from, bar), to: Math.max(span.to, bar) }
+            : existing,
+        ),
+        anchor: null,
+      };
+    }
+    return { spans: selection.spans, anchor: bar };
+  }
 
   const from = Math.min(selection.anchor, bar);
   const to = Math.max(selection.anchor, bar);

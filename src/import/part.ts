@@ -1070,6 +1070,8 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const chosenBeats =
     passLength === null ? beat : (bars[passLength]?.startBeat ?? beat);
 
+  const located = barsByIndex(bars, settledMetres, barCount(settledMetres, beat));
+
   const exercise = assembleExercise(slots, pitches, {
     instrument: options.instrument,
     clef: clef ?? options.clef ?? 'treble',
@@ -1088,8 +1090,18 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     exercise: {
       ...exercise,
       rests: [...exercise.rests, ...multiRests].sort((a, b) => a.startBeat - b.startBeat),
+      /*
+       * The page's own numbers travel with the music.
+       *
+       * Without them the stave counts bars instead, and a part opening with a
+       * pickup is numbered one ahead of the paper for its whole length — the
+       * app padding that pickup into a full bar is exactly what makes it
+       * count as the first. A player following "from bar thirty-three" would
+       * be a bar out, which is the one thing a bar number must never be.
+       */
+      barNumbers: located.map((bar) => bar.number),
     },
-    bars: barsByIndex(bars, settledMetres, barCount(settledMetres, beat)),
+    bars: located,
     problems,
   };
 }

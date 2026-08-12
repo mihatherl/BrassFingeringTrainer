@@ -45,6 +45,39 @@ describe('choosing bars to practise', () => {
     ]);
   });
 
+  it('grows a run when the bar beside it is tapped', () => {
+    /*
+     * Tapping along a phrase — 2, 3, 4, 5 — is one run of four, not two runs
+     * with a bar of rests wedged between them. Two taps to a run gave exactly
+     * that, and the player hit it on the first real part they tried.
+     */
+    expect(taps(2, 3, 4, 5).spans).toEqual([{ from: 2, to: 5 }]);
+  });
+
+  it('grows a run backwards too', () => {
+    expect(taps(5, 7, 4).spans).toEqual([{ from: 4, to: 7 }]);
+    expect(taps(5, 7, 4, 3).spans).toEqual([{ from: 3, to: 7 }]);
+  });
+
+  it('starts a new run when the tap is not next to one', () => {
+    // A gap of one bar is still a gap: the run stops where the player stopped.
+    const selection = taps(2, 3, 5);
+    expect(selection.spans).toEqual([{ from: 2, to: 3 }]);
+    expect(selection.anchor).toBe(5);
+  });
+
+  it('grows the run on the left where a tap sits between two', () => {
+    // The one being extended forwards as you read. They end up abutting rather
+    // than joined: two passages deliberately chosen stay two passages, and
+    // tapping the new bar again undoes it.
+    const selection = tapBar(taps(2, 4, 7, 9), 5);
+    expect(selection.spans).toEqual([
+      { from: 2, to: 5 },
+      { from: 7, to: 9 },
+    ]);
+    expect(tapBar(selection, 5).spans).toEqual([{ from: 7, to: 9 }]);
+  });
+
   it('drops a run when a bar inside it is tapped', () => {
     // The only way to undo one. A remove control beside every bar is more
     // furniture than a phone has room for.

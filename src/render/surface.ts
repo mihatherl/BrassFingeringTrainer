@@ -50,6 +50,7 @@ import {
 import { engraveSpacing, NOTE_CLEARANCE, type Spacing } from './spacing';
 import {
   BAR_LINE_SETBACK,
+  barLabel,
   drawBarNumber,
   drawSignatureChange,
   drawSystem,
@@ -892,7 +893,7 @@ export class StaveRenderer {
        * number goes to the right of its bar line, inside the bar it labels.
        */
       if (onScreen && bar % SCROLLING_BAR_NUMBER_EVERY === 0) {
-        drawBarNumber(ctx, this.metrics, x, bar, theme.stave);
+        drawBarNumber(ctx, this.metrics, x, barLabel(exercise, bar), theme.stave);
       }
       if (changes.has(beat) || insideMultiRest(spans, beat)) continue;
       if (!onScreen) continue;

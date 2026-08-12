@@ -213,14 +213,31 @@ export const SCROLLING_BAR_NUMBER_EVERY = 5;
  * furniture: it belongs to the page, not to the music, and a player glancing
  * for the next note should not have it answered by a number.
  */
+/**
+ * What a bar is called, which is not always what it is counted as.
+ *
+ * Imported music carries the numbers from its own page and they win; see
+ * `Exercise.barNumbers`. Everything else is numbered by counting, which is all
+ * a generated exercise can be numbered by.
+ *
+ * Null where nothing should be drawn: the first bar of any piece — a part does
+ * not label its own opening — and a bar the app inserted, which the page has no
+ * name for.
+ */
+export function barLabel(exercise: Exercise, bar: number): string | null {
+  if (bar <= 0) return null;
+  const printed = exercise.barNumbers?.[bar];
+  return printed === undefined ? String(bar + 1) : printed;
+}
+
 export function drawBarNumber(
   ctx: CanvasRenderingContext2D,
   metrics: StaveMetrics,
   x: number,
-  bar: number,
+  label: string | null,
   colour: string,
 ): void {
-  if (bar <= 0) return;
+  if (label === null) return;
   const { staveSpace } = metrics;
 
   ctx.save();
@@ -228,7 +245,7 @@ export function drawBarNumber(
   ctx.font = `500 ${Math.round(staveSpace * 1.1)}px system-ui, sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(String(bar + 1), x, metrics.topLineY - staveSpace * BAR_NUMBER_RISE);
+  ctx.fillText(label, x, metrics.topLineY - staveSpace * BAR_NUMBER_RISE);
   ctx.restore();
 }
 
@@ -481,7 +498,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
    * in its place, and a number floating left of them would sit outside the
    * line entirely.
    */
-  drawBarNumber(ctx, metrics, musicLeft, firstBar, theme.stave);
+  drawBarNumber(ctx, metrics, musicLeft, barLabel(exercise, firstBar), theme.stave);
 
   for (const rest of exercise.rests) {
     if (rest.startBeat < firstBeat || rest.startBeat >= lastBeat) continue;
