@@ -215,6 +215,40 @@ describe('a real MuseScore export, end to end', () => {
     expect(lower.problems).toEqual(['9 divided notes read on the lower line']);
   });
 
+  it('practises a passage out of the middle, in the key and metre it sits in', async () => {
+    /*
+     * The case a hand-written document cannot really pose, because a hand-
+     * written one states its attributes where the test needs them. A real part
+     * declares `<divisions>` once at the top and never again, and changes key
+     * and metre where the music does — so a selection starting at bar 6
+     * inherits all three from measures it never reads.
+     *
+     * The failure this guards is not subtle. Read with divisions defaulting to
+     * 1 against a file declaring 8, every duration comes out eight times too
+     * long; the first version of this did exactly that.
+     */
+    const bytes = readFileSync(FIXTURE);
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    const opened = await readScoreFile(buffer as ArrayBuffer);
+    if ('problem' in opened) throw new Error(opened.problem);
+    const parsed = parseMusicXml(opened.xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+
+    // Printed bars 6 to 9, which sit after the change into 3/4 at bar 5.
+    const { exercise, bars } = importPart(parsed.doc, {
+      instrument: instrumentById('eb-bass'),
+      reading: { kind: 'passage', spans: [{ from: 5, to: 8 }], times: 1 },
+    });
+
+    expect(bars.map((bar) => bar.number)).toEqual(['6', '7', '8', '9']);
+    expect(metreAt(exercise!.metres, 0).beatsPerBar).toBe(3);
+    // Four bars of three, and not a beat more.
+    expect(exercise!.totalBeats).toBe(12);
+    expect(barCount(exercise!.metres, exercise!.totalBeats)).toBe(4);
+    // The key in force there, inherited from the change at bar 4.
+    expect(exercise!.keys[0].fifths).toBe(2);
+  });
+
   it('resolves every duration onto the tick grid the file declares', () => {
     /*
      * Nothing may land between two ticks. A rounding fault in the divisions

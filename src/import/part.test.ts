@@ -6,7 +6,7 @@ import { barAt, barCount, beatOfBar, changesMetre } from '../domain/metre';
 import { changesKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { parseMusicXml } from './musicxml';
-import { importPart } from './part';
+import { importPart, type Reading } from './part';
 
 /**
  * Reading a part into an exercise.
@@ -723,6 +723,180 @@ describe('a bar longer than its time signature', () => {
       [0, '4/4'],
       [4, '5/4'],
       [9, '3/4'],
+    ]);
+  });
+});
+
+describe('reading part of a piece', () => {
+  /*
+   * Practising a passage rather than playing the whole part.
+   *
+   * The importer reads a *walk* — a list of measure indices — and always did.
+   * The piece as performed is one walk, the page as printed is another, and a
+   * selection is a third, so choosing eight bars costs no new machinery: the
+   * music comes out beamed, bracketed and spelled by the same `assembleExercise`
+   * that does the whole part.
+   */
+  const read = (xml: string, reading: Reading) => {
+    const parsed = parseMusicXml(xml);
+    if ('problem' in parsed) throw new Error(parsed.problem);
+    return importPart(parsed.doc, { instrument: EB_BASS, reading });
+  };
+
+  /** Printed bar numbers of what came out; `–` for a bar the app inserted. */
+  const barNumbers = (imported: ReturnType<typeof read>) =>
+    imported.bars.map((bar) => bar.number ?? '–').join(' ');
+
+  const repeated = () =>
+    score(
+      note('C4', 4),
+      '<barline location="left"><repeat direction="forward"/></barline>' +
+        note('D4', 4) +
+        '<barline location="right"><repeat direction="backward"/></barline>',
+      note('E4', 4),
+    );
+
+  it('reads the page as printed, with the repeat shown once', () => {
+    // Not the performance: this is what a score view draws, and bars are chosen
+    // off the page rather than off the playing.
+    expect(barNumbers(read(repeated(), { kind: 'printed' }))).toBe('1 2 3');
+    // Where the same file played through takes the repeat.
+    expect(barNumbers(read(repeated(), { kind: 'played' }))).toBe('1 2 2 3');
+  });
+
+  it('takes a selected passage once, whatever signs are inside it', () => {
+    /*
+     * The player's ruling on 2026-08-13. You pointed at bars on the page and
+     * you get those bars — eight selected is eight played — so a repeat inside
+     * the selection is not taken. Selecting the same run twice is how to ask
+     * for it twice.
+     */
+    const passage = read(repeated(), {
+      kind: 'passage',
+      spans: [{ from: 0, to: 2 }],
+      times: 1,
+    });
+    expect(barNumbers(passage)).toBe('1 2 3');
+  });
+
+  it('plays the chosen runs and nothing between them but a bar of rests', () => {
+    const bars = Array.from({ length: 8 }, () => note('C4', 4));
+    const passage = read(score(...bars), {
+      kind: 'passage',
+      spans: [
+        { from: 1, to: 2 },
+        { from: 5, to: 6 },
+      ],
+      times: 1,
+    });
+
+    expect(barNumbers(passage)).toBe('2 3 – 6 7');
+    // The inserted bar is silence and a full bar of it, so the bar lines after
+    // it fall where a player counting through the gap would put them.
+    expect(passage.exercise?.notes).toHaveLength(4);
+    const gap = passage.exercise!.rests.find((rest) => rest.startBeat === 8);
+    expect(gap?.duration).toEqual({ value: 'whole', dotted: false });
+  });
+
+  it('counts the gap in the metre it is landing in, not the one it left', () => {
+    /*
+     * The empty bar is preparation rather than an ending: its job is to be
+     * counted through, and the count that helps is the one about to be needed.
+     * Coming out of four into a passage in three, a gap counted in four would
+     * put the player in a beat late.
+     */
+    const threeFour = '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>';
+    const passage = read(
+      score(note('C4', 4), note('D4', 4), threeFour + note('E4', 3), note('F4', 3)),
+      { kind: 'passage', spans: [{ from: 0, to: 0 }, { from: 3, to: 3 }], times: 1 },
+    );
+
+    // Bar 1 in four, the gap and the landing bar in three: 4 + 3 + 3.
+    expect(passage.exercise?.totalBeats).toBe(10);
+    expect(passage.exercise?.metres.map((m) => [m.fromBeat, m.metre.beatsPerBar])).toEqual([
+      [0, 4],
+      [4, 3],
+    ]);
+  });
+
+  it('lays the selection out again, so there is something to continue into', () => {
+    /*
+     * `chosenBeats` ends the first time through and `totalBeats` runs past it.
+     * That is the same horizon a generated exercise has, doing the same job, so
+     * the offer at the end of a run needed nothing added to it.
+     */
+    const bars = Array.from({ length: 4 }, () => note('C4', 4));
+    const passage = read(score(...bars), {
+      kind: 'passage',
+      spans: [{ from: 0, to: 1 }],
+      times: 3,
+    });
+
+    // Two bars chosen; three passes with a bar's rest joining each.
+    expect(barNumbers(passage)).toBe('1 2 – 1 2 – 1 2');
+    // Eight bars in all: three passes of two, and a bar's rest joining each.
+    expect(passage.exercise?.chosenBeats).toBe(8);
+    expect(passage.exercise?.totalBeats).toBe(32);
+  });
+
+  it('has no horizon when it is asked for one pass', () => {
+    const passage = read(score(note('C4', 4), note('D4', 4)), {
+      kind: 'passage',
+      spans: [{ from: 0, to: 1 }],
+      times: 1,
+    });
+    expect(passage.exercise?.chosenBeats).toBe(passage.exercise?.totalBeats);
+  });
+
+  it('puts the spans in order and inside the part, whatever it is handed', () => {
+    // The spans come from a screen, and a screen can hand over anything.
+    const bars = Array.from({ length: 4 }, () => note('C4', 4));
+    const passage = read(score(...bars), {
+      kind: 'passage',
+      // Backwards, out of order, and off the end.
+      spans: [{ from: 3, to: 99 }, { from: 1, to: 0 }],
+      times: 1,
+    });
+    expect(barNumbers(passage)).toBe('1 2 – 4');
+  });
+
+  it('says so when nothing was chosen', () => {
+    const { exercise, problems } = read(score(note('C4', 4)), {
+      kind: 'passage',
+      spans: [],
+      times: 1,
+    });
+    expect(exercise).toBeNull();
+    expect(problems).toContain('no bars were chosen');
+  });
+
+  it('does not report the navigation to someone practising eight bars', () => {
+    /*
+     * The unreached-bars warning is about the whole piece: it says a jump is
+     * probably in the wrong place. Someone who chose two bars has not asked
+     * about the navigation, and telling them the other six are never reached
+     * is noise about a question they did not put.
+     */
+    const bars = Array.from({ length: 8 }, () => note('C4', 4));
+    const withJump = score(
+      ...bars.map((bar, index) =>
+        index === 0 ? bar + '<direction><sound dalsegno="segno"/></direction>' : bar,
+      ),
+    );
+    expect(read(withJump, { kind: 'passage', spans: [{ from: 2, to: 3 }], times: 1 }).problems)
+      .not.toContain(expect.stringContaining('never reached'));
+    expect(read(withJump, { kind: 'printed' }).problems).toEqual([]);
+  });
+
+  it('locates every bar, so a selection can be made in printed numbers', () => {
+    // The importer knew each bar's printed number and threw it away. "From 17
+    // to 24" has to mean the bars printed 17 and 24, not the seventeenth and
+    // twenty-fourth things that happen to be played.
+    const printed = read(repeated(), { kind: 'printed' });
+    expect(printed.bars).toEqual([
+      { number: '1', source: 0, startBeat: 0 },
+      { number: '2', source: 1, startBeat: 4 },
+      { number: '3', source: 2, startBeat: 8 },
     ]);
   });
 });

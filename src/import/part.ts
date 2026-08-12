@@ -71,6 +71,77 @@ import { unfold } from './unfold';
  */
 export type Divisi = 'upper' | 'lower';
 
+/** A run of consecutive bars of the printed part, by measure index, inclusive. */
+export interface BarSpan {
+  from: number;
+  to: number;
+}
+
+/**
+ * Which measures are read, and in what order.
+ *
+ * Everything the importer can be asked for is a *walk* — a list of measure
+ * indices — and these are the three walks worth naming. The whole apparatus
+ * below reads whichever list it is given, so practising eight bars costs the
+ * same machinery as playing the piece, and the music comes out beamed,
+ * bracketed and spelled by exactly the code that does it for the whole part.
+ *
+ * - **played**: the piece as performed, repeats and jumps unfolded.
+ * - **printed**: each measure once, in the order it sits on the page. What the
+ *   score view draws, because bars are chosen off the page rather than off the
+ *   performance.
+ * - **passage**: the chosen runs of bars, one after another, a bar of rests
+ *   between them, the lot repeated so there is more to play on Continue.
+ *
+ * **A passage takes each span once, whatever signs are inside it.** A repeat
+ * within a selected run is not taken: the player pointed at bars on the page
+ * and gets those bars, so eight selected is eight played. Ruled by the player
+ * on 2026-08-13; selecting the same run twice is how to ask for it twice.
+ */
+export type Reading =
+  | { kind: 'played' }
+  | { kind: 'printed' }
+  | {
+      kind: 'passage';
+      spans: readonly BarSpan[];
+      /** Times round the whole selection. Absent lets `passesFor` decide. */
+      times?: number;
+    };
+
+/**
+ * In a walk, a bar of silence rather than a measure of the file.
+ *
+ * How the join between two selections is written. It is not a measure of the
+ * part — nothing in the file corresponds to it — so it cannot be an index, and
+ * a sentinel keeps the walk one list rather than a list with a parallel one
+ * beside it saying where the gaps go.
+ */
+const REST_BAR = -1;
+
+/**
+ * Bars of practice worth having ready behind the chosen length.
+ *
+ * Its own figure rather than the generator's `HORIZON_BARS`, which is 200 and
+ * sized for material that is being invented as it goes. A selection is music
+ * the player already has, laid out again, so every bar past the first pass
+ * costs note events for something they may never reach.
+ */
+const PRACTICE_HORIZON_BARS = 96;
+
+/**
+ * How many times round a selection, when the caller does not say.
+ *
+ * Enough music that Continue has somewhere to go, which is the whole reason to
+ * repeat at all: the offer at the end of a run reads `totalBeats` past
+ * `chosenBeats`, so a selection built once through would end with nothing to
+ * offer. Bounded both ways — a two-bar selection does not want two hundred
+ * passes, and a hundred-bar one does not want its notes multiplied by twelve.
+ */
+export function passesFor(bars: number): number {
+  if (bars <= 0) return 1;
+  return Math.max(2, Math.min(12, Math.ceil(PRACTICE_HORIZON_BARS / bars)));
+}
+
 export interface ImportOptions {
   /** The instrument the player is reading on, which decides the fingerings. */
   instrument: Instrument;
@@ -83,11 +154,38 @@ export interface ImportOptions {
    * has no stave for. The part's own clef wins when it is one of the two.
    */
   clef?: Clef;
+  /** Which measures to read. The whole piece as performed, if not said. */
+  reading?: Reading;
+}
+
+/**
+ * One bar of what came out, against the page it came from.
+ *
+ * The importer knows every bar's printed number and then threw it away, which
+ * was fine while the only thing to do with a part was play it from the top.
+ * Choosing bars needs the numbers on the player's own page — "from 17 to 24"
+ * has to mean the bars printed 17 and 24, not the seventeenth and
+ * twenty-fourth things that happen to be played.
+ */
+export interface ImportedBar {
+  /** As printed. Null for a bar the app inserted, which the page does not have. */
+  number: string | null;
+  /** Index into the part's measures, or -1 for an inserted bar of rests. */
+  source: number;
+  /** Where it begins, in crotchets from the start of the exercise. */
+  startBeat: number;
 }
 
 export interface Imported {
   /** Null only when there was nothing playable to build from. */
   exercise: Exercise | null;
+  /**
+   * Every bar of the exercise, in order, against the page it came from.
+   *
+   * What a score view labels its bars with and what a selection is expressed
+   * in. Empty when there is no exercise.
+   */
+  bars: ImportedBar[];
   /**
    * What could not be imported, counted and located.
    *
@@ -173,6 +271,45 @@ function readMetre(measure: Element): Metre | null {
   const unit = number(measure, 'attributes > time > beat-type');
   if (beats === null || unit === null || beats < 1 || unit < 1) return null;
   return metreFor(beats, unit);
+}
+
+/** What is in force at a measure, having read down the page as far as it. */
+interface Prevailing {
+  divisions: number;
+  fifths: number;
+  metre: Metre;
+  clef: Clef | null;
+}
+
+/**
+ * The state each measure inherits, read straight down the printed part.
+ *
+ * MusicXML attributes are sticky and most of them are stated **once**, at the
+ * top: `<divisions>` almost always, the key and the metre until they change. A
+ * walk that starts at bar 40 therefore inherits nothing, and the failure is not
+ * subtle — with divisions defaulting to 1 against a file that declares 24,
+ * every duration comes out twenty-four times too long, so four bars of
+ * crotchets arrived as ninety-six semibreves.
+ *
+ * Read once down the page rather than from the walk, because that is what
+ * "in force here" means for the page: the walk may start anywhere, but the
+ * engraver wrote the part to be read from the top.
+ */
+function prevailingAt(bodies: readonly MeasureBody[]): Prevailing[] {
+  const state: Prevailing[] = [];
+  let divisions = 1;
+  let fifths = 0;
+  let metre = metreFor(4, 4);
+  let clef: Clef | null = null;
+
+  for (const body of bodies) {
+    if (body.divisions !== null && body.divisions > 0) divisions = body.divisions;
+    if (body.fifths !== null) fifths = body.fifths;
+    if (body.metre !== null) metre = body.metre;
+    if (body.clef !== null && clef === null) clef = body.clef;
+    state.push({ divisions, fifths, metre, clef });
+  }
+  return state;
 }
 
 function readBody(measure: Element): MeasureBody {
@@ -498,30 +635,83 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const partIndex = options.partIndex ?? 0;
   const divisi = options.divisi ?? 'upper';
   const source = parts(doc)[partIndex];
-  if (!source) return { exercise: null, problems: ['that part is not in this file'] };
-
-  const nav = readNavigation(doc, partIndex);
-  const { order, problems: navProblems, unreached } = unfold(nav);
-  problems.push(...navProblems);
-  if (navProblems.length > 0) {
-    problems.push('the repeats were not followed, so this is the part as printed');
-  }
-  /*
-   * A stretch of bars the navigation never arrives at. Almost always a jump in
-   * the wrong place — and invisible from the page, since nothing about a D.S.
-   * sitting a page too early looks wrong until you count what it skipped.
-   */
-  if (unreached.length > 0) {
-    const named = unreached.map((i) => nav[i].number ?? String(i + 1));
-    const span =
-      named.length > 3 ? `bars ${named[0]}–${named[named.length - 1]}` : `bar${named.length > 1 ? 's' : ''} ${named.join(', ')}`;
-    problems.push(
-      `${named.length} of ${nav.length} bars are never reached — ${span}. Check where the jumps sit.`,
-    );
-  }
+  if (!source) return { exercise: null, bars: [], problems: ['that part is not in this file'] };
 
   const bodies = fillBarRepeats([...source.querySelectorAll(':scope > measure')].map(readBody));
-  if (bodies.length === 0) return { exercise: null, problems: [...problems, 'this part has no bars'] };
+  if (bodies.length === 0) {
+    return { exercise: null, bars: [], problems: [...problems, 'this part has no bars'] };
+  }
+
+  const reading = options.reading ?? { kind: 'played' };
+  /**
+   * How many times the chosen selection is laid out, and how long one pass is.
+   *
+   * Only a passage has these. `chosenBeats` ends the first pass, so the offer
+   * to carry on at the end of a run has somewhere to go — the same mechanism
+   * generated material uses for its horizon, doing the same job.
+   */
+  let passLength: number | null = null;
+
+  let order: number[];
+  if (reading.kind === 'printed') {
+    // Each measure once, in the order it sits on the page. The navigation is
+    // deliberately not consulted: this is the page, not the performance.
+    order = bodies.map((_, index) => index);
+  } else if (reading.kind === 'passage') {
+    const spans = reading.spans
+      .map((span) => ({
+        from: Math.max(0, Math.min(bodies.length - 1, Math.min(span.from, span.to))),
+        to: Math.max(0, Math.min(bodies.length - 1, Math.max(span.from, span.to))),
+      }))
+      .sort((a, b) => a.from - b.from);
+
+    const once: number[] = [];
+    for (const span of spans) {
+      // A bar of rests between one selection and the next, and none before the
+      // first: the count-in already covers coming in at the top.
+      if (once.length > 0) once.push(REST_BAR);
+      for (let index = span.from; index <= span.to; index++) once.push(index);
+    }
+    if (once.length === 0) {
+      return { exercise: null, bars: [], problems: [...problems, 'no bars were chosen'] };
+    }
+
+    const times = Math.max(1, reading.times ?? passesFor(once.length));
+    order = [];
+    for (let pass = 0; pass < times; pass++) {
+      // The join between passes is the same join as between selections, so
+      // going round again reads like the next selection rather than a restart.
+      if (pass > 0) order.push(REST_BAR);
+      order.push(...once);
+    }
+    passLength = once.length;
+  } else {
+    const nav = readNavigation(doc, partIndex);
+    const unfolded = unfold(nav);
+    order = unfolded.order;
+    problems.push(...unfolded.problems);
+    if (unfolded.problems.length > 0) {
+      problems.push('the repeats were not followed, so this is the part as printed');
+    }
+    /*
+     * A stretch of bars the navigation never arrives at. Almost always a jump
+     * in the wrong place — and invisible from the page, since nothing about a
+     * D.S. sitting a page too early looks wrong until you count what it
+     * skipped.
+     *
+     * Only worth saying about the whole piece. A player who chose eight bars
+     * has not asked about the navigation and is not being told the other
+     * thirty-four are unreached.
+     */
+    if (unfolded.unreached.length > 0) {
+      const named = unfolded.unreached.map((i) => nav[i].number ?? String(i + 1));
+      const span =
+        named.length > 3 ? `bars ${named[0]}–${named[named.length - 1]}` : `bar${named.length > 1 ? 's' : ''} ${named.join(', ')}`;
+      problems.push(
+        `${named.length} of ${nav.length} bars are never reached — ${span}. Check where the jumps sit.`,
+      );
+    }
+  }
 
   const tally: Tally = {
     grace: 0,
@@ -537,13 +727,25 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const multiRests: RestEvent[] = [];
   const keys: KeyChange[] = [];
   const metres: MetreChange[] = [];
+  const bars: ImportedBar[] = [];
 
   // Sticky state, carried along the walk rather than read off the page, since a
   // repeated bar meets it twice at two different beats.
-  let divisions = 1;
-  let metre = metreFor(4, 4);
-  let fifths = 0;
-  let clef: Clef | null = null;
+  /*
+   * Seeded from what the page has in force where the walk starts, rather than
+   * from the defaults.
+   *
+   * The same values for a walk that begins at bar 1, which is every reading of
+   * a whole piece — so this changes nothing there. It is everything for a
+   * passage: a selection starting at bar 40 inherits the divisions, the key and
+   * the metre that were declared at the top and never repeated.
+   */
+  const prevailing = prevailingAt(bodies);
+  const opensAt = order.find((index) => index !== REST_BAR) ?? 0;
+  let divisions = prevailing[opensAt]?.divisions ?? 1;
+  let metre = prevailing[opensAt]?.metre ?? metreFor(4, 4);
+  let fifths = prevailing[opensAt]?.fifths ?? 0;
+  let clef: Clef | null = prevailing[opensAt]?.clef ?? null;
   let beat = 0;
   let previousSounded: SpelledPitch | null = null;
   /**
@@ -567,8 +769,39 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   let restoreMetre: Metre | null = null;
 
   for (let step = 0; step < order.length; step++) {
+    /*
+     * The join between two selections: a bar of rests, counted in the metre of
+     * the passage being landed in rather than the one being left.
+     *
+     * That way round because the empty bar is preparation, not an ending — its
+     * whole job is to be counted through, and the count that helps is the one
+     * the player is about to need. Jumping from a bar of four into a passage in
+     * three, a rest bar counted in four would put them in at the wrong moment,
+     * which is exactly the fault the gap exists to prevent.
+     */
+    if (order[step] === REST_BAR) {
+      // What is in force *at* the landing bar, not what it happens to declare:
+      // a passage landing on bar 40 of a piece that turned into three-four at
+      // bar 5 is in three, and bar 40 says nothing about it.
+      const landing = prevailing[order[step + 1]]?.metre ?? metre;
+      if (!sameMetre(landing, metre)) {
+        metre = landing;
+        metres.push({ fromBeat: beat, metre });
+      }
+      bars.push({ number: null, source: REST_BAR, startBeat: snapBeat(beat) });
+      for (const duration of writeAs(metre.barBeats).pieces) {
+        slots.push({ startBeat: beat, duration, isRest: true, tiedFromPrevious: false });
+        beat += durationBeats(duration);
+      }
+      // Nothing sounds across a gap, so a tie reaching into it is not a tie.
+      previousSounded = null;
+      continue;
+    }
+
     const body = bodies[order[step]];
     if (!body) continue;
+
+    bars.push({ number: body.number, source: order[step], startBeat: snapBeat(beat) });
 
     if (body.divisions !== null && body.divisions > 0) divisions = body.divisions;
     if (body.clef !== null && clef === null) clef = body.clef;
@@ -735,8 +968,8 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
            * player is owed the reason their score covers fewer notes than the
            * page shows. A cornet part read on a tuba is the ordinary way in.
            */
-          const reading = clef ?? options.clef ?? 'treble';
-          const sounds = soundingFromWritten(midiOf(event.pitch), options.instrument, reading);
+          const readIn = clef ?? options.clef ?? 'treble';
+          const sounds = soundingFromWritten(midiOf(event.pitch), options.instrument, readIn);
           if (!isPlayable(sounds, options.instrument)) {
             tally.outOfRange.push(body.number);
           }
@@ -758,15 +991,29 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   problems.push(...describe(tally, divisi, options.instrument.name));
 
   if (slots.length === 0 && multiRests.length === 0) {
-    return { exercise: null, problems: [...problems, 'this part has nothing playable in it'] };
+    return { exercise: null, bars: [], problems: [...problems, 'this part has nothing playable in it'] };
   }
+
+  const settledMetres = settleChanges(metres);
+
+  /*
+   * Where the first time through the selection ends.
+   *
+   * The rest of what was built is the same selection again, and it is behind
+   * the horizon: drawn grey, not scheduled, not judged, and played only if the
+   * offer at the end is taken. Exactly what a generated exercise does past its
+   * chosen length, doing the same job — so Continue needed nothing added to it.
+   */
+  const chosenBeats =
+    passLength === null ? beat : (bars[passLength]?.startBeat ?? beat);
 
   const exercise = assembleExercise(slots, pitches, {
     instrument: options.instrument,
     clef: clef ?? options.clef ?? 'treble',
     keys,
-    metres: settleChanges(metres),
+    metres: settledMetres,
     totalBeats: beat,
+    chosenBeats,
     seed: 0,
     kind: 'imported',
   });
@@ -779,6 +1026,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
       ...exercise,
       rests: [...exercise.rests, ...multiRests].sort((a, b) => a.startBeat - b.startBeat),
     },
+    bars,
     problems,
   };
 }
