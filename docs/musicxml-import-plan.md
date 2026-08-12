@@ -1,8 +1,8 @@
 # My Music — MusicXML import
 
-**Status: built and shipping, v1.46.0.** A part exported from MuseScore can be
-opened, read and played. What remains is the library that keeps it — see *What
-is still to do*.
+**Status: built and shipping, v2.0.0.** A part exported from MuseScore can be
+opened, read, played, and is still there on a cold start. What is left is named
+under *What is still to do* and none of it blocks using the feature.
 
 This page records what was established rather than what was guessed, and every
 claim in it was checked against the schema, the binding or a real file. Where an
@@ -156,10 +156,16 @@ so the choice costs the octave you read and hear rather than the practice.
 
 ## What is still to do
 
-- **Nothing is kept.** The IndexedDB library is unbuilt, so a part must be
-  re-picked every session. This is the last thing between here and **2.0.0**,
-  under the rule proposed on 2026-08-12: *a major version lands when you can
-  open your own part and it is still there tomorrow.*
+- ~~Nothing is kept.~~ **Built in v2.0.0.** The library keeps the *file*, not
+  the exercise, and re-reads it on open — so a piece improves when the importer
+  does, and changing instrument re-fingers the music. Keeping the same part of
+  the same file again replaces it rather than duplicating it, because
+  re-exporting after a correction is the ordinary way to work.
+
+  The store is behind an interface: the test environment has no IndexedDB, and
+  adding a fake one is a dependency this app has managed without. The contract
+  is tested against an in-memory store and the adapter was driven in a real
+  browser across a cold start.
 - **Tempo marks are not read.** `<sound tempo>` is quarter-notes per minute and
   the app's tempo names the *pulse*, so it needs the v1.30.0 conversion. Cheap,
   and deliberately left until the library exists.

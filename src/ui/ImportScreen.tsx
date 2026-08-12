@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { instrumentById } from '../domain/instruments';
 import { barCount } from '../domain/metre';
 import type { Exercise } from '../exercise/types';
@@ -6,6 +6,14 @@ import { readScoreFile } from '../import/container';
 import { parseMusicXml, partNames } from '../import/musicxml';
 import { importPart, type Divisi } from '../import/part';
 import type { Settings } from '../storage/settings';
+import {
+  indexedDbStore,
+  memoryStore,
+  requestPersistence,
+  storageAvailable,
+  type PieceRecord,
+} from '../storage/library';
+import { openPiece, savePiece } from '../storage/pieces';
 
 /**
  * My Music: choosing a file and reading a part out of it.
@@ -32,7 +40,19 @@ interface Loaded {
   doc: Document;
   names: string[];
   fileName: string;
+  /** Kept so the piece can be saved with the bytes it was read from. */
+  source: ArrayBuffer;
 }
+
+/**
+ * Where the library lives.
+ *
+ * Made once rather than per render, and falling back to memory where the
+ * browser has no IndexedDB — a private window, mostly. The screen then works
+ * for this session and says nothing was kept, which beats refusing to open a
+ * file at all.
+ */
+const STORE = storageAvailable() ? indexedDbStore() : memoryStore();
 
 interface Read {
   exercise: Exercise;
@@ -50,6 +70,13 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
   const [busy, setBusy] = useState(false);
   const [divisi, setDivisi] = useState<Divisi>('upper');
   const [partIndex, setPartIndex] = useState(0);
+  const [library, setLibrary] = useState<PieceRecord[]>([]);
+  const [saved, setSaved] = useState(false);
+
+  const refresh = useCallback(() => {
+    void STORE.list().then(setLibrary);
+  }, []);
+  useEffect(refresh, [refresh]);
 
   const readPart = useCallback(
     (source: Loaded, index: number, line: Divisi) => {
@@ -87,7 +114,8 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
 
       // Decided from the bytes rather than the extension: a `.musicxml` that is
       // really a zip and an `.mxl` that is really plain XML both turn up.
-      const opened = await readScoreFile(await file.arrayBuffer());
+      const bytes = await file.arrayBuffer();
+      const opened = await readScoreFile(bytes);
       if ('problem' in opened) {
         setProblem(opened.problem);
         setBusy(false);
@@ -105,19 +133,67 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
         doc: parsed.doc,
         names: partNames(parsed.doc),
         fileName: file.name,
+        source: bytes,
       };
       setLoaded(source);
       setPartIndex(0);
       // Straight to the first part: a single-part file is the common case and
       // should not need a choice made about it.
+      setSaved(false);
       readPart(source, 0, divisi);
       setBusy(false);
     },
     [readPart, divisi],
   );
 
+  const keep = useCallback(async () => {
+    if (!loaded || !read) return;
+    // Asked for on the first save rather than at start-up: a browser is more
+    // likely to grant persistence to an app the player has actually put
+    // something into, and asking before they have is a prompt about nothing.
+    void requestPersistence();
+    await savePiece(STORE, {
+      fileName: loaded.fileName,
+      source: loaded.source,
+      doc: loaded.doc,
+      partIndex,
+      divisi,
+      bars: barCount(read.exercise.metres, read.exercise.totalBeats),
+      notes: read.exercise.notes.length,
+    });
+    setSaved(true);
+    refresh();
+  }, [loaded, read, partIndex, divisi, refresh]);
+
+  const open = useCallback(
+    async (record: PieceRecord) => {
+      setBusy(true);
+      setProblem(null);
+      const result = await openPiece(STORE, record, {
+        instrument: instrumentById(settings.instrumentId),
+        clef: settings.clef,
+      });
+      setBusy(false);
+
+      if ('problem' in result) {
+        setProblem(result.problem);
+        return;
+      }
+      onPlay(result.imported.exercise!);
+    },
+    [settings.instrumentId, settings.clef, onPlay],
+  );
+
+  const forget = useCallback(
+    async (record: PieceRecord) => {
+      await STORE.remove(record.id);
+      refresh();
+    },
+    [refresh],
+  );
+
   return (
-    <div className="screen screen--centred">
+    <div className="screen">
       <header className="masthead">
         <h1>My Music</h1>
         <p>
@@ -126,6 +202,34 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
           played out in full.
         </p>
       </header>
+
+      {library.length > 0 && (
+        <ul className="library">
+          {library.map((piece) => (
+            <li key={piece.id} className="library__item">
+              <button
+                type="button"
+                className="library__open"
+                onClick={() => void open(piece)}
+                disabled={busy}
+              >
+                <span className="library__title">{piece.title}</span>
+                <span className="library__detail">
+                  {piece.partName} · {piece.bars} bars
+                </span>
+              </button>
+              <button
+                type="button"
+                className="button button--quiet library__forget"
+                onClick={() => void forget(piece)}
+                aria-label={`Forget ${piece.title}`}
+              >
+                Forget
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <label className="button button--primary button--large import__choose">
         {busy ? 'Reading…' : 'Choose a file'}
@@ -225,6 +329,17 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
           >
             Play it
           </button>
+        )}
+        {read && (
+          <button type="button" className="button" onClick={() => void keep()} disabled={saved}>
+            {saved ? 'Kept in My Music' : 'Keep it'}
+          </button>
+        )}
+        {read && !storageAvailable() && (
+          <p className="field__note">
+            This browser will not keep anything between sessions — a private window, most likely.
+            The piece will play now and be gone when the tab is.
+          </p>
         )}
         <button type="button" className="button button--quiet" onClick={onBack}>
           Back

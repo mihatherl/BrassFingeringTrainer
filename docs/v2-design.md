@@ -172,6 +172,34 @@ does so, rather than leaving it to be lost silently.
 sharing is the point: a snapshot of a reimplementation would go on passing
 while the tool drew something else.
 
+## When a major version is warranted
+
+Asked on 2026-08-12, and worth writing down because the number is stamped on the
+settings screen and is the only thing that tells a player which app they have.
+
+This project has no API consumers, so semver's breaking-change sense does not
+apply. The question is not "did compatibility break" but **"would a player say
+this is a different app?"** By that test there is one honest line:
+
+> **2.0.0 lands when you can open your own part, and it is still there
+> tomorrow.**
+
+Three reasons for that line rather than "when import is finished":
+
+- **It is the only category change available.** Forty-odd minor versions of
+  "generated exercises, drilled better" is one coherent app. The moment it plays
+  *your* music it stops being that app, and that is what a major number is for.
+- **The player can check it; nobody can fudge it.** "Can I open a part and play
+  it?" is yes or no. "Is the importer complete?" is a judgement that would slide.
+- **It does not hostage the number to a feature list.** Import is never
+  finished. v1.0.0 shipped with plenty unbuilt too.
+
+**Reached in v2.0.0**, 2026-08-12: a MuseScore export opens, reads, plays, and is
+still in My Music on a cold start. Known gaps were named in the release rather
+than held against it — tempo marks unread, `<transpose>` ignored by design and
+untested, the part chooser never tried on a real multi-part score, and no way to
+start from a chosen bar.
+
 ## The direction
 
 In order. Each step is useful on its own, so this need not be delivered as one
