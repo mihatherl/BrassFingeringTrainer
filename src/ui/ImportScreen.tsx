@@ -323,8 +323,15 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
                 * Shown before playing, not after. An import that dropped a
                 * second voice has changed the music, and whether that matters
                 * is the player's judgement to make against the printed part.
+                *
+                * Not "read with changes", which was true while every warning
+                * here reported something the importer had decided to do. The
+                * bar-length check reports a fault in the file that the app has
+                * not touched and cannot fix, and filing that under changes the
+                * app made would be telling the player the wrong thing about
+                * whose problem it is.
                 */}
-              <p className="import__warnings-heading">Read with changes:</p>
+              <p className="import__warnings-heading">Before you play:</p>
               <ul className="import__warnings">
                 {read.problems.map((line) => (
                   <li key={line}>{line}</li>

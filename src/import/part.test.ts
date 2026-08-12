@@ -488,6 +488,130 @@ describe('bar repeats', () => {
   });
 });
 
+describe('a bar that does not hold a full bar of music', () => {
+  /*
+   * The only check here that interrogates the file rather than reading it, and
+   * the one fault that makes an import untrustworthy rather than incomplete:
+   * a short bar is not short in one place, it puts every bar line after it
+   * early by that much, and the bar numbers are what a player navigates by.
+   *
+   * An OMR result of a real part had 27 of 84 bars not holding three beats and
+   * imported without a word before this existed.
+   */
+  const complaint = (xml: string) =>
+    importing(xml).problems.filter((said) => said.includes('full bar of music'));
+
+  it('says nothing when every bar adds up', () => {
+    expect(complaint(score(note('C4', 4), note('D4', 2) + note('E4', 2)))).toEqual([]);
+  });
+
+  it('names a bar that is short, and says what it costs', () => {
+    expect(complaint(score(note('C4', 4), note('D4', 3), note('E4', 4)))).toEqual([
+      '1 bar does not hold a full bar of music (bar 2)' +
+        ' — every bar line after them is adrift, so the numbering will not match the printed part',
+    ]);
+  });
+
+  it('names a bar that holds too much', () => {
+    // Both directions, because the OMR file drifted both ways and missing rests
+    // cannot cause that. A check that only looked for short bars would have
+    // called half of it clean.
+    expect(complaint(score(note('C4', 4), note('D4', 5)))).toHaveLength(1);
+  });
+
+  it('counts against the metre in force, not the one it started in', () => {
+    /*
+     * Three beats is a full bar of 3/4 and a beat short of 4/4. Reading this
+     * against the opening metre would report every bar after a change to a
+     * shorter one — which is to say, it would report the file this app was
+     * built to import.
+     */
+    const changed = '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>';
+    expect(complaint(score(note('C4', 4), changed + note('D4', 3), note('E4', 3)))).toEqual([]);
+    expect(complaint(score(note('C4', 4), changed + note('D4', 4)))).toHaveLength(1);
+  });
+
+  it('does not name the pickup it just padded', () => {
+    const xml = `<score-partwise version="4.0">
+      <part-list><score-part id="P1"/></part-list>
+      <part id="P1">
+        <measure number="0" implicit="yes">${attributes()}${note('G4', 1)}</measure>
+        <measure number="1">${note('C4', 4)}</measure>
+      </part>
+    </score-partwise>`;
+    expect(complaint(xml)).toEqual([]);
+  });
+
+  it('does not name a last bar that completes the pickup', () => {
+    /*
+     * The other half of the convention: a part opening on the fourth beat ends
+     * on a bar of three, and the printed part numbers neither of them, because
+     * between them they are one bar. Nearly every march is engraved this way,
+     * and a warning that fires on correct files is worse than no warning.
+     */
+    const xml = `<score-partwise version="4.0">
+      <part-list><score-part id="P1"/></part-list>
+      <part id="P1">
+        <measure number="0" implicit="yes">${attributes()}${note('G4', 1)}</measure>
+        <measure number="1">${note('C4', 4)}</measure>
+        <measure number="2">${note('D4', 3)}</measure>
+      </part>
+    </score-partwise>`;
+    expect(complaint(xml)).toEqual([]);
+  });
+
+  it('still names a last bar that is short by anything else', () => {
+    // The exemption is arithmetic, not a blanket pass on the final bar: it
+    // forgives exactly what the pickup was padded with and nothing else.
+    const xml = `<score-partwise version="4.0">
+      <part-list><score-part id="P1"/></part-list>
+      <part id="P1">
+        <measure number="0" implicit="yes">${attributes()}${note('G4', 1)}</measure>
+        <measure number="1">${note('C4', 4)}</measure>
+        <measure number="2">${note('D4', 2)}</measure>
+      </part>
+    </score-partwise>`;
+    expect(complaint(xml)).toHaveLength(1);
+  });
+
+  it('names a bar inside a repeat once, not once per pass', () => {
+    // It is one bar on the page and one place for the player to look, however
+    // many times the walk goes through it.
+    const short = '<barline location="left"><repeat direction="forward"/></barline>' +
+      note('C4', 3) +
+      '<barline location="right"><repeat direction="backward"/></barline>';
+    expect(complaint(score(note('C4', 4), short))).toEqual([
+      '1 bar does not hold a full bar of music (bar 2)' +
+        ' — every bar line after them is adrift, so the numbering will not match the printed part',
+    ]);
+  });
+
+  it('does not name the bars a multi-bar rest covers', () => {
+    // They are stepped over rather than read, so they hold nothing at all —
+    // which would otherwise look like the emptiest bars in the file.
+    const covered = Array.from({ length: 3 }, () => note(null, 4));
+    expect(
+      complaint(
+        score(
+          note('C4', 4),
+          '<attributes><measure-style><multiple-rest>4</multiple-rest></measure-style></attributes>' +
+            note(null, 4),
+          ...covered,
+          note('D4', 4),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('lists six bars and counts the rest', () => {
+    const bars = [note('C4', 4), ...Array.from({ length: 8 }, () => note('D4', 3))];
+    expect(complaint(score(...bars))).toEqual([
+      '8 bars do not hold a full bar of music (bars 2, 3, 4, 5, 6, 7 and 2 more)' +
+        ' — every bar line after them is adrift, so the numbering will not match the printed part',
+    ]);
+  });
+});
+
 describe('the shape of a real part that came in', () => {
   /*
    * TestPiece.mscz, brought in by the player on 2026-08-12 and knowingly

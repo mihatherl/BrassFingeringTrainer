@@ -178,12 +178,37 @@ so the choice costs the octave you read and hear rather than the practice.
 - **The long-rest skip is not offered.** The ruling — over ten seconds at the
   designated tempo, ask, and come back in at the bar before — needs a screen to
   ask on.
-- **No check that a bar holds a full bar of music.** The reader accumulates note
-  durations and trusts them, so a file whose bars do not add up imports without
-  a word. An OMR result of a real part had **27 of 84 bars** not containing three
-  beats and the importer said nothing. The check is arithmetic — compare each
-  bar's content against the metre in force — and would catch a whole class of
-  bad file. This is the most valuable unbuilt thing here.
+- ~~No check that a bar holds a full bar of music.~~ **Built in v2.2.0**, and it
+  was the most valuable unbuilt thing here. Each bar's content is totalled
+  against the metre in force, in playing order with the rest of the walk, and
+  the bars that do not add up are named by their printed numbers. Reported
+  first among the warnings and in the plainest words available, because it is
+  the only one that makes an import untrustworthy rather than merely
+  incomplete: a short bar puts every bar line after it early, and the bar
+  numbers are what a player navigates by.
+
+  Three kinds of bar are exempt, all deliberately short. One marked `implicit`,
+  which is the engraver saying "do not count this". The last bar of a part that
+  opened with a pickup, short by exactly the pickup's length, because the two
+  are one bar between them — without this it would fire on nearly every march
+  ever engraved, and a warning that fires on correct files is worse than none.
+  And the bars a multi-bar rest covers, which the walk steps over rather than
+  reads.
+
+  **The figure this was justified with was wrong, and the check is what found
+  that.** The claim carried into the last handover was that the OMR file had
+  *27 of 84 bars* not containing three beats. It has 87 measures, of which
+  **13** do not hold three beats — and two of those are the pickup and the bar
+  completing it, so **11** are faults. Both numbers were arrived at twice over:
+  once by the importer, once by a throwaway script totalling `<duration>`
+  against `<divisions>` independently of it. They agree exactly, including on
+  which bars those are.
+
+  The 27 came from reasoning about a file rather than counting it — the same
+  error this plan already records twice. The lesson is not that the file is
+  better than it looked, since 11 malformed bars still make the part unusable
+  against a band, but that a number nobody has counted is not evidence, even
+  when the conclusion it supports turns out to be right.
 
 **Not every exporter writes the `<sound>` layer.** MuseScore, Sibelius and
 Finale do; it is what it is for. The Audiveris output generated this session

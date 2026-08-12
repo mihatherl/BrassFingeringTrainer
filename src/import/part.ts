@@ -261,7 +261,35 @@ interface Tally {
   unreadable: string[];
   /** Bars holding a note the chosen instrument has no fingering for. */
   outOfRange: string[];
+  /**
+   * Bars whose content does not add up to the metre in force.
+   *
+   * Nothing else here notices this. Every other reading fault is something the
+   * importer had to decide about — a chord, a grace note, a rhythm off the grid
+   * — and a bar that simply does not add up asks nothing and so passed
+   * silently. An OMR result of a real part had 27 of 84 bars not holding three
+   * beats and imported without a word.
+   *
+   * It matters more than it sounds. A bar half a beat short does not stay half
+   * a beat short: every bar line after it lands early by that much, so bar 40
+   * on screen is no longer bar 40 on the page, and the part becomes useless
+   * against the rest of the band — which is the whole point of importing it.
+   */
+  wrongLength: string[];
 }
+
+/**
+ * How far a bar may be off before it is called wrong, in crotchets.
+ *
+ * Not a musical tolerance — a floating-point one. Durations arrive as ticks
+ * over `<divisions>`, and a file dividing the crotchet into thirds gives
+ * lengths with no exact binary form, so twelve of them summed land a few parts
+ * in 10^16 away from the beat they add up to. This sits far above that and far
+ * below anything writable: the shortest note the reader knows is a
+ * demisemiquaver, an eighth of a beat, so a real fault misses by 125,000 times
+ * this.
+ */
+const BAR_TOLERANCE = 1e-6;
 
 /**
  * Reads one measure's notes into events, in the order they sound.
@@ -395,7 +423,14 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const bodies = fillBarRepeats([...source.querySelectorAll(':scope > measure')].map(readBody));
   if (bodies.length === 0) return { exercise: null, problems: [...problems, 'this part has no bars'] };
 
-  const tally: Tally = { grace: 0, chords: 0, voices: 0, unreadable: [], outOfRange: [] };
+  const tally: Tally = {
+    grace: 0,
+    chords: 0,
+    voices: 0,
+    unreadable: [],
+    outOfRange: [],
+    wrongLength: [],
+  };
   const slots: Slot[] = [];
   const pitches: SlotPitch[] = [];
   const multiRests: RestEvent[] = [];
@@ -410,6 +445,17 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   let clef: Clef | null = null;
   let beat = 0;
   let previousSounded: SpelledPitch | null = null;
+  /**
+   * How long the pickup is, in crotchets; 0 where the part does not open with one.
+   *
+   * Kept because the last bar of a part that opens with a pickup is
+   * conventionally short by exactly this much — the two together make one bar,
+   * which is why the printed part numbers neither of them. Without this the
+   * fullness check below would name that bar on nearly every march ever
+   * engraved, and a warning that fires on correct files is worse than no
+   * warning at all.
+   */
+  let pickupBeats = 0;
 
   for (let step = 0; step < order.length; step++) {
     const body = bodies[order[step]];
@@ -446,12 +492,14 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
      * counts it.
      */
     if (step === 0 && body.implicit) {
-      const held = readEvents(body, divisions, divisi, { ...tally, outOfRange: [] }).reduce(
-        (sum, e) => sum + e.beats,
-        0,
-      );
+      const held = readEvents(body, divisions, divisi, {
+        ...tally,
+        outOfRange: [],
+        wrongLength: [],
+      }).reduce((sum, e) => sum + e.beats, 0);
       const missing = metre.barBeats - held;
       if (missing > 1e-9) {
+        pickupBeats = held;
         for (const duration of writeAs(missing).pieces) {
           slots.push({ startBeat: beat, duration, isRest: true, tiedFromPrevious: false });
           beat += durationBeats(duration);
@@ -476,7 +524,39 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
       continue;
     }
 
-    for (const event of readEvents(body, divisions, divisi, tally)) {
+    const events = readEvents(body, divisions, divisi, tally);
+
+    /*
+     * Does this bar hold a bar's worth? Pure arithmetic against the metre in
+     * force, and the only thing here that checks the file rather than reads it.
+     *
+     * Three bars are exempt, all of them deliberately short and none of them a
+     * fault:
+     *
+     * - **A bar the engraver marked `implicit`.** That attribute means "do not
+     *   count this one", which is exactly the claim being checked. A pickup is
+     *   the usual case and it has already been padded above.
+     * - **The last bar of a part that opened with a pickup**, short by exactly
+     *   the length of the pickup. The two are one bar between them, which is
+     *   why the printed part numbers neither.
+     * - **A multi-bar rest**, which never reaches here — the walk steps over
+     *   the measures it covers rather than reading them.
+     *
+     * Read in playing order like everything else, so a bad bar inside a repeat
+     * is met once per pass; `describe` reports written bar numbers and counts
+     * each one once, because it is one bar on the page and one place to look.
+     */
+    const held = events.reduce((sum, event) => sum + event.beats, 0);
+    const shortfall = metre.barBeats - held;
+    const completesPickup =
+      order[step] === bodies.length - 1 &&
+      pickupBeats > 0 &&
+      Math.abs(shortfall - pickupBeats) < BAR_TOLERANCE;
+    if (!body.implicit && !completesPickup && Math.abs(shortfall) > BAR_TOLERANCE) {
+      tally.wrongLength.push(body.number);
+    }
+
+    for (const event of events) {
       const { pieces, leftover } = writeAs(event.beats);
 
       /*
@@ -603,7 +683,30 @@ function writeAs(beats: number): { pieces: Duration[]; leftover: number } {
 function describe(tally: Tally, divisi: Divisi, instrumentName: string): string[] {
   const said: string[] = [];
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  /** Bars named once each, however many times a repeat carried the walk through them. */
+  const named = (numbers: string[], shown: number) => {
+    const bars = [...new Set(numbers)];
+    const list = bars.slice(0, shown).join(', ');
+    return bars.length > shown
+      ? `bars ${list} and ${bars.length - shown} more`
+      : `bar${bars.length > 1 ? 's' : ''} ${list}`;
+  };
 
+  /*
+   * First, and in the plainest words available, because it is the one warning
+   * here that makes the whole import untrustworthy rather than merely
+   * incomplete. Everything else says a note was changed; this says the bar
+   * numbers are wrong, and a part whose bar numbers are wrong cannot be
+   * practised against a band.
+   */
+  if (tally.wrongLength.length > 0) {
+    const bars = [...new Set(tally.wrongLength)];
+    said.push(
+      `${plural(bars.length, 'bar does', 'bars do')} not hold a full bar of music` +
+        ` (${named(tally.wrongLength, 6)})` +
+        ' — every bar line after them is adrift, so the numbering will not match the printed part',
+    );
+  }
   if (tally.chords > 0) {
     // Named rather than merely counted: which line was taken is the thing the
     // player needs to check against what their section agreed.
@@ -618,21 +721,14 @@ function describe(tally: Tally, divisi: Divisi, instrumentName: string): string[
     );
   }
   if (tally.outOfRange.length > 0) {
-    const bars = [...new Set(tally.outOfRange)];
     said.push(
       `${plural(tally.outOfRange.length, 'note is', 'notes are')} outside what ${instrumentName} can play` +
-        ` (${bars.length > 4 ? `bars ${bars.slice(0, 4).join(', ')} and ${bars.length - 4} more` : `bar${bars.length > 1 ? 's' : ''} ${bars.join(', ')}`})` +
+        ` (${named(tally.outOfRange, 4)})` +
         ` — shown and sounded, but not marked`,
     );
   }
   if (tally.unreadable.length > 0) {
-    const bars = [...new Set(tally.unreadable)];
-    const shown = bars.slice(0, 6).join(', ');
-    said.push(
-      `rhythms that cannot be written were dropped, in ${
-        bars.length > 6 ? `bars ${shown} and ${bars.length - 6} more` : `bar${bars.length > 1 ? 's' : ''} ${shown}`
-      }`,
-    );
+    said.push(`rhythms that cannot be written were dropped, in ${named(tally.unreadable, 6)}`);
   }
   return said;
 }
