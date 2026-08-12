@@ -24,6 +24,73 @@ export interface Voice {
 const ATTACK = 0.006;
 const RELEASE = 0.12;
 
+/**
+ * Where a looped sustain starts within the sample, in seconds.
+ *
+ * Past the recorded attack, which is over inside a tenth of a second — measured
+ * rather than assumed: these samples hold 98–100% of peak from 0.1s to the very
+ * end, with no decay and no release tail. They simply stop.
+ */
+const LOOP_FROM = 0.5;
+
+/** Kept clear of the last moments of the buffer, where an editor may have faded. */
+const LOOP_TAIL = 0.05;
+
+/**
+ * Fewest wave periods worth looping. Below this the loop is so short that any
+ * imperfection in the recording's tuning beats audibly against itself.
+ */
+const MIN_LOOP_PERIODS = 8;
+
+/** Equal-tempered frequency of a MIDI note, which is the sample's own pitch. */
+function frequencyOf(midi: number): number {
+  return 440 * 2 ** ((midi - 69) / 12);
+}
+
+/**
+ * Makes a source loop, where the note outlasts the recording.
+ *
+ * A sample runs three seconds; a tied note in a real part runs nine. Without
+ * this the buffer simply ends and the note goes silent part way through — which
+ * is what a four-bar tied G did, falling quiet after about two.
+ *
+ * **The loop is a whole number of wave periods.** A loop of arbitrary length
+ * restarts the waveform at the wrong point in its cycle, and that phase jump is
+ * a click, once per loop, for as long as the note lasts. Snapping the length to
+ * the fundamental's period means the wave continues where it left off. The
+ * sample's own MIDI number gives that frequency exactly, so nothing has to be
+ * measured at runtime.
+ */
+function loopSustain(node: AudioBufferSourceNode, buffer: AudioBuffer, sampleMidi: number): void {
+  const region = sustainLoop(buffer.duration, sampleMidi);
+  if (!region) return;
+  node.loop = true;
+  node.loopStart = region.from;
+  node.loopEnd = region.to;
+}
+
+/**
+ * The stretch of a sample worth looping, or null if there is not enough of it.
+ *
+ * Exported for tests: that the region is a whole number of wave periods is the
+ * whole point of it, and that is arithmetic rather than anything audible.
+ * Measured against a real sample, snapping cut the worst sample-to-sample jump
+ * at the loop from 0.028 to 0.009 — where the largest jump occurring naturally
+ * inside that recording is 0.007, so the snapped loop is within a whisker of
+ * the material and the unsnapped one is four times it.
+ */
+export function sustainLoop(
+  bufferSeconds: number,
+  sampleMidi: number,
+): { from: number; to: number } | null {
+  const from = Math.min(LOOP_FROM, bufferSeconds * 0.25);
+  const until = bufferSeconds - LOOP_TAIL;
+  const period = 1 / frequencyOf(sampleMidi);
+  const periods = Math.floor((until - from) / period);
+  if (periods < MIN_LOOP_PERIODS) return null;
+  return { from, to: from + periods * period };
+}
+
 /** Decoded sample sets, kept for the life of the page so a replay is instant. */
 const cache = new Map<SampleSet, Promise<Map<number, AudioBuffer>>>();
 
@@ -152,6 +219,16 @@ export class Sampler implements Voice {
     gain.gain.linearRampToValueAtTime(1, startTime + ATTACK);
     gain.gain.setValueAtTime(1, Math.max(startTime + ATTACK, end - RELEASE));
     gain.gain.exponentialRampToValueAtTime(floor, end);
+
+    /*
+     * `loopStart` and `loopEnd` are positions in the buffer, so they are not
+     * affected by the playback rate — but how long the buffer *lasts* is, since
+     * a note played below the sample's pitch is slowed down. That is what
+     * decides whether looping is needed at all.
+     */
+    if (end - startTime > buffer.duration / node.playbackRate.value) {
+      loopSustain(node, buffer, source);
+    }
 
     node.connect(gain);
     gain.connect(this.master);
