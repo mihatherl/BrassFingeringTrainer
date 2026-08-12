@@ -76,7 +76,21 @@ export async function savePiece(store: PieceStore, options: SaveOptions): Promis
 }
 
 export type Opened =
-  | { imported: Imported; record: PieceRecord }
+  | {
+      imported: Imported;
+      record: PieceRecord;
+      /**
+       * The parsed score, handed back rather than dropped.
+       *
+       * Reading it again is what lets a saved piece be read *differently* —
+       * a passage of it rather than the whole — without going back to the
+       * bytes and parsing them twice. The importer takes a document and a
+       * reading, so the document is the thing worth keeping hold of.
+       */
+      doc: Document;
+      /** The bytes it was read from, for a screen that may want to keep it again. */
+      source: ArrayBuffer;
+    }
   | { problem: string };
 
 /**
@@ -111,7 +125,7 @@ export async function openPiece(
     return { problem: imported.problems[0] ?? `nothing in “${record.title}” could be read` };
   }
 
-  return { imported, record };
+  return { imported, record, doc: parsed.doc, source };
 }
 
 /** How a piece reads today, for keeping the list honest after a re-read. */

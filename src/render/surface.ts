@@ -180,6 +180,16 @@ export interface StaveTheme {
    * rather than as notes that failed to draw.
    */
   horizon: string;
+  /**
+   * A bar chosen to practise: a wash behind the notation, not a change to it.
+   *
+   * The same blue the strike line uses, at the strength its glow is drawn at.
+   * Deliberately not one of the verdict colours — nothing here has been played,
+   * and green over a bar would read as having got it right.
+   */
+  selection: string;
+  /** The first bar of a run, waiting for the tap that says where it ends. */
+  selectionPending: string;
 }
 
 export const LIGHT_THEME: StaveTheme = {
@@ -195,6 +205,8 @@ export const LIGHT_THEME: StaveTheme = {
   countIn: 'rgba(22, 21, 15, 0.35)',
   hint: '#6b6960',
   horizon: '#b6b2a8',
+  selection: 'rgba(47, 111, 208, 0.16)',
+  selectionPending: 'rgba(47, 111, 208, 0.07)',
 };
 
 export const DARK_THEME: StaveTheme = {
@@ -210,6 +222,8 @@ export const DARK_THEME: StaveTheme = {
   countIn: 'rgba(242, 241, 236, 0.35)',
   hint: '#9a9ba3',
   horizon: '#565962',
+  selection: 'rgba(99, 161, 255, 0.22)',
+  selectionPending: 'rgba(99, 161, 255, 0.10)',
 };
 
 /** The theme matching the system colour scheme. */

@@ -4,7 +4,7 @@ import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
 import { generateExercise } from '../exercise/generate';
 import type { Verdict } from '../engine/judge';
-import { drawReview, planReview } from './review';
+import { barAtPoint, barRects, drawReview, planReview } from './review';
 import { justifiedX } from './system';
 import { LIGHT_THEME } from './surface';
 
@@ -22,6 +22,8 @@ interface RecordedCall {
   args: unknown[];
   /** Baseline in force when the call was made, which is what tells text apart. */
   baseline?: string;
+  /** Fill in force, which is what tells a wash from the notation drawn over it. */
+  fill?: string;
 }
 
 /**
@@ -45,7 +47,11 @@ function mockCanvas(calls: RecordedCall[], width = 600) {
     };
 
   const context = {
-    fillRect: record('fillRect'),
+    // Notation is drawn with `fillRect` too — stems, beams, bar lines — so the
+    // colour in force is what tells a bar's wash apart from the music on it.
+    fillRect: (...args: unknown[]) => {
+      calls.push({ method: 'fillRect', args, fill: String(context.fillStyle) });
+    },
     fillText: (...args: unknown[]) => {
       calls.push({ method: 'fillText', args, baseline: context.textBaseline });
     },
@@ -276,5 +282,102 @@ describe('drawing the review', () => {
         ).not.toThrow();
       }
     }
+  });
+});
+
+describe('finding a bar on the page', () => {
+  /*
+   * What turns a tap on the score into a bar to practise.
+   *
+   * The layout is not a grid: systems are filled greedily, so a line of held
+   * notes carries far more bars than a line of semiquavers, and every line but
+   * the last is justified to the margin. Nothing outside `review.ts` can work
+   * out where bar 23 landed, which is why the arithmetic lives there and this
+   * checks it rather than a screen re-deriving it.
+   */
+  const barsIn = (exercise: ReturnType<typeof build>) =>
+    Math.ceil(exercise.totalBeats / metreAt(exercise.metres, 0).barBeats);
+
+  it('gives every bar a place, and never two bars the same one', () => {
+    for (const width of [320, 390, 600, 1400]) {
+      const exercise = build('easy', 12);
+      const rects = barRects(exercise, planReview(width, exercise));
+      expect(rects, `${width}`).toHaveLength(barsIn(exercise));
+
+      for (const rect of rects) {
+        expect(rect.width, `${width}`).toBeGreaterThan(0);
+        expect(rect.height, `${width}`).toBeGreaterThan(0);
+      }
+
+      // Bars on one line abut rather than overlapping or leaving a crack: the
+      // gap between two bars has to belong to one of them, or a tap in it
+      // selects nothing and the player taps again harder.
+      for (let bar = 1; bar < rects.length; bar++) {
+        const previous = rects[bar - 1];
+        const here = rects[bar];
+        if (here.y !== previous.y) continue;
+        expect(here.x, `${width} bar ${bar}`).toBeCloseTo(previous.x + previous.width, 6);
+      }
+    }
+  });
+
+  it('covers the whole width of every line, edge to edge', () => {
+    // A tap on the clef belongs to the first bar of its line, and a tap in the
+    // margin after the last bar belongs to that one. Neither is nothing.
+    const exercise = build('easy', 12);
+    const layout = planReview(600, exercise);
+    const rects = barRects(exercise, layout);
+    const lines = new Map<number, typeof rects>();
+    for (const rect of rects) lines.set(rect.y, [...(lines.get(rect.y) ?? []), rect]);
+
+    for (const [, line] of lines) {
+      expect(line[0].x).toBe(0);
+      const last = line[line.length - 1];
+      expect(last.x + last.width).toBeCloseTo(layout.headerWidth + layout.usableWidth, 6);
+    }
+  });
+
+  it('finds the bar a point falls in', () => {
+    const exercise = build('easy', 12);
+    const rects = barRects(exercise, planReview(600, exercise));
+
+    for (const [bar, rect] of rects.entries()) {
+      const x = rect.x + rect.width / 2;
+      const y = rect.y + rect.height / 2;
+      expect(barAtPoint(rects, x, y), `bar ${bar}`).toBe(bar);
+    }
+  });
+
+  it('answers nothing for a point off the music', () => {
+    // Below the last system, which is where a tap lands on a short piece with
+    // room to spare underneath it.
+    const exercise = build('easy', 4);
+    const layout = planReview(600, exercise);
+    const rects = barRects(exercise, layout);
+    expect(barAtPoint(rects, 300, layout.systems * layout.systemHeight + 10)).toBeNull();
+    expect(barAtPoint(rects, -5, 10)).toBeNull();
+  });
+
+  it('washes only the bars it is asked to', () => {
+    // The shade is drawn behind every bar before any notation, so a selected
+    // bar's wash cannot land on the stave lines of the bar beside it.
+    const calls: RecordedCall[] = [];
+    const exercise = build('easy', 8);
+    drawReview(mockCanvas(calls, 600), {
+      exercise,
+      verdicts: [],
+      theme: LIGHT_THEME,
+      shade: (bar) => (bar === 2 ? LIGHT_THEME.selection : null),
+    });
+
+    const washes = calls.filter(
+      (c) => c.method === 'fillRect' && c.fill === LIGHT_THEME.selection,
+    );
+    expect(washes).toHaveLength(1);
+
+    // And nothing is washed when nothing is chosen.
+    const none: RecordedCall[] = [];
+    drawReview(mockCanvas(none, 600), { exercise, verdicts: [], theme: LIGHT_THEME });
+    expect(none.some((c) => c.fill === LIGHT_THEME.selection)).toBe(false);
   });
 });

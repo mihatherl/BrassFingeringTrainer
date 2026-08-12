@@ -38,6 +38,20 @@ export interface ReviewOptions {
   exercise: Exercise;
   /** Verdict per note index; absent means the exercise stopped before it. */
   verdicts: Array<Verdict | undefined>;
+  /**
+   * A wash behind a bar, or null for none.
+   *
+   * Here rather than in the screen that wants it because only this file knows
+   * where a bar sits: the same spacing and the same greedy line-filling that
+   * decide where a notehead goes decide where its bar begins and ends, and a
+   * second implementation of that would drift the first time either changed.
+   *
+   * Drawn under the stave lines, so the notation reads over it rather than
+   * through it.
+   */
+  shade?: (bar: number) => string | null;
+  /** Stave size to draw at. Absent takes the reading size; see `planReview`. */
+  staveSpace?: number;
   theme: StaveTheme;
 }
 
@@ -50,7 +64,7 @@ export function drawReview(canvas: HTMLCanvasElement, options: ReviewOptions): n
   const width = Math.max(1, canvas.getBoundingClientRect().width);
   const { exercise, theme } = options;
 
-  const layout = planReview(width, exercise);
+  const layout = planReview(width, exercise, options.staveSpace);
   const height = layout.systems * layout.systemHeight;
 
   const dpr = window.devicePixelRatio || 1;
@@ -62,6 +76,17 @@ export function drawReview(canvas: HTMLCanvasElement, options: ReviewOptions): n
 
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
+
+  // Every wash before any notation, so a bar's shading cannot land on top of
+  // the stave lines of the bar beside it where the two rectangles meet.
+  if (options.shade) {
+    for (const [bar, rect] of barRects(exercise, layout).entries()) {
+      const colour = options.shade(bar);
+      if (!colour) continue;
+      ctx.fillStyle = colour;
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+  }
 
   for (let system = 0; system < layout.systems; system++) {
     drawReviewSystem(ctx, options, layout, system);
@@ -88,10 +113,17 @@ export interface ReviewLayout {
  * Exported for tests: how many bars land on a line is the thing most likely to
  * come out wrong on a narrow screen, and it is not visible from the drawing.
  */
-export function planReview(width: number, exercise: Exercise): ReviewLayout {
+export function planReview(width: number, exercise: Exercise, atSpace?: number): ReviewLayout {
   // Big enough to read the noteheads, small enough that a phone still gets a
   // couple of bars to a line.
-  const staveSpace = Math.min(18, Math.max(9, width / 34));
+  //
+  // Overridable because the two screens that draw an exercise standing still
+  // want different things from it. The review is read a note at a time, to see
+  // what a fingering should have been. A score being chosen from is *scanned* —
+  // the player is looking for the awkward eight bars, which means seeing the
+  // shape of the piece, and full-size notation puts one bar on a phone's line
+  // and forty-two lines under it.
+  const staveSpace = atSpace ?? Math.min(18, Math.max(9, width / 34));
   const metrics = staveMetrics(exercise.clef, 0, staveSpace);
   const headerWidth =
     // The widest key reached, so a later system with more accidentals cannot
@@ -145,6 +177,70 @@ export function planReview(width: number, exercise: Exercise): ReviewLayout {
     systems: systemStarts.length,
     systemHeight: staveSpace * SYSTEM_SPACES,
   };
+}
+
+/** Where a bar sits on the page, in CSS pixels from the canvas's top left. */
+export interface BarRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Every bar's place on the drawn page.
+ *
+ * What a screen needs to turn a tap into a bar, and the reason it lives here:
+ * the layout is not a grid. Systems are filled greedily, so a line of held
+ * notes carries far more bars than a line of semiquavers, and every line but
+ * the last is justified to the margin. Nothing outside this file can work out
+ * where bar 23 is without repeating all of that.
+ *
+ * A bar runs from its own first beat to the next bar's, except at the end of a
+ * system, where it runs to the margin — otherwise the last bar of a line would
+ * be a sliver and the gap after it would belong to nobody.
+ */
+export function barRects(exercise: Exercise, layout: ReviewLayout): BarRect[] {
+  const { spacing, systemStarts, headerWidth, usableWidth, systemHeight } = layout;
+  const totalBars = barCount(exercise.metres, exercise.totalBeats);
+  const rects: BarRect[] = [];
+
+  for (let system = 0; system < systemStarts.length; system++) {
+    const firstBar = systemStarts[system];
+    const lastBar = systemStarts[system + 1] ?? totalBars;
+    const final = lastBar >= totalBars;
+    const xForBeat = justifiedX(
+      spacing,
+      beatOfBar(exercise.metres, firstBar),
+      Math.min(exercise.totalBeats, beatOfBar(exercise.metres, lastBar)),
+      headerWidth,
+      usableWidth,
+      !final,
+    );
+
+    for (let bar = firstBar; bar < lastBar; bar++) {
+      // The first bar of a line takes the header with it: a tap on the clef is
+      // a tap on the bar it belongs to, not on nothing.
+      const left = bar === firstBar ? 0 : xForBeat(beatOfBar(exercise.metres, bar));
+      const nextBeat = Math.min(exercise.totalBeats, beatOfBar(exercise.metres, bar + 1));
+      const right = bar + 1 >= lastBar ? headerWidth + usableWidth : xForBeat(nextBeat);
+      rects.push({
+        x: left,
+        y: system * systemHeight,
+        width: Math.max(0, right - left),
+        height: systemHeight,
+      });
+    }
+  }
+  return rects;
+}
+
+/** Which bar a point falls in, or null where it falls outside every one. */
+export function barAtPoint(rects: readonly BarRect[], x: number, y: number): number | null {
+  const found = rects.findIndex(
+    (rect) => x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height,
+  );
+  return found === -1 ? null : found;
 }
 
 function drawReviewSystem(

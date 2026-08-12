@@ -15,9 +15,19 @@ interface StaveCanvasProps {
   /** Draws into the canvas at its current width, and sets its height to suit. */
   draw: (canvas: HTMLCanvasElement, theme: StaveTheme) => void;
   className?: string;
+  /**
+   * A tap on the notation, in CSS pixels from the canvas's top left.
+   *
+   * Converted here because the canvas is the only thing that knows where it is
+   * on the page, and every caller would otherwise repeat the same rectangle
+   * arithmetic to find out.
+   */
+  onPick?: (x: number, y: number, canvas: HTMLCanvasElement) => void;
+  /** Named for a screen reader, which cannot see a canvas at all. */
+  label?: string;
 }
 
-export function StaveCanvas({ draw, className }: StaveCanvasProps): ReactElement {
+export function StaveCanvas({ draw, className, onPick, label }: StaveCanvasProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -55,7 +65,18 @@ export function StaveCanvas({ draw, className }: StaveCanvasProps): ReactElement
 
   return (
     <div className={className ?? 'stave-figure'}>
-      <canvas ref={canvasRef} className="stave-figure__canvas" />
+      <canvas
+        ref={canvasRef}
+        className="stave-figure__canvas"
+        aria-label={label}
+        onClick={
+          onPick &&
+          ((event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            onPick(event.clientX - rect.left, event.clientY - rect.top, event.currentTarget);
+          })
+        }
+      />
     </div>
   );
 }

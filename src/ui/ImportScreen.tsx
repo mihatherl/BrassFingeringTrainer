@@ -4,7 +4,7 @@ import { barCount } from '../domain/metre';
 import type { Exercise } from '../exercise/types';
 import { readScoreFile } from '../import/container';
 import { parseMusicXml, partNames } from '../import/musicxml';
-import { importPart, type Divisi } from '../import/part';
+import { importPart, type BarSpan, type Divisi, type ImportedBar } from '../import/part';
 import type { Settings } from '../storage/settings';
 import {
   indexedDbStore,
@@ -14,6 +14,7 @@ import {
   type PieceRecord,
 } from '../storage/library';
 import { openPiece, savePiece } from '../storage/pieces';
+import { ScorePicker } from './ScorePicker';
 
 /**
  * My Music: choosing a file and reading a part out of it.
@@ -72,6 +73,16 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
   const [partIndex, setPartIndex] = useState(0);
   const [library, setLibrary] = useState<PieceRecord[]>([]);
   const [saved, setSaved] = useState(false);
+  /**
+   * The part as printed, once the player has asked to choose bars.
+   *
+   * A second reading of the same document rather than a slice of the first: the
+   * one already read is the piece as *performed*, with its repeats unfolded,
+   * and bars are chosen off the page. Null until asked for, because a player
+   * who wants to play the whole thing should not pay for a reading they never
+   * look at.
+   */
+  const [picking, setPicking] = useState<{ exercise: Exercise; bars: ImportedBar[] } | null>(null);
 
   const refresh = useCallback(() => {
     void STORE.list().then(setLibrary);
@@ -146,6 +157,38 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
     [readPart, divisi],
   );
 
+  /** Reads the part again as it is printed, which is what bars are chosen off. */
+  const choosebars = useCallback(() => {
+    if (!loaded) return;
+    const { exercise, bars } = importPart(loaded.doc, {
+      instrument: instrumentById(settings.instrumentId),
+      partIndex,
+      clef: settings.clef,
+      divisi,
+      reading: { kind: 'printed' },
+    });
+    if (!exercise) return;
+    setPicking({ exercise, bars });
+  }, [loaded, partIndex, divisi, settings.instrumentId, settings.clef]);
+
+  /** Builds the practice run from the chosen bars and goes straight to playing it. */
+  const practise = useCallback(
+    (spans: BarSpan[]) => {
+      if (!loaded) return;
+      const { exercise } = importPart(loaded.doc, {
+        instrument: instrumentById(settings.instrumentId),
+        partIndex,
+        clef: settings.clef,
+        divisi,
+        reading: { kind: 'passage', spans },
+      });
+      if (!exercise) return;
+      setPicking(null);
+      onPlay(exercise);
+    },
+    [loaded, partIndex, divisi, settings.instrumentId, settings.clef, onPlay],
+  );
+
   const keep = useCallback(async () => {
     if (!loaded || !read) return;
     // Asked for on the first save rather than at start-up: a browser is more
@@ -179,9 +222,35 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
         setProblem(result.problem);
         return;
       }
-      onPlay(result.imported.exercise!);
+
+      /*
+       * Lands on the summary rather than playing straight away.
+       *
+       * One tap more than it used to be, and the tap buys the choice the player
+       * asked for: the whole thing, or a passage of it. The summary is also
+       * where the warnings are, which a piece opened from the library used to
+       * skip past — they were shown once when it was first read and never
+       * again, though the importer that produces them keeps improving.
+       */
+      setLoaded({
+        doc: result.doc,
+        names: partNames(result.doc),
+        fileName: result.record.fileName,
+        source: result.source,
+      });
+      setPartIndex(result.record.partIndex);
+      setDivisi(result.record.divisi);
+      setPicking(null);
+      setSaved(true);
+      setRead({
+        exercise: result.imported.exercise!,
+        problems: result.imported.problems,
+        part: result.record.partName,
+        from: result.record.title,
+        divides: result.imported.problems.some((line) => line.includes('divided note')),
+      });
     },
-    [settings.instrumentId, settings.clef, onPlay],
+    [settings.instrumentId, settings.clef],
   );
 
   const forget = useCallback(
@@ -191,6 +260,20 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
     },
     [refresh],
   );
+
+  // The picker takes the whole screen: choosing bars off a page needs the page,
+  // and a score squeezed in beside a file list is a score nobody can read.
+  if (picking && read) {
+    return (
+      <ScorePicker
+        exercise={picking.exercise}
+        bars={picking.bars}
+        title={read.from}
+        onPractise={practise}
+        onBack={() => setPicking(null)}
+      />
+    );
+  }
 
   return (
     <div className="screen">
@@ -350,6 +433,13 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
             onClick={() => onPlay(read.exercise)}
           >
             Play it
+          </button>
+        )}
+        {read && (
+          // Practising a passage is not a lesser way of opening a piece, so it
+          // sits beside Play it rather than under a heading of its own.
+          <button type="button" className="button" onClick={choosebars}>
+            Choose bars
           </button>
         )}
         {read && (
