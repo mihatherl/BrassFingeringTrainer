@@ -1,9 +1,16 @@
 # Dynamic tempo — analysis and plan
 
-**Status: agreed.** Written 2026-08-09 after reading the code and
+**Status: built and shipped**, as of the v1.30.x–v1.35.x releases; every stage
+below is marked with what landed. Written 2026-08-09 after reading the code and
 `v2-design.md`; the open decisions were put to the player the same day and
-ruled — see *Decisions, as ruled* at the end. Stage 0 began immediately
-after.
+ruled — see *Decisions, as ruled* at the end.
+
+**Read it for the reasoning, not for the work queue.** What is still outstanding
+is small and lives in three places, none of them a stage of this plan: the
+compound lag/lift verdict, which is the player's to give and which the spike now
+asks; `BEAT_IN_FEWER_ABOVE_BPM = 168` and `SUBDIVIDE_BELOW_BPM = 76`, one
+play-test each; and the five, seven, nine and twelve patterns, unbuilt because
+no brass band part has yet asked for one.
 
 The ask: rits, fermatas, and tempo changes between themes — the things a band
 player actually has to follow — driven by the on-screen conductor, and switched

@@ -38,6 +38,12 @@ jobs:
       # worse than not deploying at all.
       - run: npm test
 
+      # The gate run by hand before every push is tests, build *and* lint, and
+      # until now this workflow ran two of the three — so the check that could
+      # actually be forgotten was the one nothing enforced. Cheap, and it costs
+      # nothing to keep the two gates saying the same thing.
+      - run: npm run lint
+
       # The gated build is the paid one, and nothing else ever builds it — so
       # without this it would rot unnoticed, the way tools/ already has once.
       # Built only to prove it still compiles; the artifact is thrown away.

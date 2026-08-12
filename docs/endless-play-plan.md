@@ -1,8 +1,10 @@
 # Windowed scoring and endless play — the plan
 
-**Status: agreed direction.** Chosen by the player on 2026-08-10 as the next
-work after fermatas were parked, from the order `v2-design.md` already
-lists. That document carries the design rulings (*Playing for as long as you
+**Status: built and shipped.** Every stage below landed; what remains is the one
+item under *Still open, and known* at the end — variable tempo being sparse
+across the grey for free material and patterns. Chosen by the player on
+2026-08-10 as the next work after fermatas were parked, from the order
+`v2-design.md` already lists. That document carries the design rulings (*Playing for as long as you
 like*, *The hard part: stopped, or resting?*, *What the score covers*); this
 one only sequences the build and records what got settled on the way. The
 rolling window — recommended there, with blocks as the alternative — is
