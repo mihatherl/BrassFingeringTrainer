@@ -199,7 +199,7 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
         <p>
           Open a MusicXML part — <code>.musicxml</code> or <code>.mxl</code>, as exported by
           MuseScore, Sibelius or Finale. Repeats, first- and second-time bars and D.S. jumps are
-          played out in full.
+          played out in full. Anything else will say so rather than being hidden from you.
         </p>
       </header>
 
@@ -233,9 +233,24 @@ export function ImportScreen({ settings, onPlay, onBack }: ImportScreenProps) {
 
       <label className="button button--primary button--large import__choose">
         {busy ? 'Reading…' : 'Choose a file'}
+        {/*
+          * No `accept` filter, deliberately.
+          *
+          * It listed `.mxl` and Android's picker greyed the file out anyway:
+          * extensions are translated to MIME types through the platform's own
+          * database, and Android has no mapping for `.mxl`, so the filter
+          * matched nothing and hid the one file the player wanted. A filter
+          * whose only job is convenience, and which instead conceals the target,
+          * is worse than none.
+          *
+          * Nothing is lost by dropping it. What a file *is* has always been
+          * decided from its first four bytes rather than its name — a
+          * `.musicxml` that is really a zip and an `.mxl` that is really plain
+          * XML both turn up — and choosing something that is not music is
+          * answered plainly rather than by being unable to choose it at all.
+          */}
         <input
           type="file"
-          accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml"
           className="import__input"
           onChange={(event) => void choose(event.target.files?.[0])}
         />
