@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { instrumentById } from '../domain/instruments';
-import { barAt, changesMetre } from '../domain/metre';
+import { barAt, barCount, beatOfBar, changesMetre } from '../domain/metre';
 import { changesKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
 import { parseMusicXml } from './musicxml';
@@ -488,6 +488,10 @@ describe('bar repeats', () => {
   });
 });
 
+/** Just the short-bar complaint, which both blocks below need to ask about. */
+const complaint = (xml: string) =>
+  importing(xml).problems.filter((said) => said.includes('full bar of music'));
+
 describe('a bar that does not hold a full bar of music', () => {
   /*
    * The only check here that interrogates the file rather than reading it, and
@@ -498,9 +502,6 @@ describe('a bar that does not hold a full bar of music', () => {
    * An OMR result of a real part had 27 of 84 bars not holding three beats and
    * imported without a word before this existed.
    */
-  const complaint = (xml: string) =>
-    importing(xml).problems.filter((said) => said.includes('full bar of music'));
-
   it('says nothing when every bar adds up', () => {
     expect(complaint(score(note('C4', 4), note('D4', 2) + note('E4', 2)))).toEqual([]);
   });
@@ -512,11 +513,10 @@ describe('a bar that does not hold a full bar of music', () => {
     ]);
   });
 
-  it('names a bar that holds too much', () => {
-    // Both directions, because the OMR file drifted both ways and missing rests
-    // cannot cause that. A check that only looked for short bars would have
-    // called half of it clean.
-    expect(complaint(score(note('C4', 4), note('D4', 5)))).toHaveLength(1);
+  it('does not complain about a bar that holds too much, but reads it', () => {
+    // A long bar is not a short bar with the sign flipped: see the block below.
+    // Nothing is missing from it, so nothing is reported missing.
+    expect(complaint(score(note('C4', 4), note('D4', 5)))).toEqual([]);
   });
 
   it('counts against the metre in force, not the one it started in', () => {
@@ -528,7 +528,8 @@ describe('a bar that does not hold a full bar of music', () => {
      */
     const changed = '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>';
     expect(complaint(score(note('C4', 4), changed + note('D4', 3), note('E4', 3)))).toEqual([]);
-    expect(complaint(score(note('C4', 4), changed + note('D4', 4)))).toHaveLength(1);
+    // Two beats in the 3/4 is short, and short bars are still reported.
+    expect(complaint(score(note('C4', 4), changed + note('D4', 2)))).toHaveLength(1);
   });
 
   it('does not name the pickup it just padded', () => {
@@ -608,6 +609,120 @@ describe('a bar that does not hold a full bar of music', () => {
     expect(complaint(score(...bars))).toEqual([
       '8 bars do not hold a full bar of music (bars 2, 3, 4, 5, 6, 7 and 2 more)' +
         ' — every bar line after them is adrift, so the numbering will not match the printed part',
+    ]);
+  });
+});
+
+describe('a bar longer than its time signature', () => {
+  /*
+   * Real music does this: five beats in the middle of a four-four piece,
+   * written without a change of signature because it interrupts the metre
+   * rather than replacing it. `metres` being a list, the app can say exactly
+   * that — five-four for the one bar, four-four again at the next bar line.
+   *
+   * Inferred only where the bar is *longer*, which is not tidiness. Every one
+   * of the eleven malformed bars in the one corrupt file to hand is short, and
+   * five of them are pairs summing to a single bar — printed bars the scanner
+   * split in two. A short bar is something missing and the app cannot know
+   * what; a long bar has music in it that has to go somewhere.
+   */
+  const metresOf = (xml: string) =>
+    (importing(xml).exercise?.metres ?? []).map((change) => [
+      change.fromBeat,
+      `${change.metre.beatsPerBar}/${change.metre.beatUnit}`,
+    ]);
+
+  const five = note('E4', 1) + note('E4', 1) + note('E4', 1) + note('E4', 1) + note('E4', 1);
+
+  it('reads it as its own time signature, and goes back at the next bar', () => {
+    expect(metresOf(score(note('C4', 4), five, note('F4', 4)))).toEqual([
+      [0, '4/4'],
+      [4, '5/4'],
+      [9, '4/4'],
+    ]);
+  });
+
+  it('puts every bar line where the player counts one', () => {
+    /*
+     * The whole point of the exercise. Left as four-four, the five beats push a
+     * bar line into the middle of the odd bar and every downbeat after it lands
+     * a beat early — which is invisible until you count, and wrong for the rest
+     * of the piece.
+     */
+    const { exercise } = importing(score(note('C4', 4), five, note('F4', 4)));
+    const metres = exercise!.metres;
+    // Bars start at beats 0, 4 and 9; the piece is three bars long, not four.
+    expect([0, 1, 2].map((bar) => beatOfBar(metres, bar))).toEqual([0, 4, 9]);
+    expect(barAt(metres, 8)).toBe(1);
+    expect(barAt(metres, 9)).toBe(2);
+    expect(barCount(metres, exercise!.totalBeats)).toBe(3);
+  });
+
+  it('says so, because the page does not', () => {
+    // The app has decided something the printed part does not state. If it has
+    // decided wrongly, this sentence is what lets the player see that.
+    expect(importing(score(note('C4', 4), five)).problems).toEqual([
+      '1 bar is longer than the time signature says (bar 2)' +
+        ' — read as written, with the bar line where the music ends',
+    ]);
+  });
+
+  it('reads a seven-eight bar in a six-eight piece', () => {
+    // The unit is the one the metre is written in, not the crotchet: seven
+    // quavers is 7/8, and 3.5 crotchets would name nothing at all.
+    const sixEight = '<attributes><time><beats>6</beats><beat-type>8</beat-type></time></attributes>';
+    const seven = Array.from({ length: 7 }, () => note('E4', 0.5)).join('');
+    expect(metresOf(score(note('C4', 4), sixEight + note('C4', 3), seven, note('F4', 3)))).toEqual([
+      [0, '4/4'],
+      [4, '6/8'],
+      [7, '7/8'],
+      [10.5, '6/8'],
+    ]);
+  });
+
+  it('refuses a whole multiple, which is two bars with the line missing', () => {
+    // Six beats where three are expected is a missing bar line, and 6/4 would
+    // be a plausible-looking lie — worse than the warning it replaced.
+    const threeFour = '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>';
+    expect(complaint(score(note('C4', 4), threeFour + note('C4', 3), note('D4', 6)))).toHaveLength(1);
+  });
+
+  it('refuses a length that names no signature', () => {
+    /*
+     * Four and a half crotchets in four-four. Long, so the earlier refusals do
+     * not catch it, and four-and-a-half-four is not a time signature anyone
+     * writes — so it is reported rather than invented.
+     *
+     * Deliberately long: written short, this passed while the whole-number
+     * check was deleted, because the length never reached it.
+     */
+    expect(complaint(score(note('C4', 4), note('D4', 4.5)))).toHaveLength(1);
+  });
+
+  it('refuses a length past anything anyone writes', () => {
+    // Seventeen-four is not an irregular bar, it is a file that has gone wrong.
+    expect(complaint(score(note('C4', 4), note('D4', 4) + note('E4', 4) + note('F4', 4) + note('G4', 4) + note('A4', 1)))).toHaveLength(1);
+  });
+
+  it('handles two odd bars in a row without inventing a metre between them', () => {
+    /*
+     * The restore at the second bar's line and its own inference land on the
+     * same beat. Every consumer survives a duplicate, but a list carrying a
+     * change that was never in force is a trap for whoever reads it next.
+     */
+    expect(metresOf(score(note('C4', 4), five, five, note('F4', 4)))).toEqual([
+      [0, '4/4'],
+      [4, '5/4'],
+      [14, '4/4'],
+    ]);
+  });
+
+  it('lets the file overrule the restore where the next bar declares a metre', () => {
+    const threeFour = '<attributes><time><beats>3</beats><beat-type>4</beat-type></time></attributes>';
+    expect(metresOf(score(note('C4', 4), five, threeFour + note('F4', 3)))).toEqual([
+      [0, '4/4'],
+      [4, '5/4'],
+      [9, '3/4'],
     ]);
   });
 });

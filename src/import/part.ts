@@ -276,6 +276,16 @@ interface Tally {
    * against the rest of the band — which is the whole point of importing it.
    */
   wrongLength: string[];
+  /**
+   * Bars read as a time signature of their own, the file having declared none.
+   *
+   * Told rather than done quietly. The app has decided something about the
+   * music here that the page does not state, and a player looking at a printed
+   * bar of five with no signature over it is owed the same reading the app
+   * made — not least because if the app has it wrong, this is the sentence that
+   * lets them see so.
+   */
+  irregular: string[];
 }
 
 /**
@@ -290,6 +300,96 @@ interface Tally {
  * this.
  */
 const BAR_TOLERANCE = 1e-6;
+
+/**
+ * Whether two metres are the same time signature.
+ *
+ * By what is written rather than by identity: `metreFor` builds a fresh object
+ * each time, and 6/8 and 3/4 fill a bar with the same three crotchets while
+ * being different signatures to read, count and conduct. So all three of the
+ * written numbers have to agree, not just `barBeats`.
+ */
+function sameMetre(a: Metre, b: Metre): boolean {
+  return (
+    a.barBeats === b.barBeats && a.beatsPerBar === b.beatsPerBar && a.beatUnit === b.beatUnit
+  );
+}
+
+/**
+ * The largest numerator worth believing in an inferred time signature.
+ *
+ * A bar of 33/4 is not an irregular bar, it is a file that has gone wrong, and
+ * naming a signature nobody would write lends it a credibility it has not
+ * earned. Twelve is the largest in ordinary use; this is well past it and still
+ * short of absurd.
+ */
+const MAX_INFERRED_BEATS = 16;
+
+/**
+ * The time signature a bar of this length is written in, or null where its
+ * length says nothing believable.
+ *
+ * **Only where the bar is longer than the metre in force.** That asymmetry is
+ * not tidiness, it is what the one corrupt file to hand actually looks like:
+ * all eleven of its malformed bars are *short*, and five of them are pairs
+ * summing to exactly one bar — single printed bars that the scanner split in
+ * two. A short bar is nearly always something missing, and the app cannot know
+ * what. A long bar has music in it that has to go somewhere, and putting the
+ * bar line after all of it is the reading that keeps every note.
+ *
+ * Two further refusals, both arithmetic:
+ *
+ * - **A whole multiple of the bar is two bars merged, not one long one.** Six
+ *   beats where three are expected is a missing bar line; 6/4 would be a
+ *   plausible-looking lie, and worse than the warning it replaced.
+ * - **The length must name a signature**, being a whole number of the unit the
+ *   metre is written in — five crotchets in 4/4 gives 5/4, seven quavers in 6/8
+ *   gives 7/8, and two and a half crotchets in 4/4 gives nothing at all.
+ */
+function inferMetre(held: number, metre: Metre): Metre | null {
+  if (held <= metre.barBeats + BAR_TOLERANCE) return null;
+
+  const multiple = held / metre.barBeats;
+  if (Math.abs(multiple - Math.round(multiple)) < BAR_TOLERANCE) return null;
+
+  // The written unit in crotchets: a quarter is 1, an eighth 0.5.
+  const unit = 4 / metre.beatUnit;
+  const beats = held / unit;
+  if (Math.abs(beats - Math.round(beats)) > BAR_TOLERANCE) return null;
+
+  const numerator = Math.round(beats);
+  if (numerator < 1 || numerator > MAX_INFERRED_BEATS) return null;
+  return metreFor(numerator, metre.beatUnit);
+}
+
+/**
+ * Drops entries that never come into force, and entries that change nothing.
+ *
+ * An inferred odd bar records a change at its own bar line and another back at
+ * the next, and either can land on a beat that is already spoken for — a second
+ * odd bar straight after the first, where the restore and the new inference
+ * share a beat, or a declared change on the very next bar.
+ *
+ * Two entries at one beat leave the earlier one in force for no time at all.
+ * Two entries naming the same signature are a change that does not change
+ * anything, which is what a second odd bar of the same length produces. Every
+ * consumer survives both — `metreAt` takes the last, a zero-length segment
+ * contributes no bars, and the renderer keys its signature changes by beat —
+ * but `changesMetre` counts entries, and a list saying the metre changed where
+ * it did not is a trap for whoever reads it next.
+ */
+function settleChanges(changes: MetreChange[]): MetreChange[] {
+  const settled: MetreChange[] = [];
+  for (const change of changes) {
+    const last = settled[settled.length - 1];
+    // Never in force: the next entry starts at the same beat.
+    if (last && last.fromBeat === change.fromBeat) settled.pop();
+    const kept = settled[settled.length - 1];
+    if (kept && sameMetre(kept.metre, change.metre)) continue;
+    settled.push(change);
+  }
+  return settled;
+}
 
 /**
  * Reads one measure's notes into events, in the order they sound.
@@ -430,6 +530,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     unreadable: [],
     outOfRange: [],
     wrongLength: [],
+    irregular: [],
   };
   const slots: Slot[] = [];
   const pitches: SlotPitch[] = [];
@@ -456,6 +557,14 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
    * warning at all.
    */
   let pickupBeats = 0;
+  /**
+   * The metre to go back to once an inferred odd bar has passed.
+   *
+   * Null except across the one bar. A bar whose own length is its time
+   * signature interrupts the metre rather than changing it — the four-four
+   * resumes at the next bar line, exactly as the printed part does.
+   */
+  let restoreMetre: Metre | null = null;
 
   for (let step = 0; step < order.length; step++) {
     const body = bodies[order[step]];
@@ -471,8 +580,20 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
       fifths = body.fifths;
       keys.push({ fromBeat: beat, fifths });
     }
-    if (body.metre !== null && (metres.length === 0 || body.metre.barBeats !== metre.barBeats
-      || body.metre.beatsPerBar !== metre.beatsPerBar || body.metre.beatUnit !== metre.beatUnit)) {
+    /*
+     * The odd bar is behind us, so the metre goes back to what it interrupted.
+     * Recorded before the file's own change is considered, so that a measure
+     * which does declare one is compared against the metre actually in force
+     * rather than against the single bar that borrowed it.
+     */
+    if (restoreMetre !== null) {
+      metre = restoreMetre;
+      restoreMetre = null;
+      if (body.metre === null || sameMetre(body.metre, metre)) {
+        metres.push({ fromBeat: beat, metre });
+      }
+    }
+    if (body.metre !== null && (metres.length === 0 || !sameMetre(body.metre, metre))) {
       metre = body.metre;
       metres.push({ fromBeat: beat, metre });
     }
@@ -496,6 +617,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
         ...tally,
         outOfRange: [],
         wrongLength: [],
+        irregular: [],
       }).reduce((sum, e) => sum + e.beats, 0);
       const missing = metre.barBeats - held;
       if (missing > 1e-9) {
@@ -553,7 +675,29 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
       pickupBeats > 0 &&
       Math.abs(shortfall - pickupBeats) < BAR_TOLERANCE;
     if (!body.implicit && !completesPickup && Math.abs(shortfall) > BAR_TOLERANCE) {
-      tally.wrongLength.push(body.number);
+      /*
+       * A bar that is longer than its metre and whose length names a signature
+       * is read as that signature, for this bar only. Real music does this —
+       * five beats in the middle of a four-four piece, written without a change
+       * of signature because it interrupts the metre rather than replacing it —
+       * and the app can represent it exactly, `metres` being a list.
+       *
+       * Getting it wrong is not cosmetic. Left as a plain four-four bar, the
+       * five beats push a bar line into the middle of the bar, every downbeat
+       * after it lands a beat early, and the conductor beats four across five
+       * for the rest of the piece.
+       *
+       * Anything this cannot name is reported instead and left alone.
+       */
+      const inferred = inferMetre(held, metre);
+      if (inferred) {
+        restoreMetre = metre;
+        metre = inferred;
+        metres.push({ fromBeat: beat, metre });
+        tally.irregular.push(body.number);
+      } else {
+        tally.wrongLength.push(body.number);
+      }
     }
 
     for (const event of events) {
@@ -621,7 +765,7 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
     instrument: options.instrument,
     clef: clef ?? options.clef ?? 'treble',
     keys,
-    metres,
+    metres: settleChanges(metres),
     totalBeats: beat,
     seed: 0,
     kind: 'imported',
@@ -705,6 +849,14 @@ function describe(tally: Tally, divisi: Divisi, instrumentName: string): string[
       `${plural(bars.length, 'bar does', 'bars do')} not hold a full bar of music` +
         ` (${named(tally.wrongLength, 6)})` +
         ' — every bar line after them is adrift, so the numbering will not match the printed part',
+    );
+  }
+  if (tally.irregular.length > 0) {
+    const bars = [...new Set(tally.irregular)];
+    said.push(
+      `${plural(bars.length, 'bar is', 'bars are')} longer than the time signature says` +
+        ` (${named(tally.irregular, 6)})` +
+        ' — read as written, with the bar line where the music ends',
     );
   }
   if (tally.chords > 0) {
