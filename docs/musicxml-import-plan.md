@@ -178,8 +178,12 @@ so the choice costs the octave you read and hear rather than the practice.
 - **The long-rest skip is not offered.** The ruling — over ten seconds at the
   designated tempo, ask, and come back in at the bar before — needs a screen to
   ask on.
-- **`.mxl` is not opened.** The mechanism was confirmed to exist
-  (`DecompressionStream('deflate-raw')`, no dependency) and is not built.
+- **No check that a bar holds a full bar of music.** The reader accumulates note
+  durations and trusts them, so a file whose bars do not add up imports without
+  a word. An OMR result of a real part had **27 of 84 bars** not containing three
+  beats and the importer said nothing. The check is arithmetic — compare each
+  bar's content against the metre in force — and would catch a whole class of
+  bad file. This is the most valuable unbuilt thing here.
 
 **Not every exporter writes the `<sound>` layer.** MuseScore, Sibelius and
 Finale do; it is what it is for. The Audiveris output generated this session
