@@ -214,6 +214,19 @@ export function SettingsScreen({
       </header>
 
       {/*
+        My Music sits at the top, beside the settings rather than under them.
+        It was in the footer beneath the licence credits to begin with, where
+        the player who asked for it could not find it — credits read as the end
+        of a page, so anything below them reads as furniture. This is not a
+        setting for the exercise about to be generated; it is the other door out
+        of this screen, and it belongs where a door goes.
+      */}
+      <button type="button" className="entry" onClick={onImport}>
+        <span className="entry__title">My Music</span>
+        <span className="entry__detail">Open a part you have imported, or add one</span>
+      </button>
+
+      {/*
         Said once, near the top, rather than six times beside six controls.
 
         It names what this copy *has* rather than listing what it lacks, and
@@ -688,9 +701,6 @@ export function SettingsScreen({
       </p>
 
       <div className="actions actions--sticky">
-        <button type="button" className="button button--large" onClick={onImport}>
-          My Music
-        </button>
         <button type="button" className="button button--primary button--large" onClick={onStart}>
           Start
         </button>
