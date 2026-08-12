@@ -12,7 +12,7 @@ import { isTieContinuation, tiedBeats } from '../exercise/ties';
 import { BrassSynth } from '../audio/synth';
 import type { Voice } from '../audio/sampler';
 import { Metronome } from '../audio/metronome';
-import { barAt, beatOfBar, metreAt } from '../domain/metre';
+import { barAt, beatOfBar, metreAt, type Metre } from '../domain/metre';
 import { Transport } from './clock';
 import { ValveInput } from './input';
 import {
@@ -37,6 +37,22 @@ export interface SessionOptions {
   tempo: number;
   countInBars: number;
   metronomeEnabled: boolean;
+  /**
+   * Asked of each bar's metre when the metronome is off: does the beat still
+   * need sounding here?
+   *
+   * The conductor withdraws where it has no taught pattern for the metre — an
+   * imported bar of five, most likely — and its own documentation assumes the
+   * metronome carries on. It does not, unless the player has it switched on,
+   * and then there is nothing at all saying where the beat is for exactly the
+   * bar that is hardest to count. So the caller is asked, per bar.
+   *
+   * A predicate rather than a `conductorEnabled` flag because which metres the
+   * conductor can beat is the conductor's business, and `engine/` reaches only
+   * into `audio/`, `domain/` and `exercise/`. Passing the question out keeps it
+   * that way.
+   */
+  needsBeatSounded?: (metre: Metre) => boolean;
   playbackMode: PlaybackMode;
   /**
    * The recorded brass voice, once loaded. Absent falls back to synthesis, so a
@@ -268,9 +284,9 @@ export class Session {
 
   /** Schedules everything falling in a beat window that has come into range. */
   private schedule(fromBeat: number, toBeat: number): void {
-    const { exercise, metronomeEnabled, playbackMode } = this.options;
+    const { exercise, metronomeEnabled, playbackMode, needsBeatSounded } = this.options;
 
-    if (metronomeEnabled) {
+    if (metronomeEnabled || needsBeatSounded) {
       /*
        * Clicks land on the pulse, not on the crotchet.
        *
@@ -292,6 +308,14 @@ export class Session {
         // on the bar ends the walk rather than each pulse re-deciding it.
         if (barStart >= toBeat || barStart > this.soundUntil) break;
         const metre = metreAt(exercise.metres, barStart);
+        /*
+         * With the metronome off, only the bars nothing else is keeping time
+         * through. The player switched the clicks off deliberately — counting
+         * for yourself is most of what reading is — so this puts them back for
+         * the one bar where the conductor has stopped and taken the beat with
+         * it, and takes them away again at the next bar line.
+         */
+        if (!metronomeEnabled && !needsBeatSounded?.(metre)) continue;
         for (let pulse = 0; pulse < metre.pulsesPerBar; pulse++) {
           const beat = barStart + pulse * metre.pulseBeats;
           if (beat < fromBeat || beat >= toBeat || beat > this.soundUntil) continue;

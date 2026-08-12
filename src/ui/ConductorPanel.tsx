@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Metre } from '../domain/metre';
+import { barAt, beatOfBar, metreAt, type MetreChange } from '../domain/metre';
 import type { Transport } from '../engine/clock';
 import { steppedTempoAt, type TempoEvent } from '../domain/tempo';
 import {
@@ -32,7 +32,15 @@ import { currentTheme, type StaveTheme } from '../render/surface';
 
 interface ConductorPanelProps {
   transport: Transport;
-  metre: Metre;
+  /**
+   * The metre and every change of it, rather than one metre.
+   *
+   * A part changes time signature, and an imported one can hold a single bar in
+   * a metre of its own. The panel reads what is in force at the beat it is
+   * drawing, exactly as it already reads the tempo in force — the same move for
+   * the same reason, which the plan doc had listed as the obvious next one.
+   */
+  metres: readonly MetreChange[];
   /**
    * How lively the gesture is, from smooth through to marcato. The player's
    * setting; `render/conductor.ts` owns what the number means.
@@ -88,12 +96,22 @@ const ORB_FULL_AT = 0.35;
 
 export function ConductorPanel({
   transport,
-  metre,
+  metres,
   style,
   tempo,
   tempoEvents,
 }: ConductorPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /*
+   * The metre in force, tracked exactly as the settled tempo below is: read in
+   * the frame loop, held in state because it decides the pattern and therefore
+   * the panel's proportions, and guarded so React sees it only when it moves.
+   *
+   * Reference equality is enough. `metreAt` hands back the very object the
+   * change list holds, so two reads inside one segment are the same object.
+   */
+  const [metre, setMetre] = useState(() => metreAt(metres, 0));
+  const metreRef = useRef(metre);
   /*
    * The speed the music has settled at, which is what picks the pattern.
    *
@@ -127,7 +145,7 @@ export function ConductorPanel({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !pattern) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -140,7 +158,7 @@ export function ConductorPanel({
 
     // The gesture's own bounds, so the panel fits the pattern rather than the
     // pattern being drawn at whatever size a guessed aspect ratio allows.
-    const extent = extentOf(pattern, shape.lag);
+    const extent = pattern ? extentOf(pattern, shape.lag) : null;
     const trail: Array<ConductorPoint & { at: number }> = [];
     let frame: number | null = null;
 
@@ -161,6 +179,42 @@ export function ConductorPanel({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
 
+      // Interpolated rather than raw, so the gesture is smooth between audio
+      // ticks — the same reading the notation is positioned from.
+      const beat = transport.visualBeat();
+
+      /*
+       * The metre in force, read before anything below can bail out.
+       *
+       * This has to happen on every frame, including the frames where there is
+       * no gesture to draw. A metre with no taught pattern switches the
+       * conductor off, and if the loop stopped on those frames nothing would be
+       * left watching the beat — so the panel would go dark at the odd bar and
+       * stay dark for the rest of the piece, having no way to notice the metre
+       * coming back.
+       */
+      const inForce = metreAt(metres, beat);
+      if (inForce !== metreRef.current) {
+        metreRef.current = inForce;
+        setMetre(inForce);
+      }
+
+      // Cheap: a handful of events, walked once a frame, and `setSettled` is
+      // guarded so React sees a change only when the pattern really moves.
+      const declared = steppedTempoAt(tempo, tempoEvents, beat);
+      if (declared !== settledRef.current) {
+        settledRef.current = declared;
+        setSettled(declared);
+      }
+
+      /*
+       * Nothing to beat in this metre, so the panel shows nothing — cleared
+       * above, and the metronome keeps the time instead. A conducting pattern
+       * is a taught shape rather than something to interpolate, and silence is
+       * honest where an invented gesture would not be. See `patternFor`.
+       */
+      if (!pattern || !extent) return;
+
       const scale = Math.min(
         (width * (1 - PADDING * 2)) / extent.width,
         (height * (1 - PADDING * 2)) / extent.height,
@@ -170,17 +224,16 @@ export function ConductorPanel({
         y: height / 2 + (p.y - (extent.minY + extent.maxY) / 2) * scale,
       });
 
-      // Interpolated rather than raw, so the gesture is smooth between audio
-      // ticks — the same reading the notation is positioned from.
-      const beat = transport.visualBeat();
-      // Cheap: a handful of events, walked once a frame, and `setSettled` is
-      // guarded so React sees a change only when the pattern really moves.
-      const declared = steppedTempoAt(tempo, tempoEvents, beat);
-      if (declared !== settledRef.current) {
-        settledRef.current = declared;
-        setSettled(declared);
-      }
-      const place = placeInPattern(metre, pattern, beat);
+      /*
+       * Measured from this bar's line, not from the start of the piece.
+       *
+       * `placeInPattern` counts from zero at the bar line, and dividing the
+       * absolute beat by `barBeats` only says the same thing while every bar in
+       * the piece is the same length. One change of metre and the hand is a
+       * beat out for good — the fault `metre.ts` exists to prevent, latent here
+       * for as long as nothing changed metre.
+       */
+      const place = placeInPattern(inForce, pattern, beat - beatOfBar(metres, barAt(metres, beat)));
       const tip = tipAt(pattern, place, shape.lag);
       const grip = gripFor(pattern, tip);
       const tipPx = px(tip);
@@ -242,11 +295,7 @@ export function ConductorPanel({
       if (frame !== null) cancelAnimationFrame(frame);
       colourScheme?.removeEventListener('change', onSchemeChange);
     };
-  }, [transport, metre, pattern, shape.lag, tempo, tempoEvents]);
-
-  // No pattern for this metre means no conductor, and the metronome carries on
-  // alone. Guessing a shape would teach a gesture no conductor will ever make.
-  if (!pattern) return null;
+  }, [transport, metres, pattern, shape.lag, tempo, tempoEvents]);
 
   /*
    * The box takes the gesture's own proportions.
@@ -260,7 +309,33 @@ export function ConductorPanel({
    * The draw loop already fits the gesture to whatever box it is given, so
    * this only has to stop the box lying about the shape it holds.
    */
-  const extent = extentOf(pattern, shape.lag);
+  const shown = useMemo(
+    () => (pattern ? extentOf(pattern, shape.lag) : null),
+    [pattern, shape.lag],
+  );
+
+  /*
+   * The shape to hold when the conductor is off for a bar.
+   *
+   * A metre with no taught pattern draws nothing, but the panel keeps its
+   * place: appearing and vanishing mid-piece would reflow the play screen
+   * around it, twice per odd bar, which is a worse thing to do to someone
+   * reading than an empty frame is. Taken from the first metre in the piece
+   * that *does* have a pattern, so a part opening on an odd bar still gets a
+   * box of the right shape.
+   */
+  const held = useMemo(() => {
+    for (const change of metres) {
+      const beatable = patternFor(change.metre, settled);
+      if (beatable) return extentOf(shapedPattern(beatable, shape), shape.lag);
+    }
+    return null;
+  }, [metres, settled, shape]);
+
+  // Nothing in this piece can be beaten at all, so there is no conductor to
+  // show. Guessing a shape would teach a gesture no conductor will ever make.
+  const extent = shown ?? held;
+  if (!extent) return null;
 
   return (
     <div

@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
 import { formatMask } from '../domain/fingering';
-import { barAt, metreAt } from '../domain/metre';
+import { barAt } from '../domain/metre';
 import { instrumentById } from '../domain/instruments';
 import { formatPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
@@ -24,6 +24,7 @@ import { SCORE_WINDOW_BARS, type NoteJudgement, type SessionSummary, type Verdic
 import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
+import { patternFor } from '../render/conductor';
 import { ConductorPanel } from './ConductorPanel';
 import { RecentNotes, type RecentNote } from './RecentNotes';
 import { ValvePad } from './ValvePad';
@@ -111,6 +112,22 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       tempo: settings.tempo,
       countInBars: settings.countInBars,
       metronomeEnabled: settings.metronomeEnabled,
+      /*
+       * Where the conductor has no pattern for a metre it draws nothing, and
+       * the comment on `patternFor` has always said the metronome carries on.
+       * It only does if the player left it on — so with it off, an imported bar
+       * of five would have had the gesture stop and nothing take its place.
+       *
+       * Only worth asking when the conductor is the thing keeping time. With it
+       * switched off too, the player is counting for themselves everywhere and
+       * a bar that suddenly clicked would be the surprise.
+       *
+       * No tempo passed: whether a metre has a pattern at all does not depend
+       * on the speed, only which of its patterns is chosen does.
+       */
+      needsBeatSounded: settings.conductorEnabled
+        ? (metre) => patternFor(metre) === null
+        : undefined,
       playbackMode: settings.playbackMode,
       brassVoice: voiceRef.current,
       timingTolerance: settings.timingTolerance,
@@ -440,14 +457,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
         {settings.conductorEnabled && transport && (
           <ConductorPanel
             transport={transport}
-            /*
-             * The metre the piece opens in. The panel already changes pattern
-             * when the tempo steps across a threshold; changing it when the
-             * metre changes is the same kind of move and is not built, because
-             * nothing generates a part that does so yet. Listed with the other
-             * open ends in `musicxml-import-plan.md`.
-             */
-            metre={metreAt(exercise.metres, 0)}
+            metres={exercise.metres}
             style={settings.conductorStyle}
             tempo={settings.tempo}
             tempoEvents={exercise.tempo}

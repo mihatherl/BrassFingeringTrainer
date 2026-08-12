@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
-import { beatOfBar, metreFor, type MetreChange } from '../domain/metre';
+import { beatOfBar, metreFor, type Metre, type MetreChange } from '../domain/metre';
+import { patternFor } from '../render/conductor';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Voice } from '../audio/sampler';
 import { spellInKey } from '../domain/keys';
@@ -620,6 +621,59 @@ describe('reaching the end of the paper', () => {
   });
 });
 
+/**
+ * Every click a session schedules, as beats from the start of the music.
+ *
+ * The metronome schedules against the audio clock, so the times are read back
+ * through the transport rather than counted by hand. Shared by the two blocks
+ * below, which ask different questions of the same walk: where the clicks fall
+ * within a metre, and which bars get any at all.
+ */
+function clicksFor(
+  metres: MetreChange[],
+  bars: number,
+  over: { metronomeEnabled?: boolean; needsBeatSounded?: (metre: Metre) => boolean } = {},
+): number[] {
+  const at: number[] = [];
+  const metronome: string[] = [];
+  void metronome;
+  const exercise: Exercise = {
+    notes: [],
+    rests: [],
+    instrumentId: 'eb-bass',
+    clef: 'treble',
+    keys: [{ fromBeat: 0, fifths: 0 }],
+    metres,
+    tempo: [],
+    totalBeats: beatOfBar(metres, bars),
+    chosenBeats: beatOfBar(metres, bars),
+    seed: 1,
+    kind: 'random',
+  };
+
+  const s = new Session({
+    context,
+    exercise,
+    tempo: 60,
+    countInBars: 0,
+    metronomeEnabled: true,
+    playbackMode: 'off',
+    brassVoice: voice,
+    ...over,
+  });
+  // The metronome schedules against the audio clock, so its click times are
+  // read back through the transport rather than counted by hand.
+  const clickSpy = s as unknown as { metronome: { click: (t: number, a: boolean) => void } };
+  const original = clickSpy.metronome.click.bind(clickSpy.metronome);
+  void original;
+  clickSpy.metronome.click = (time: number) => {
+    at.push(Math.round((time - s.transport.timeForBeat(0)) * 1000) / 1000);
+  };
+
+  runTo(s, exercise.totalBeats);
+  return at;
+}
+
 describe('the metronome in compound time', () => {
   /*
    * 6/8 is two clicks to a bar, on the dotted crotchets. Clicking every
@@ -627,45 +681,6 @@ describe('the metronome in compound time', () => {
    * gives you — puts three clicks in a bar of 6/8, in places where nobody is
    * counting and very little of the music falls.
    */
-  function clicksFor(metres: MetreChange[], bars: number): number[] {
-    const at: number[] = [];
-    const metronome: string[] = [];
-    void metronome;
-    const exercise: Exercise = {
-      notes: [],
-      rests: [],
-      instrumentId: 'eb-bass',
-      clef: 'treble',
-      keys: [{ fromBeat: 0, fifths: 0 }],
-      metres,
-      tempo: [],
-      totalBeats: beatOfBar(metres, bars),
-      chosenBeats: beatOfBar(metres, bars),
-      seed: 1,
-      kind: 'random',
-    };
-
-    const s = new Session({
-      context,
-      exercise,
-      tempo: 60,
-      countInBars: 0,
-      metronomeEnabled: true,
-      playbackMode: 'off',
-      brassVoice: voice,
-    });
-    // The metronome schedules against the audio clock, so its click times are
-    // read back through the transport rather than counted by hand.
-    const clickSpy = s as unknown as { metronome: { click: (t: number, a: boolean) => void } };
-    const original = clickSpy.metronome.click.bind(clickSpy.metronome);
-    void original;
-    clickSpy.metronome.click = (time: number) => {
-      at.push(Math.round((time - s.transport.timeForBeat(0)) * 1000) / 1000);
-    };
-
-    runTo(s, exercise.totalBeats);
-    return at;
-  }
 
   it('clicks twice a bar in 6/8, on the dotted crotchets', () => {
     const clicks = clicksFor([{ fromBeat: 0, metre: metreFor(6, 8) }], 2);
@@ -707,5 +722,60 @@ describe('the metronome in compound time', () => {
       4,
     );
     expect(clicks.filter((t) => t >= 0 && t <= 8.5)).toEqual([0, 1, 2, 3, 4, 5.5, 7, 8.5]);
+  });
+});
+
+describe('keeping time where the conductor cannot', () => {
+  /*
+   * The conductor draws nothing for a metre it has no taught pattern for — an
+   * imported bar of five, most likely — and `patternFor` has always said the
+   * metronome carries on. It only does if the player left it switched on, and
+   * plenty do not: counting for yourself is most of what reading is.
+   *
+   * So for that bar, and only that bar, the clicks come back. The player is
+   * given the beat exactly where the app has taken away the one thing that was
+   * showing it, and nowhere else.
+   */
+  const fourFourWithAFive: MetreChange[] = [
+    { fromBeat: 0, metre: metreFor(4, 4) },
+    { fromBeat: 4, metre: metreFor(5, 4) },
+    { fromBeat: 9, metre: metreFor(4, 4) },
+  ];
+
+  /** What the play screen passes: the conductor is on, and cannot beat a five. */
+  const conducting = (metre: Metre) => patternFor(metre) === null;
+
+  it('clicks through the bar the conductor drops, and no others', () => {
+    const clicks = clicksFor(fourFourWithAFive, 3, {
+      metronomeEnabled: false,
+      needsBeatSounded: conducting,
+    });
+    // Beats 4 to 8 are the five-four bar. Nothing before it, nothing after.
+    expect(clicks.filter((t) => t >= 0 && t < 13)).toEqual([4, 5, 6, 7, 8]);
+  });
+
+  it('says nothing anywhere when the conductor can beat the whole piece', () => {
+    const clicks = clicksFor([{ fromBeat: 0, metre: metreFor(4, 4) }], 3, {
+      metronomeEnabled: false,
+      needsBeatSounded: conducting,
+    });
+    expect(clicks).toEqual([]);
+  });
+
+  it('leaves the metronome alone where the player wanted it', () => {
+    // Switched on, it clicks the whole piece as it always did — the odd bar
+    // included, at five clicks to the bar, which is what its own metre says.
+    const clicks = clicksFor(fourFourWithAFive, 3, {
+      metronomeEnabled: true,
+      needsBeatSounded: conducting,
+    });
+    expect(clicks.filter((t) => t >= 0 && t < 13)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  });
+
+  it('says nothing when the conductor is off too, which is the player counting', () => {
+    // No predicate is what the play screen passes with the conductor switched
+    // off. Nothing has been taken away, so nothing is put back.
+    const clicks = clicksFor(fourFourWithAFive, 3, { metronomeEnabled: false });
+    expect(clicks).toEqual([]);
   });
 });

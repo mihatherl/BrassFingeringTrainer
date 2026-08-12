@@ -273,14 +273,23 @@ a part; all three are commented at the call site.
   crotchets, so a part turning from 4/4 into 6/8 changes what their number
   means. The metronome *does* follow the change — it walks bar by bar, and a
   test holds it to 2/4 then 6/8.
-- **The conductor panel** (`ui/PlayScreen.tsx`) gets one `Metre`. It already
-  changes pattern when the tempo steps across a threshold (v1.36.0); doing the
-  same on a metre change is the same kind of move.
-- **The renderer draws no mid-line signature.** Bar lines land correctly through
-  a change and each system's header states what is in force where the line
-  begins, but a change part-way along a line is not engraved where it falls.
-  Key changes already are — `drawKeyChange` in `render/system.ts` is the model,
-  and this is the same job.
+- ~~**The conductor panel** gets one `Metre`.~~ **Done in v2.3.0.** It takes the
+  change list and reads what is in force at the beat it is drawing, exactly as
+  it already read the tempo. Two things came out of it that the one-`Metre`
+  version had hidden:
+
+  `placeInPattern` was being handed the beat since the start of the piece, and
+  it counts from zero at the bar line. The two say the same thing only while
+  every bar is the same length, so one change of metre put the hand a beat out
+  for the rest of the piece — latent for as long as nothing that changed metre
+  could reach it.
+
+  And a metre with no pattern used to unmount the panel, which stopped the frame
+  loop, which was the only thing watching the beat — so the conductor would have
+  gone dark at the first odd bar and stayed dark. It now keeps its box and draws
+  nothing, which also stops the play screen reflowing twice per odd bar.
+- ~~**The renderer draws no mid-line signature.**~~ **Done in v1.43.0**, with
+  one apparatus for key and metre together.
 
 The header widths in `render/review.ts` and `render/surface.ts` already reserve
 room for the **widest signature the piece reaches**, on the same reasoning that

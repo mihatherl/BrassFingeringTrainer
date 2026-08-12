@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { metreFor } from '../domain/metre';
+import { barAt, beatOfBar, metreAt, metreFor } from '../domain/metre';
 import {
   BEAT_IN_FEWER_ABOVE_BPM,
   CONDUCTOR_STYLE_RANGE,
@@ -195,6 +195,41 @@ describe('placing a beat in its pattern', () => {
         );
       }
     }
+  });
+
+  it('lands on the downbeat at every bar line, through a change of metre', () => {
+    /*
+     * The arithmetic the panel has to do, and the reason it cannot hand this
+     * function an absolute beat.
+     *
+     * `placeInPattern` counts from zero at the bar line. Dividing the beat
+     * since the start of the piece by `barBeats` says the same thing only
+     * while every bar is the same length — one change of metre and the hand is
+     * a beat out from there to the end of the piece, which is the fault
+     * `metre.ts` exists to prevent and which was latent here for as long as
+     * nothing imported changed metre.
+     *
+     * A part turning from four-four into three-four at bar 5, which is the
+     * shape of the file in `__fixtures__`.
+     */
+    const metres = [
+      { fromBeat: 0, metre: metreFor(4, 4) },
+      { fromBeat: 16, metre: metreFor(3, 4) },
+    ];
+
+    for (let bar = 0; bar < 12; bar++) {
+      const line = beatOfBar(metres, bar);
+      const metre = metreAt(metres, line);
+      const pattern = patternFor(metre)!;
+      const place = placeInPattern(metre, pattern, line - beatOfBar(metres, barAt(metres, line)));
+      expect(place, `bar ${bar + 1} begins on a downbeat`).toBe(0);
+    }
+
+    // And the same reading taken the old way, to show the test is not vacuous:
+    // bar 6's line is beat 19, which four-four arithmetic puts a beat into the
+    // bar rather than at the head of it.
+    const threeFour = metreFor(3, 4);
+    expect(placeInPattern(threeFour, patternFor(threeFour)!, 19) % 3).toBeCloseTo(1, 12);
   });
 
   it('runs one position to the bar when the bar is beaten in one', () => {
