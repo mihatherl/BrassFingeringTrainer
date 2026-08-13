@@ -31,7 +31,7 @@ import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
 import { patternFor } from '../render/conductor';
 import { ConductorPanel } from './ConductorPanel';
-import { TempoSlider } from './TempoSlider';
+import { TempoDial } from './TempoDial';
 import { ValvePad } from './ValvePad';
 
 interface PlayScreenProps {
@@ -477,7 +477,7 @@ export function PlayScreen({
       </div>
 
       <div className="play-aside">
-        <TempoSlider
+        <TempoDial
           tempo={tempo}
           compound={metreFor(settings.beatsPerBar, settings.beatUnit).isCompound}
           onChange={(bpm) => {

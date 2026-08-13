@@ -20,6 +20,9 @@
   --valve: #e8e4db;
   --valve-down: #2f6fd0;
   --valve-down-text: #ffffff;
+  /* The ridges on the tempo dial's wheel: dark cuts in a light surface, and
+     the other way round in the dark, so it reads as a grip either way. */
+  --dial-ridge: rgb(0 0 0 / 26%);
   --radius: 12px;
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 4px 16px rgb(0 0 0 / 5%);
 
@@ -57,6 +60,7 @@
     --valve: #2c2f38;
     --valve-down: #63a1ff;
     --valve-down-text: #0d1017;
+    --dial-ridge: rgb(255 255 255 / 24%);
     --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
   }
 }
@@ -360,32 +364,85 @@ body {
  * control whose width answered to its neighbour would move as the neighbour
  * changed. Fixed, so the pair sits centred as a group.
  */
-.tempo-live {
+.tempo-dial {
   flex: 0 0 38%;
   min-width: 0;
   display: grid;
+  justify-items: center;
   align-content: center;
   gap: 0.25rem;
   height: var(--aside-size);
 }
 
-.tempo-live__value {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  text-align: center;
-  white-space: nowrap;
+/*
+ * Large, and above the wheel.
+ *
+ * The thumb turning the dial covers the dial, and the eye that has to read this
+ * is on the stave — so it is set at a size that can be caught at the edge of
+ * vision, in the one place a hand on the wheel cannot be.
+ */
+.tempo-dial__value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  line-height: 1;
 }
 
-.tempo-live__value strong {
-  color: var(--text);
-  font-size: 1.1rem;
+.tempo-dial__value strong {
+  font-size: clamp(1.6rem, 4.5vh, 2.4rem);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
-/* Fat enough to catch with a thumb while the other hand is playing. */
-.tempo-live input[type='range'] {
-  width: 100%;
-  height: 1.75rem;
+.tempo-dial__unit {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/*
+ * The wheel itself: ridges that turn with the finger, and no numbers.
+ *
+ * The ridges are a repeating gradient offset by `--phase`, which the component
+ * derives from the tempo — so the wheel is at a position rather than merely
+ * moving, and the same tempo always shows the same face. The overlay is what
+ * makes it read as a cylinder rather than a striped rectangle: dark at both
+ * edges, clear across the middle.
+ */
+.tempo-dial__wheel {
+  width: 3.75rem;
+  height: 4.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 22%),
+      transparent 20%,
+      transparent 80%,
+      rgb(0 0 0 / 22%)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--dial-ridge) 0 1.5px,
+      var(--surface-raised) 1.5px var(--ridge)
+    );
+  background-position:
+    0 0,
+    0 var(--phase);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tempo-dial__wheel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tempo-dial__wheel.is-turning {
+  cursor: grabbing;
+  border-color: var(--accent);
 }
 
 /*
@@ -1041,7 +1098,7 @@ input[type='checkbox'] {
     align-self: end;
   }
 
-  .tempo-live {
+  .tempo-dial {
     height: auto;
     padding-bottom: 0.5rem;
   }
@@ -1065,8 +1122,10 @@ input[type='checkbox'] {
 
 /* Landscape phones have little vertical room; shrink the pad to protect the stave. */
 @media (orientation: landscape) and (max-height: 30rem) {
-  .tempo-live {
-    font-size: 0.85rem;
+  /* Sideways there is no height to spare: the wheel keeps its grip, the
+     reading gives up a little of its size. */
+  .tempo-dial__wheel {
+    height: 3.25rem;
   }
 
   .valve-pad {
@@ -1142,7 +1201,7 @@ input[type='checkbox'] {
     height: auto;
   }
 
-  .tempo-live {
+  .tempo-dial {
     flex: 0 1 auto;
     width: 100%;
     height: auto;

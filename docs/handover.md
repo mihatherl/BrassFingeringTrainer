@@ -79,7 +79,8 @@ user-visible:
 
 | | |
 |---|---|
-| v2.9.0 | **The notes list is gone; mistakes are answered on the note, and the tempo is under the player's hand.** A wrong note prints its fingering over itself and over every later note of that pitch, immediately, with no cap on how many. The space the list held is now a tempo slider that moves the clock mid-run. |
+| v2.9.0 | **The notes list is gone; mistakes are answered on the note, and the tempo is under the player's hand.** A wrong note prints its fingering over itself and over every later note of that pitch, immediately, with no cap on how many. The space the list held is now a tempo control that moves the clock mid-run. |
+| v2.9.1 | **That control is a dial, with the reading above it.** A slider had to fit forty to two hundred and twenty into the width beside the stave; the dial gives the same travel to every beat a minute and takes a few spins to cross. The number is large and above, because the thumb covers the dial. `useDial` now carries the gesture for both dials in the app. |
 
 ## The decisions worth not re-litigating
 

@@ -1407,6 +1407,29 @@ constantly, and reaching for it used to mean stopping, walking back to the
 settings screen and starting the exercise again — an absurd amount of ceremony
 for the most common instruction in any practice room.
 
+**A dial, not a slider — v2.9.1.** It shipped as a slider and the player's
+objection was immediate and correct: a slider has to fit the whole range into
+whatever width is beside the stave, so every pixel is worth a couple of beats a
+minute and "a shade slower" becomes a lottery. A dial gives the same finger
+travel to every beat a minute wherever it starts from. Crossing the range then
+takes several spins, which is the trade and the right way round — the small
+adjustment is the one made constantly, and the player said as much when asking
+for it.
+
+**The reading sits above the dial, and large.** The thumb turning it covers the
+dial itself, and the other hand is on the valves with the eye on the stave, so
+the number has to be catchable at the edge of vision *and* somewhere a hand
+cannot be. That is the whole reason it is not written on the face.
+
+**One gesture, two dials.** `useDial` is the range picker's feel with nothing
+note-shaped left in it: travel to a detent, a click and a tap of the hand at
+each one, resistance at the ends, and a keyboard and a wheel for anyone not
+using a finger. The caller supplies only where a number of detents from a value
+lands. And the click is rate-limited in `audio/tick.ts` — a note dial passes a
+detent every few hundred milliseconds and every one should be heard, but a
+tempo dial spun hard passes thirty a second, which is a buzz rather than a
+ratchet and a phone that feels broken.
+
 **A live tempo change extends the map; it never re-anchors it.** This is the
 part that had to be right. `Transport`'s beat↔time map is anchored at a single
 origin, and `setTempo` was once a method that threw for exactly that reason:

@@ -20,12 +20,29 @@
 import { getAudioContext } from './context';
 
 const FREQUENCY = 2000;
+/**
+ * Least time between two clicks.
+ *
+ * A note dial passes a detent every few hundred milliseconds and every one of
+ * them should be heard. A tempo dial spun hard passes thirty in a second, and
+ * thirty of these in a second is not a ratchet but a buzz — and thirty
+ * vibrations is a phone that feels broken. Dropping the ones that fall inside
+ * this leaves a ratchet at about eight a second however fast the finger goes,
+ * which is what a fast-moving detent sounds like anyway.
+ */
+const MIN_GAP_MS = 120;
 const DECAY = 0.016;
 const LEVEL = 0.09;
 /** Long enough to feel, short enough not to buzz. */
 const VIBRATION_MS = 8;
 
+let lastClick = 0;
+
 export function detentClick(): void {
+  const now = typeof performance === 'undefined' ? Date.now() : performance.now();
+  if (now - lastClick < MIN_GAP_MS) return;
+  lastClick = now;
+
   if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
     try {
       navigator.vibrate(VIBRATION_MS);
