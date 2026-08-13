@@ -10,9 +10,9 @@ The durable rulings live in `v2-design.md`; the feature plans are
 kept current as they were built. **Read this for the shape, those for the
 reasons.**
 
-The app went from **v2.1.1 to v2.5.4** — eight releases across fifteen commits,
-all deployed. It began as a consolidation and turned into two features and a
-long tail of corrections.
+The app went from **v2.1.1 to v2.6.0** — nine releases, all deployed. It began
+as a consolidation and turned into three features and a long tail of
+corrections.
 
 ## What was built, in order
 
@@ -54,6 +54,12 @@ user-visible:
 | v2.5.3 | Drawn bars translated to measures before they are read. |
 | v2.5.4 | The joining bar of rests counted as part of the block, so the grey stops creeping. |
 
+**The range:**
+
+| | |
+|---|---|
+| v2.6.0 | **The player says which notes free material is drawn from.** The band always existed and was centred on the compass; now it can be asked for, and an asked-for range is taken literally. |
+
 ## The decisions worth not re-litigating
 
 **A selection is a walk, not a slice.** The importer has always read a list of
@@ -80,6 +86,12 @@ a part with a pickup makes counting and printing disagree for its whole length.
 the eleven malformed bars in the OMR file to hand is *short*, and five are pairs
 summing to one bar — bars the scanner split. A short bar is something missing
 and the app cannot know what; a long bar has music that has to go somewhere.
+
+**A range asked for is taken literally; unset, the middle is favoured.** All of
+it, none of it favoured — someone asking for the bottom of the horn has said
+something specific. Difficulty then governs the leaps, accidentals and rhythm
+but not where the notes sit. Free material only: a pattern asks `register`
+instead, and a theme finds its own octave. Written up in `v2-design.md`.
 
 **An odd metre still gets no conductor.** The player confirmed the existing
 ruling — a five is not a four with a beat wedged in — and the metronome now
@@ -134,6 +146,15 @@ once the pickup and its completing bar are set aside.
 - **Nothing keeps a selection.** Choosing bars is per-visit; the library stores
   the file and the part, not a passage.
 
+**The range**, newest of all:
+
+- **Imported music has no range control**, and arguably wants one least — the
+  part says what the notes are. But a passage above what the player can reach is
+  exactly the case the out-of-range warning already reports, and a range would
+  be a different answer to it.
+- **Themes ignore it**, which is right for now and worth revisiting if a player
+  asks to drill a tune in a register other than the one it lands in.
+
 **The importer, in rough order of value:**
 
 - **Tempo marks are not read.** `<sound tempo>` is quarter-notes per minute and
@@ -186,6 +207,13 @@ behind the sticky strip.
 **Say what the app decided, where the page does not.** An inferred 5/4 bar is
 reported, because the app has decided something the printed part does not
 state — and if it decided wrongly, that sentence is what lets the player see it.
+
+**Look for the feature that is already built.** The range control was most of a
+day's work expected and an afternoon's actual, because `candidatePitches` had
+always computed a band — the difficulty's width, centred on the compass. Nothing
+had to be invented; a computed thing had to become an asked-for one, with the
+old behaviour kept as the unasked default. Worth a look before designing
+anything here: this app tends to have the machinery and be missing the question.
 
 **Conventions in force:** push without asking once the gate is green (tests,
 build, lint), tag every version on its last commit, and keep pure corrections in

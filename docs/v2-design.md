@@ -1281,6 +1281,41 @@ the app offers today and 6/8, 9/8 and 12/8 when compound time arrives. Five and
 seven are drawn on the reference sheet in `input/conducting` and can be added
 from it when wanted.
 
+## The range free material is drawn from — built, v2.6.0
+
+Asked for by the player on 2026-08-13, having seen it elsewhere. The band
+already existed and was simply nobody's to set: `candidatePitches` opened one as
+wide as the difficulty said, centred on the middle of the compass. An Eb bass in
+treble spans Db3 to C6 and Easy asks for seventeen semitones, so the bottom
+fifth of the horn was unreachable at every level below Expert.
+
+**A range asked for is taken literally — all of it, none of it favoured.** The
+player's ruling. Someone asking for the bottom of the instrument has said
+something specific, and pulling the notes back towards the middle would be the
+app disagreeing with them about the thing they came to practise. Difficulty
+keeps the leaps, the accidentals, the rhythms and the rests, and stops governing
+where the notes sit.
+
+**Where no range is asked for, the middle is favoured.** Unchanged behaviour,
+and what an exercise wants when nobody has said otherwise. `Settings.range` is
+null by default, and null means *the difficulty deciding* — not a range of none.
+
+**Free material only.** A pattern is placed by its tonic and its span and asks
+`register` which end of the horn to sit at; a theme is written in degrees and
+finds its own octave. Both would mean something different by a range, so the
+control appears opposite the register: one or the other, never both and never
+neither.
+
+**Named and drawn.** Two dropdowns give the note and its fingering — a control
+has to be operated — and a stave beside them draws the two bounds where they
+actually live. That is the reasoning `note-chart.ts` already sets out for the
+weak-note chart: a letter and an octave number ask the reader to translate, and
+translating is the thing someone practising this is not yet fluent at.
+
+Written pitch, so it moves with the clef. `sanitise` clamps rather than clears
+when the instrument or clef changes: clearing would silently drop a choice on a
+mis-tap, and the stave shows where a clamped one landed.
+
 ## Fermata
 
 Draw it whenever, but it has no honest meaning against a metronome. A fermata
