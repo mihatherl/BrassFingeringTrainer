@@ -68,6 +68,12 @@ user-visible:
 |---|---|
 | v2.8.0 | **A fingering is a callout now** — valve numbers stacked in a capsule on a tapered tail pointing at its note. Stacked because the room a hint needs is horizontal, and the bar numbers moved out from under them. |
 
+**The marking:**
+
+| | |
+|---|---|
+| v2.8.1 | **A tie is marked a bar at a time.** A G held over four bars used to turn green in all four the moment it was started — the far end of a tie wears the verdict of the note it is tied from, and that verdict lands at the attack. Reported from a hymn. |
+
 ## The decisions worth not re-litigating
 
 **A selection is a walk, not a slice.** The importer has always read a list of

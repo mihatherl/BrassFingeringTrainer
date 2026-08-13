@@ -30,6 +30,7 @@
 
 import { keyAt, widestKey } from '../domain/keys';
 import { insideMultiRest, isMultiRest, multiRestSpans } from '../exercise/rests';
+import { isTieContinuation } from '../exercise/ties';
 import { barAt, barCount, beatOfBar, metreAt } from '../domain/metre';
 import { durationBeats } from '../domain/rhythm';
 import type { Transport } from '../engine/clock';
@@ -282,6 +283,44 @@ export function revealByBar(
   };
 }
 
+/**
+ * Marks a tie one bar at a time, as each bar of it is played through.
+ *
+ * A tie is one sound written as several noteheads, and only the first of them
+ * is judged — the far end asks nothing of the player, so it wears the verdict
+ * of the note it is tied from. Which meant a G tied across four bars turned
+ * green in all four the instant the attack was confirmed: the page claiming
+ * three bars the player had not yet held, in the first quarter of a second of
+ * a long note. Reported from a hymn, where a note over three or four bars is
+ * ordinary rather than exotic.
+ *
+ * So every notehead in a tie chain keeps its verdict until the bar it stands in
+ * has been played through, and the green spreads across the tie a bar at a time
+ * behind the player. Only notes in a tie wait: an untied note is over inside
+ * its own bar, and the strike line has already said what it thought of it.
+ *
+ * Nothing is judged differently — this decides only when a verdict is shown,
+ * and the confirming flash at the strike line still lands the moment the
+ * fingering comes right.
+ */
+export function revealTiesByBar(
+  exercise: Exercise,
+  verdictFor: (noteIndex: number) => Verdict | undefined,
+  beatNow: () => number,
+): (noteIndex: number) => Verdict | undefined {
+  const tied = (index: number) =>
+    exercise.notes[index].tiedToNext || isTieContinuation(exercise.notes, index);
+
+  const barEnd = (index: number) =>
+    beatOfBar(exercise.metres, barAt(exercise.metres, exercise.notes[index].startBeat) + 1);
+
+  return (noteIndex) => {
+    const verdict = verdictFor(noteIndex);
+    if (verdict === undefined || !tied(noteIndex)) return verdict;
+    return beatNow() >= barEnd(noteIndex) - 1e-9 ? verdict : undefined;
+  };
+}
+
 export interface StaveRendererOptions {
   canvas: HTMLCanvasElement;
   exercise: Exercise;
@@ -379,10 +418,18 @@ export class StaveRenderer {
     if (!ctx) throw new Error('Canvas 2D context unavailable');
     this.ctx = ctx;
 
+    /*
+     * Two rules, and the tie one goes underneath: a bar holding the far end of
+     * a tie is not finished being judged until that end can show its verdict,
+     * so `revealByBar` has to see it withheld rather than answered early.
+     */
+    const throughTies = revealTiesByBar(options.exercise, options.verdictFor, () =>
+      options.transport.visualBeat(),
+    );
     this.verdictFor =
       options.readingMode === 'paged'
-        ? revealByBar(options.exercise, options.verdictFor)
-        : options.verdictFor;
+        ? revealByBar(options.exercise, throughTies)
+        : throughTies;
 
     this.shortestNoteBeats = options.exercise.notes.reduce(
       (shortest, note) => Math.min(shortest, durationBeats(note.duration)),

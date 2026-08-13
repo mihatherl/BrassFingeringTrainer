@@ -5,7 +5,8 @@ import { Transport } from '../engine/clock';
 import type { Verdict } from '../engine/judge';
 import { difficultyById } from '../exercise/difficulty';
 import { generateExercise } from '../exercise/generate';
-import type { ExerciseKind } from '../exercise/types';
+import type { Exercise, ExerciseKind, NoteEvent } from '../exercise/types';
+import { spellInKey } from '../domain/keys';
 import { glyphPath } from './glyphs';
 import { drawFingeringHint, type LayoutNote } from './notes';
 import { staveMetrics } from './stave';
@@ -13,6 +14,7 @@ import {
   DARK_THEME,
   LIGHT_THEME,
   revealByBar,
+  revealTiesByBar,
   StaveRenderer,
   staveSpaceCeiling,
 } from './surface';
@@ -1378,5 +1380,119 @@ describe('revealByBar', () => {
     const reveal = revealByBar(exercise, (index) => verdicts[index]);
 
     for (let i = 0; i < firstBarCount; i++) expect(reveal(i), `note ${i}`).toBe('missed');
+  });
+});
+
+describe('revealTiesByBar', () => {
+  /**
+   * The hymn case, reported from a real part: a G held across four bars, then
+   * an ordinary note after it. Only the first of the five is ever judged — the
+   * rest are the far end of the tie — so all four bars used to turn green the
+   * instant the attack was confirmed.
+   */
+  function heldAcrossBars(): Exercise {
+    const held: NoteEvent[] = [0, 1, 2, 3].map((bar) => ({
+      writtenMidi: 67,
+      pitch: spellInKey(67, 0),
+      soundingMidi: 46,
+      startBeat: bar * 4,
+      duration: { value: 'whole' as const, dotted: false },
+      acceptedMasks: [0],
+      primaryMask: 0,
+      beamGroup: -1,
+      tupletGroup: -1,
+      tiedToNext: bar < 3,
+      showAccidental: false,
+    }));
+
+    return {
+      notes: [
+        ...held,
+        { ...held[0], startBeat: 16, duration: { value: 'quarter', dotted: false }, tiedToNext: false },
+      ],
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metres: [{ fromBeat: 0, metre: metreFor(4, 4) }],
+      tempo: [],
+      totalBeats: 17,
+      chosenBeats: 17,
+      seed: 1,
+      kind: 'random',
+    };
+  }
+
+  /** Every note wears the head's verdict, as `PlayScreen` hands them over. */
+  function reveal(beat: () => number) {
+    const exercise = heldAcrossBars();
+    return revealTiesByBar(exercise, () => 'correct', beat);
+  }
+
+  it('marks a bar of a tie only once that bar has been played through', () => {
+    let beat = 0;
+    const shown = reveal(() => beat);
+
+    // A quarter of the way into the first bar: the attack is confirmed, and
+    // nothing on the page says anything about the three bars still to hold.
+    beat = 1;
+    for (let i = 0; i < 4; i++) expect(shown(i), `note ${i}`).toBeUndefined();
+
+    // The first bar closes and takes its own notehead with it, and no more.
+    beat = 4;
+    expect(shown(0)).toBe('correct');
+    for (let i = 1; i < 4; i++) expect(shown(i), `note ${i}`).toBeUndefined();
+
+    // Then one at a time, behind the player.
+    beat = 8;
+    expect(shown(1)).toBe('correct');
+    expect(shown(2)).toBeUndefined();
+
+    beat = 16;
+    for (let i = 0; i < 4; i++) expect(shown(i), `note ${i}`).toBe('correct');
+  });
+
+  it('holds an untied note back for nothing', () => {
+    // The rule is about a sound that outlives its bar. An ordinary note is over
+    // inside its own, and the strike line has already said what it made of it.
+    const shown = reveal(() => 16);
+    expect(shown(4)).toBe('correct');
+  });
+
+  it('is what the renderer actually colours a tie with', () => {
+    /*
+     * The wiring, not the rule: the wrapper is composed in the constructor and
+     * a tie held back by it would still be drawn green if the composition were
+     * wrong — or in paged mode, if the two wrappers were nested the other way
+     * round.
+     */
+    const paints = (seconds: number, readingMode: 'scrolling' | 'paged') => {
+      const calls: RecordedCall[] = [];
+      new StaveRenderer({
+        canvas: mockCanvas(calls),
+        exercise: heldAcrossBars(),
+        transport: new Transport(fakeAudioContext(seconds), 100),
+        theme: LIGHT_THEME,
+        scrollSpeed: 110,
+        readingMode,
+        // The tie only: the plain note after it is another bar's business, and
+        // it would paint green at any beat, which is the point of it.
+        verdictFor: (index) => (index < 4 ? 'correct' : undefined),
+      }).draw();
+      return calls.some((c) => c.method === 'fillStyle=' && c.args[0] === LIGHT_THEME.correct);
+    };
+
+    // A beat into the first bar of the tie, and a beat past the end of it.
+    // One beat is 0.6s at 100bpm.
+    for (const mode of ['scrolling', 'paged'] as const) {
+      expect(paints(0.6, mode), `${mode} inside the bar`).toBe(false);
+      expect(paints(3.0, mode), `${mode} past the bar`).toBe(true);
+    }
+  });
+
+  it('says nothing where there is no verdict yet', () => {
+    const exercise = heldAcrossBars();
+    const shown = revealTiesByBar(exercise, () => undefined, () => 99);
+    for (let i = 0; i < 5; i++) expect(shown(i), `note ${i}`).toBeUndefined();
   });
 });

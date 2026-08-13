@@ -1369,6 +1369,33 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## A tie is marked a bar at a time — v2.8.1
+
+Reported from a hymn on 2026-08-14: a G tied across three or four bars turned
+green in every one of them the moment the player started it.
+
+The cause is a rule that is right on its own. A tie is one sound written as
+several noteheads, and only the first is judged — the far end asks nothing of
+the player, so `PlayScreen` hands it the verdict of the note it is tied from,
+because a green head beside an unmarked continuation reads as half a note having
+gone right. But that verdict lands within a fraction of a second of the attack,
+so the page was claiming three bars the player was still in the middle of
+holding.
+
+**Each notehead of a tie keeps its verdict until the bar it stands in has been
+played through** (`revealTiesByBar`). The green then spreads across the tie a
+bar at a time, behind the player, which is the player's own description of what
+it should do.
+
+**Only notes in a tie wait.** An untied note is over inside its own bar, and in
+scrolling reading the strike line has already said what it made of it the
+instant the fingering came right. Nothing here changes what is *judged* — this
+decides when a verdict is shown, and the confirming flash at the strike line
+still lands on the act that earned it.
+
+It composes underneath `revealByBar`, not over it: a bar holding the far end of
+a tie is not finished being judged until that end can show its verdict.
+
 ## The fingering callout — v2.8.0
 
 A fingering used to be printed as a line of text over its note: `1-2-3`, set in
