@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { barAtPoint, barRects, drawReview, planReview } from '../render/review';
+import { barAtPoint, barRects, drawReview, planReview, scanningSpace } from '../render/review';
 import type { BarSpan, ImportedBar } from '../import/part';
 import type { Exercise } from '../exercise/types';
 import { lengthOf, tapBar } from './selection';
@@ -36,37 +36,6 @@ interface ScorePickerProps {
   onBack: () => void;
   /** What the piece is called, for the heading. */
   title: string;
-}
-
-/**
- * How large to draw a stave here, against the reading size the review uses.
- *
- * Measured on the committed fixture, forty-two bars on a 390px phone: at the
- * review's own size that is **29 systems and 4324 pixels**, eleven screens of
- * scrolling to find bar 33. At this size it is eleven systems and about a
- * screen and a half, which is a piece you can take in.
- *
- * Not smaller, and the floor is why: a bar has to stay a comfortable thing to
- * hit with a thumb. At this scale a bar on a phone is around ninety pixels
- * wide and a system seventy tall, which is roomier than most buttons.
- */
-function scoreSpace(width: number): number {
-  /*
-   * Taken from a bucketed width, and that is what stops the page shivering.
-   *
-   * Straight from the width, the scale is a continuous function of it — so any
-   * change at all, of a single pixel, repacks every system and moves every bar
-   * slightly. And selecting a bar *does* change the width: it lengthens the
-   * strip at the foot of the screen, which can bring a scrollbar in, which
-   * takes about fifteen pixels off the canvas. Each selection nudged the whole
-   * score sideways, which is exactly what the player reported.
-   *
-   * At sixty-four pixel steps a scrollbar cannot cross a boundary unless the
-   * width was already within fifteen pixels of one, and the layout only moves
-   * when the window genuinely does.
-   */
-  const bucket = Math.max(240, Math.round(width / 64) * 64);
-  return Math.min(9, Math.max(5, bucket / 60));
 }
 
 export function ScorePicker({ exercise, bars, onPractise, onBack, title }: ScorePickerProps) {
@@ -98,7 +67,7 @@ export function ScorePicker({ exercise, bars, onPractise, onBack, title }: Score
     (canvas: HTMLCanvasElement, theme: Parameters<typeof drawReview>[1]['theme']) => {
       drawReview(canvas, {
         exercise,
-        staveSpace: scoreSpace(canvas.getBoundingClientRect().width),
+        staveSpace: scanningSpace(canvas.getBoundingClientRect().width),
         // Nothing has been played, so nothing is marked. The wash is the only
         // thing this view adds to the page.
         verdicts: [],
@@ -119,7 +88,7 @@ export function ScorePicker({ exercise, bars, onPractise, onBack, title }: Score
       // only input, and a layout held in state would be the stale one every
       // time the screen was resized between a draw and a tap.
       const width = canvas.getBoundingClientRect().width;
-      const layout = planReview(width, exercise, scoreSpace(width));
+      const layout = planReview(width, exercise, scanningSpace(width));
       const bar = barAtPoint(barRects(exercise, layout), x, y);
       if (bar !== null) pickBar(bar);
     },

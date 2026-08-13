@@ -179,6 +179,37 @@ export function planReview(width: number, exercise: Exercise, atSpace?: number):
   };
 }
 
+/**
+ * How large to draw a stave for *scanning*, against the reading size above.
+ *
+ * Measured on the committed fixture, forty-two bars on a 390px phone: at the
+ * review's own size that is **29 systems and 4324 pixels**, eleven screens of
+ * scrolling to find bar 33. At this size it is eleven systems and about a
+ * screen and a half, which is a piece you can take in.
+ *
+ * Not smaller, and the floor is why: a bar has to stay a comfortable thing to
+ * hit with a thumb. At this scale a bar on a phone is around ninety pixels
+ * wide and a system seventy tall, which is roomier than most buttons.
+ */
+export function scanningSpace(width: number): number {
+  /*
+   * Taken from a bucketed width, and that is what stops the page shivering.
+   *
+   * Straight from the width, the scale is a continuous function of it — so any
+   * change at all, of a single pixel, repacks every system and moves every bar
+   * slightly. And selecting a bar *does* change the width: it lengthens the
+   * strip at the foot of the screen, which can bring a scrollbar in, which
+   * takes about fifteen pixels off the canvas. Each selection nudged the whole
+   * score sideways, which is exactly what the player reported.
+   *
+   * At sixty-four pixel steps a scrollbar cannot cross a boundary unless the
+   * width was already within fifteen pixels of one, and the layout only moves
+   * when the window genuinely does.
+   */
+  const bucket = Math.max(240, Math.round(width / 64) * 64);
+  return Math.min(9, Math.max(5, bucket / 60));
+}
+
 /** Where a bar sits on the page, in CSS pixels from the canvas's top left. */
 export interface BarRect {
   x: number;
