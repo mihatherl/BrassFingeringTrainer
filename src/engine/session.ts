@@ -75,6 +75,14 @@ export interface SessionOptions {
   onCorrect?: (noteIndex: number) => void;
   onFinish?: (summary: SessionSummary) => void;
   /**
+   * Raised when the run jumps backwards, with the first note index that is now
+   * unplayed again.
+   *
+   * Everything from there on has been taken out of the score and will be
+   * judged afresh, so whatever is showing verdicts has to let go of them too.
+   */
+  onRewind?: (fromNoteIndex: number) => void;
+  /**
    * Raised when the music is about to run out and the player may ask for
    * more, and again when the offer is taken up or has passed.
    *
@@ -280,6 +288,124 @@ export class Session {
     if (this.resolveTimer !== null) window.clearInterval(this.resolveTimer);
     this.resolveTimer = null;
     this.input.releaseAll();
+  }
+
+  get isPaused(): boolean {
+    return this.transport.pausedAt !== null;
+  }
+
+  /**
+   * Stops the run where it stands, keeping everything it has done.
+   *
+   * The clock freezes, so nothing is scheduled, nothing is judged and the
+   * notation stays where the player left it. What is already committed to the
+   * audio thread — the scheduling horizon is a seventh of a second — is not
+   * recallable, so the sounding note is cut and a click may still land.
+   */
+  pause(): void {
+    if (this.finished || this.isPaused) return;
+    this.transport.pause();
+    if (this.resolveTimer !== null) window.clearInterval(this.resolveTimer);
+    this.resolveTimer = null;
+    this.synth.stop();
+    this.input.releaseAll();
+  }
+
+  /** Picks the run up where it was paused, a bar of counting in first. */
+  resume(): void {
+    if (this.finished || !this.isPaused) return;
+    this.restartAt(this.transport.pausedAt ?? 0);
+  }
+
+  /**
+   * Goes back this many bars and plays from there, counted in.
+   *
+   * From the top of the bar the player is in: "back one" from the middle of
+   * bar six is the top of bar five, which is the bar of music before where
+   * they are, rather than the fraction of bar six they happen to have left.
+   */
+  rewind(bars: number): void {
+    if (this.finished) return;
+    const { metres } = this.options.exercise;
+    const here = this.transport.pausedAt ?? this.transport.currentBeat();
+    const bar = Math.max(0, barAt(metres, Math.max(0, here)) - bars);
+    const beat = beatOfBar(metres, bar);
+
+    if (this.isPaused) {
+      // Paused, a rewind moves where the run will pick up from — and moves the
+      // notation with it, so the player can see where they are about to come in.
+      this.unplay(beat);
+      this.transport.seekTo(beat);
+      return;
+    }
+    this.restartAt(beat);
+  }
+
+  /** Whether there is anything behind the playhead to go back to. */
+  get canRewind(): boolean {
+    const here = this.transport.pausedAt ?? this.transport.currentBeat();
+    return here > 1e-9;
+  }
+
+  /**
+   * Starts playing again from a beat, after one bar of counting in.
+   *
+   * The count-in is the same device the run opens with — the transport starts a
+   * bar early and the scheduler is pointed at the first note that is actually
+   * wanted, so the bar before it clicks but neither sounds nor judges. Which
+   * means the count-in is the real bar before, in its real metrical positions,
+   * rather than four anonymous beats: the player hears where "one" is.
+   */
+  private restartAt(beat: number): void {
+    /*
+     * Stopped first, and not only when it was paused.
+     *
+     * `Transport.start` is a no-op on a running clock — it must be, or a stray
+     * second call would re-anchor the origin under everything already
+     * scheduled. So a rewind made *while playing* silently did nothing at all
+     * until this line: the score gave up its bars and the music carried
+     * blithely on.
+     */
+    this.transport.stop();
+    this.synth.stop();
+
+    this.unplay(beat);
+    this.synth.setVolume(this.offering ? OFFER_VOLUME : 1);
+    this.input.clearHistory();
+
+    const { barBeats } = metreAt(this.options.exercise.metres, Math.max(0, beat));
+    this.transport.start((from, to) => this.schedule(from, to), beat - barBeats);
+
+    if (this.resolveTimer === null) {
+      this.resolveTimer = window.setInterval(() => {
+        this.noticeCorrect();
+        this.resolve();
+      }, RESOLVE_INTERVAL_MS);
+    }
+  }
+
+  /**
+   * Takes everything from a beat onwards out of the score.
+   *
+   * A note played before a rewind was played in a pass that is being dropped,
+   * so its verdict goes with it: leaving it would mean a bar could be scored
+   * twice, and — since a rewind is what a player does when a passage is not
+   * working — scored on the attempt they went back to disown.
+   */
+  private unplay(beat: number): void {
+    const { notes } = this.options.exercise;
+    const from = notes.findIndex((note) => note.startBeat >= beat - 1e-9);
+    const first = from === -1 ? notes.length : from;
+
+    this.nextNoteToSchedule = Math.min(this.nextNoteToSchedule, first);
+    this.nextNoteToResolve = Math.min(this.nextNoteToResolve, first);
+    for (let index = first; index < this.noticed.length; index++) this.noticed[index] = false;
+
+    for (let i = this.judgements.length - 1; i >= 0; i--) {
+      if (this.judgements[i].noteIndex >= first) this.judgements.splice(i, 1);
+    }
+
+    this.options.onRewind?.(first);
   }
 
   /** Schedules everything falling in a beat window that has come into range. */

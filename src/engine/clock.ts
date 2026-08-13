@@ -85,6 +85,17 @@ export class Transport {
   private anchorPerfTime = 0;
 
   /**
+   * Where the clock is standing still, or null while it is running.
+   *
+   * The audio context's time never stops — it is the sound card's clock — so
+   * pausing cannot be a matter of not looking at it. Every reading of position
+   * goes through `beatForTime`, and while this is set that is the answer: the
+   * scheduler has nothing new to schedule and the notation stands where it was
+   * left, rather than sliding on with nothing playing.
+   */
+  private frozenBeat: number | null = null;
+
+  /**
    * `tempo` and every event count the **conducted** beat; `crotchetsPerBeat`
    * says how long one of those is, which is `metre.pulseBeats`. It defaults to
    * 1 because that is every simple metre, where the two have always been the
@@ -116,7 +127,34 @@ export class Transport {
   }
 
   beatForTime(time: number): number {
+    if (this.frozenBeat !== null) return this.frozenBeat;
     return beatAt(this.map, time - this.originTime);
+  }
+
+  /** Where the clock is standing still, or null while it is running. */
+  get pausedAt(): number | null {
+    return this.frozenBeat;
+  }
+
+  /**
+   * Stops the clock where it stands.
+   *
+   * Position is frozen rather than merely unscheduled, because the two are not
+   * the same thing: the audio clock carries on regardless, so a transport that
+   * only stopped its timer would leave the notation scrolling past a strike
+   * line with nothing behind it.
+   */
+  pause(): void {
+    if (this.frozenBeat !== null) return;
+    const beat = this.currentBeat();
+    this.stop();
+    this.frozenBeat = beat;
+  }
+
+  /** Moves the frozen position, for a rewind made while paused. */
+  seekTo(beat: number): void {
+    if (this.frozenBeat === null) return;
+    this.frozenBeat = beat;
   }
 
   /**
@@ -190,6 +228,9 @@ export class Transport {
   start(onWindow: ScheduleWindow, startAtBeat = 0): void {
     if (this.isRunning) return;
 
+    // Starting is what un-freezes it: the origin below is re-anchored, so the
+    // beat it was standing at means nothing from here on.
+    this.frozenBeat = null;
     this.onWindow = onWindow;
     // A small offset gives the first scheduling pass room to run before the
     // origin passes, so the very first note is never late.

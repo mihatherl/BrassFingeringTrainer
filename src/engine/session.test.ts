@@ -779,3 +779,142 @@ describe('keeping time where the conductor cannot', () => {
     expect(clicks).toEqual([]);
   });
 });
+
+/**
+ * Stopping without stopping, and going back a bar.
+ *
+ * A practice room runs on both — "hold on", and "take it from the bar before" —
+ * and neither existed: the only way to have another go at a passage was to end
+ * the run and generate a fresh exercise. The properties that matter are that a
+ * pause really *stops* (the audio clock does not, so the transport has to
+ * freeze rather than merely stop scheduling), and that a bar gone back to is a
+ * bar that can be played again — which means the score has to let go of what it
+ * already thought of it.
+ */
+describe('pausing and rewinding', () => {
+  /** Four bars of 2/4, a crotchet a beat, so bars and beats stay legible. */
+  function eightNotes(): Exercise {
+    return {
+      notes: [0, 1, 2, 3, 4, 5, 6, 7].map((beat) => note(beat, 1)),
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths: 0 }],
+      metres: [{ fromBeat: 0, metre: metreFor(2, 4) }],
+      tempo: [],
+      totalBeats: 8,
+      chosenBeats: 8,
+      seed: 1,
+      kind: 'random',
+    };
+  }
+
+  /** Advances both clocks together, without starting or stopping anything. */
+  function advance(seconds: number): void {
+    const until = audioTime + seconds;
+    for (; audioTime <= until; audioTime += 0.025) vi.advanceTimersByTime(25);
+  }
+
+  function running(exercise: Exercise, onRewind?: (from: number) => void): Session {
+    const s = new Session({
+      context,
+      exercise,
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onRewind,
+    });
+    s.start();
+    return s;
+  }
+
+  it('stands still while paused, however long the clock runs on', () => {
+    const s = running(eightNotes());
+    advance(2.5);
+    const judged = s.judgements.length;
+
+    s.pause();
+    const where = s.transport.currentBeat();
+    advance(4);
+
+    expect(s.isPaused).toBe(true);
+    // The audio clock ran on for four seconds; the music did not.
+    expect(s.transport.currentBeat()).toBe(where);
+    expect(s.judgements.length).toBe(judged);
+    s.stop();
+  });
+
+  it('counts a bar in before playing on from where it stopped', () => {
+    const s = running(eightNotes());
+    advance(2.5);
+    s.pause();
+    const where = s.transport.currentBeat();
+    const judged = s.judgements.length;
+
+    s.resume();
+    expect(s.isPaused).toBe(false);
+    // A bar of 2/4 back: the run picks up two beats behind where it will play.
+    // Loosely, because starting sets the origin a moment ahead so the first
+    // scheduling pass has room to run before the music reaches it.
+    expect(s.transport.currentBeat()).toBeCloseTo(where - 2, 0);
+
+    // Nothing in the counted-in bar is judged — it has been played already.
+    advance(1.9);
+    expect(s.judgements.length).toBe(judged);
+
+    // And then the music carries on from where it was left.
+    advance(1.5);
+    expect(s.judgements.length).toBeGreaterThan(judged);
+    s.stop();
+  });
+
+  it('takes back the bars it goes back over, so they can be played again', () => {
+    let rewoundTo: number | null = null;
+    const s = running(eightNotes(), (from) => (rewoundTo = from));
+    advance(4.5);
+    const judgedBefore = s.judgements.length;
+    expect(judgedBefore).toBeGreaterThan(2);
+
+    s.rewind(1);
+
+    // Back to the top of the bar before: beat 4 of 2/4 is bar three.
+    expect(rewoundTo).not.toBeNull();
+    expect(s.judgements.every((j) => j.noteIndex < rewoundTo!)).toBe(true);
+    expect(s.judgements.length).toBeLessThan(judgedBefore);
+
+    // And the notes it gave up are judged again as they come round: a bar of
+    // counting in, then the same notes a second time.
+    const dropped = judgedBefore - s.judgements.length;
+    advance(2 + dropped + 1);
+    expect(s.judgements.map((j) => j.noteIndex)).toContain(rewoundTo!);
+    expect(s.judgements.length).toBeGreaterThanOrEqual(judgedBefore);
+    s.stop();
+  });
+
+  it('moves where it will pick up from when rewound while paused', () => {
+    const s = running(eightNotes());
+    advance(4.5);
+    s.pause();
+
+    s.rewind(2);
+
+    // Still paused — a rewind is not a start — and standing at the bar it was
+    // sent to, so the player can see where they are about to come in.
+    expect(s.isPaused).toBe(true);
+    expect(s.transport.currentBeat()).toBe(0);
+    s.stop();
+  });
+
+  it('will not rewind past the beginning', () => {
+    const s = running(eightNotes());
+    advance(1);
+    s.rewind(9);
+    // The count-in bar is behind beat zero; the music itself starts there.
+    expect(s.transport.currentBeat()).toBeLessThan(0);
+    advance(3);
+    expect(s.judgements.length).toBeGreaterThan(0);
+    s.stop();
+  });
+});

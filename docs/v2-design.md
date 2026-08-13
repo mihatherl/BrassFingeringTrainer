@@ -1369,6 +1369,48 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## Hold it, and take it from a bar back — v2.10.0
+
+The two things said most often in a practice room, and neither was possible:
+the only way to have another go at a passage was to end the run and generate a
+different exercise. Asked for by the player on 2026-08-14, along with the dial
+below.
+
+**A pause freezes the clock, not merely the scheduler.** The audio context's
+time is the sound card's and never stops, so a transport that only stopped its
+timer would leave the notation scrolling past the strike line with nothing
+playing. `Transport.pause` freezes the beat and every reading of position goes
+through it, which stops the display, the scheduler and the judging together.
+What is already committed to the audio thread — a seventh of a second of
+scheduling horizon — cannot be recalled, so the sounding note is cut and a
+click may still land.
+
+**Starting again counts a bar in, and it is the real bar.** The count-in is the
+device the run already opens with: the transport starts a bar early and the
+scheduler is pointed at the first note actually wanted, so the bar before it
+clicks but neither sounds nor judges. Which means the clicks are the true
+metrical positions of the bar the player is about to come in on, rather than
+four anonymous beats — they hear where "one" is. It also means the count-in is
+silent if the metronome is off, exactly as the opening one is.
+
+**A rewind goes to the top of a bar, and takes its bars out of the score.**
+"Back one" from the middle of bar six is the top of bar five — the bar of music
+before where they are, not the fraction of six they have left. Everything from
+there on is un-judged: a bar gone back to is a bar to be played again, and
+scoring both attempts would score the one the player went back to disown.
+`onRewind` tells the screen, which lets go of the colours on the page.
+
+**Rewinding while paused moves where it will pick up from**, notation and all,
+so the player can see where they are about to come in. Rewinding while playing
+restarts from there with the same bar of counting in.
+
+**`Transport.start` is a no-op on a running clock, and that nearly hid this.**
+It must be — a stray second call would re-anchor the origin under everything
+already scheduled — so a rewind made while playing silently did nothing at all:
+the score gave up its bars and the music carried blithely on. The session stops
+the transport before restarting it. A test caught it; the browser would have,
+eventually.
+
 ## The play screen answers mistakes, and holds the tempo — v2.9.0
 
 Three changes the player asked for on 2026-08-14, which turn out to be one
@@ -1420,6 +1462,14 @@ for it.
 dial itself, and the other hand is on the valves with the eye on the stave, so
 the number has to be catchable at the edge of vision *and* somewhere a hand
 cannot be. That is the whole reason it is not written on the face.
+
+**The reading is on the face, and again above it while turning — v2.10.0.** On
+the face because that is where a control's setting belongs, and it is legible
+at a glance the rest of the time. Above it while a finger is on it because the
+finger is covering the face — the same trick a phone keyboard uses for the key
+under the thumb, and for the same reason. Upright the callout steps *beside*
+the dial rather than above it: above is the play bar, and nothing transient may
+cover the button that ends the run.
 
 **One gesture, two dials.** `useDial` is the range picker's feel with nothing
 note-shaped left in it: travel to a detent, a click and a tap of the hand at

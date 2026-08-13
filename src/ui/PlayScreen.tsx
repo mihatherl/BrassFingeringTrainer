@@ -31,6 +31,7 @@ import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
 import { patternFor } from '../render/conductor';
 import { ConductorPanel } from './ConductorPanel';
+import { PressButton } from './PressButton';
 import { TempoDial } from './TempoDial';
 import { ValvePad } from './ValvePad';
 
@@ -86,6 +87,8 @@ export function PlayScreen({
   const [transport, setTransport] = useState<Transport | null>(null);
   /** Whether the music is about to run out and more may be asked for. */
   const [offering, setOffering] = useState(false);
+  /** Whether the run is being held, which is what the second button says. */
+  const [paused, setPaused] = useState(false);
   /** How much music this run is committed to, which Continue extends. */
   const [committedBeats, setCommittedBeats] = useState(exercise.chosenBeats);
   // Held across the gate so the session can be handed the loaded voice.
@@ -105,6 +108,7 @@ export function PlayScreen({
     if (!canvas) return;
 
     setOffering(false);
+    setPaused(false);
     setCommittedBeats(exercise.chosenBeats);
     verdictsRef.current = new Array(exercise.notes.length).fill(undefined);
     // Which note actually sounds each written one, so the renderer can look a
@@ -112,6 +116,34 @@ export function PlayScreen({
     // rather than walked on every note of every frame.
     const heads = soundingHeads(exercise.notes);
     setTempo(settings.tempo);
+
+    /*
+     * The counter and the live percentage, recomputed from the verdicts.
+     *
+     * The percentage reads the scoring window rather than the whole run: a bad
+     * patch scrolls out of it, which is what makes the figure worth glancing at
+     * late in a long session. One pass per note judged, nowhere near a frame —
+     * and the same pass after a rewind, which takes verdicts away again.
+     */
+    const report = () => {
+      const { metres, notes } = exercise;
+      let done = 0;
+      let lastBar = 0;
+      verdictsRef.current.forEach((verdict, index) => {
+        if (!verdict) return;
+        done++;
+        lastBar = Math.max(lastBar, barAt(metres, notes[index].startBeat));
+      });
+      let inWindow = 0;
+      let correct = 0;
+      verdictsRef.current.forEach((verdict, index) => {
+        if (!verdict) return;
+        if (barAt(metres, notes[index].startBeat) <= lastBar - SCORE_WINDOW_BARS) return;
+        inWindow++;
+        if (verdict === 'correct') correct++;
+      });
+      setProgress({ done, accuracy: inWindow === 0 ? 0 : correct / inWindow });
+    };
 
     // The very same context `unlockAudio` resumed — a second one would stay
     // suspended and the exercise would run in silence.
@@ -145,29 +177,7 @@ export function PlayScreen({
       onCorrect: () => rendererRef.current?.flashCorrect(),
       onJudgement: (judgement: NoteJudgement) => {
         verdictsRef.current[judgement.noteIndex] = judgement.verdict;
-        /*
-         * The live percentage reads the scoring window, not the whole run: a
-         * bad patch scrolls out of it, which is what makes the figure worth
-         * glancing at late in a long session. Recomputed from the verdicts
-         * on each judgement — one pass per note judged, nowhere near a frame.
-         */
-        const { metres, notes } = exercise;
-        let done = 0;
-        let lastBar = 0;
-        verdictsRef.current.forEach((verdict, index) => {
-          if (!verdict) return;
-          done++;
-          lastBar = Math.max(lastBar, barAt(metres, notes[index].startBeat));
-        });
-        let inWindow = 0;
-        let correct = 0;
-        verdictsRef.current.forEach((verdict, index) => {
-          if (!verdict) return;
-          if (barAt(metres, notes[index].startBeat) <= lastBar - SCORE_WINDOW_BARS) return;
-          inWindow++;
-          if (verdict === 'correct') correct++;
-        });
-        setProgress({ done, accuracy: inWindow === 0 ? 0 : correct / inWindow });
+        report();
 
         /*
          * A mistake is answered on the note, immediately: the fingering appears
@@ -177,6 +187,21 @@ export function PlayScreen({
          * teaching anybody anything.
          */
         if (judgement.verdict !== 'correct') hintsRef.current?.wentWrong(judgement.noteIndex);
+      },
+      /*
+       * A rewind takes its bars back out of the score.
+       *
+       * The session has already dropped their judgements — a bar gone back to
+       * is a bar to be played again, and scoring both attempts would score the
+       * one the player went back to disown. The colours on the page are this
+       * screen's copy of the same thing, so they go with them, and the counter
+       * is recomputed from what is left.
+       */
+      onRewind: (from: number) => {
+        for (let index = from; index < verdictsRef.current.length; index++) {
+          verdictsRef.current[index] = undefined;
+        }
+        report();
       },
       onFinish: (summary) => {
         // The speed they ended up playing at is the one they want next time.
@@ -427,6 +452,24 @@ export function PlayScreen({
     }
     session.finishNow();
   };
+
+  /*
+   * The three transport buttons, all pressed the same way as the big one and
+   * for the same reason: a touchscreen raises `click` only for the first
+   * finger down, and every one of these is reached for with a second.
+   */
+  const holdOrPlay = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    if (session.isPaused) session.resume();
+    else session.pause();
+    setPaused(session.isPaused);
+  };
+
+  const goBack = (bars: number) => {
+    const session = sessionRef.current;
+    session?.rewind(bars);
+  };
   // Against what this run has committed to rather than what was first asked
   // for: taking the offer moves the target, and a target is the point of one.
   const targetNotes = exercise.notes.filter((n) => n.startBeat < committedBeats - 1e-9).length;
@@ -441,33 +484,37 @@ export function PlayScreen({
           letting the green one pass simply ends the run, which is what not
           answering an offer means.
         */}
-        <button
-          type="button"
+        <PressButton
           className={`button play-action ${offering ? 'play-action--continue' : 'play-action--stop'}`}
-          /*
-           * Pressed on pointerdown, not on click.
-           *
-           * A touchscreen only raises `click` for the *primary* pointer — the
-           * first finger down — so a player already holding valves reaches for
-           * this button with a second finger and no click is ever generated.
-           * The button looked broken exactly when it was most needed, which is
-           * while playing, since that is the only time a hand is already on
-           * the screen. Pointerdown arrives for every finger, and answering it
-           * is also the right feel for a control pressed mid-bar.
-           */
-          onPointerDown={(event) => {
-            event.preventDefault();
-            press();
-          }}
-          /* Keyboard activation still arrives as a click, with no pointer
-             behind it — `detail` is zero for those and non-zero for the
-             compatibility click a mouse would otherwise double up with. */
-          onClick={(event) => {
-            if (event.detail === 0) press();
-          }}
+          onPress={press}
         >
           {offering ? 'Continue' : 'Stop'}
-        </button>
+        </PressButton>
+
+        {/*
+          Hold it, and take it from a bar or five back — the two things said
+          most often in a practice room, and neither of them possible until now
+          without ending the run and generating a different exercise.
+        */}
+        <div className="play-transport">
+          <PressButton className="button play-step" onPress={holdOrPlay}>
+            {paused ? 'Start' : 'Pause'}
+          </PressButton>
+          <PressButton
+            className="button play-step play-step--back"
+            onPress={() => goBack(1)}
+            label="Back one bar"
+          >
+            <span aria-hidden="true">◀1</span>
+          </PressButton>
+          <PressButton
+            className="button play-step play-step--back"
+            onPress={() => goBack(5)}
+            label="Back five bars"
+          >
+            <span aria-hidden="true">◀5</span>
+          </PressButton>
+        </div>
         <div className="play-stats">
           <span>
             {progress.done} / {targetNotes}

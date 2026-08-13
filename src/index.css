@@ -145,7 +145,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  /* Tight, because there are four controls in here now and a phone held
+     upright is the narrowest they have to fit in. */
+  gap: 0.4rem;
   padding: 0.15rem 0.5rem;
   border-bottom: 1px solid var(--border);
 }
@@ -189,6 +191,39 @@ body {
   .play-action {
     transition: none;
   }
+}
+
+/*
+ * Hold it, and take it back a bar or five.
+ *
+ * Beside the big button rather than in it: Stop is the one control that ends
+ * the run, and a row of things that only *move* it should not be mistakable
+ * for that at a glance. Sized between the two — clearly touchable, clearly not
+ * the red one — and kept to the left of the bar so the whole group sits under
+ * the hand that is not holding the instrument.
+ */
+.play-transport {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-right: auto;
+}
+
+.button.play-step {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+/* The two rewinds are a glyph and a number and need no more room than that;
+   equal widths, so the pair reads as one control with two reaches. */
+.button.play-step--back {
+  min-width: 3rem;
+  padding: 0.4rem 0.4rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .play-stats {
@@ -359,60 +394,37 @@ body {
 /*
  * The tempo, under the hand that is not on the valves.
  *
- * A definite share rather than `1 1 auto`, for the reason the list here before
- * it took one: growing to fill pushed the conductor into the corner, and a
- * control whose width answered to its neighbour would move as the neighbour
- * changed. Fixed, so the pair sits centred as a group.
+ * Wide, so the wheel is the biggest thing in the band and lands under the
+ * thumb without aiming — it sits directly beneath the Stop button, which is
+ * where the hand not holding valves already is. Relative, because the callout
+ * that appears while it turns is positioned against it.
  */
 .tempo-dial {
-  flex: 0 0 38%;
+  position: relative;
+  flex: 1 1 auto;
   min-width: 0;
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 0.25rem;
   height: var(--aside-size);
 }
 
 /*
- * Large, and above the wheel.
- *
- * The thumb turning the dial covers the dial, and the eye that has to read this
- * is on the stave — so it is set at a size that can be caught at the edge of
- * vision, in the one place a hand on the wheel cannot be.
- */
-.tempo-dial__value {
-  display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
-  line-height: 1;
-}
-
-.tempo-dial__value strong {
-  font-size: clamp(1.6rem, 4.5vh, 2.4rem);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-.tempo-dial__unit {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-/*
- * The wheel itself: ridges that turn with the finger, and no numbers.
+ * The wheel: ridges that turn with the finger, and the tempo across the middle.
  *
  * The ridges are a repeating gradient offset by `--phase`, which the component
  * derives from the tempo — so the wheel is at a position rather than merely
- * moving, and the same tempo always shows the same face. The overlay is what
+ * moving, and the same tempo always shows the same face. The shading is what
  * makes it read as a cylinder rather than a striped rectangle: dark at both
- * edges, clear across the middle.
+ * edges, clear across the middle, which is also where the number goes.
  */
 .tempo-dial__wheel {
-  width: 3.75rem;
-  height: 4.5rem;
+  width: min(100%, 11rem);
+  height: min(var(--aside-size), 5.5rem);
+  display: grid;
+  place-items: center;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background:
     linear-gradient(
       to bottom,
@@ -443,6 +455,65 @@ body {
 .tempo-dial__wheel.is-turning {
   cursor: grabbing;
   border-color: var(--accent);
+}
+
+/*
+ * The setting, written across the middle of the wheel.
+ *
+ * On a band of its own so the ridges show through either side of it — a label
+ * with a solid ground would read as a window in the wheel rather than as
+ * something printed on it.
+ */
+.tempo-dial__face {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-raised) 80%, transparent);
+  line-height: 1;
+}
+
+.tempo-dial__face strong {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.tempo-dial__unit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/*
+ * What the thumb is covering, said above the thumb.
+ *
+ * The same device a phone keyboard uses for the key being pressed, and for the
+ * same reason: the hand is on the control, the eye is elsewhere — on the stave,
+ * here — and the reading has to arrive in peripheral vision. Only while turning,
+ * because the rest of the time the face says it and a permanent placard would
+ * be one more thing in the way of the music.
+ *
+ * Above the dial, which is where the hand is not: a finger reaches this from
+ * below in every layout. Upright is the exception and has a rule of its own
+ * below — there the band sits directly beneath the play bar, and nothing
+ * transient may cover the button that ends the run.
+ */
+.tempo-dial__callout {
+  position: absolute;
+  bottom: calc(100% - 0.75rem);
+  right: 0;
+  padding: 0.15rem 0.9rem;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: clamp(2rem, 6vh, 3rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  z-index: 2;
 }
 
 /*
@@ -1117,6 +1188,24 @@ input[type='checkbox'] {
        column, and a column cannot be measured from an item measured from it. */
     width: min(26rem, 50vw);
     max-width: none;
+  }
+}
+
+/*
+ * Upright, the callout goes beside the dial instead of above it.
+ *
+ * Above is the play bar, and the Stop button is in it. A readout that appears
+ * under a moving thumb and covers the control that ends the run is exactly the
+ * wrong thing to hide, however briefly — so it steps sideways into the band,
+ * over the conductor's corner, which costs nothing while a hand is on the dial.
+ */
+@media (orientation: portrait) {
+  .tempo-dial__callout {
+    right: auto;
+    bottom: auto;
+    left: calc(100% + 0.4rem);
+    top: 50%;
+    transform: translateY(-50%);
   }
 }
 

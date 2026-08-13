@@ -9,14 +9,16 @@
  * several spins, which is the trade and the right way round: the small
  * adjustment is the one made constantly.
  *
- * **The number is above the dial, and large.** The thumb turning it covers the
- * dial itself, and the other hand is on the valves with the eye on the stave —
- * so the reading has to be catchable at the edge of vision, above the hand
- * rather than under it.
+ * **The reading is on the face, and again above it while turning.** On the face
+ * because that is where a control's setting belongs and it is legible at a
+ * glance the rest of the time; above it while a finger is on it because the
+ * finger is covering the face, and the other hand is on the valves with the eye
+ * on the stave. The callout is the trick a phone keyboard uses for the key
+ * under the thumb, for the same reason.
  *
- * The face is a knurled wheel that turns with the finger. It carries no
- * numbers: the readout above says the tempo, and a wheel that showed the scale
- * would be a slider again, with the same problem in a smaller space.
+ * The face is a knurled wheel that turns with the finger. It carries no scale:
+ * a wheel showing where forty and two hundred are would be a slider again, with
+ * the same problem in a smaller space.
  */
 
 import type { CSSProperties } from 'react';
@@ -66,13 +68,15 @@ export function TempoDial({ tempo, onChange, compound }: TempoDialProps) {
    * between one beat a minute and the next.
    */
   const phase = -(tempo * STEP_PX + dial.offset);
+  const unit = compound ? 'dotted' : 'bpm';
 
   return (
     <div className="tempo-dial">
-      <span className="tempo-dial__value" aria-hidden="true">
-        <strong>{tempo}</strong>
-        <span className="tempo-dial__unit">{compound ? 'dotted' : 'bpm'}</span>
-      </span>
+      {dial.turning && (
+        <span className="tempo-dial__callout" aria-hidden="true">
+          {tempo}
+        </span>
+      )}
       <div
         ref={dial.ref}
         className={`tempo-dial__wheel ${dial.turning ? 'is-turning' : ''}`}
@@ -85,7 +89,12 @@ export function TempoDial({ tempo, onChange, compound }: TempoDialProps) {
         aria-valuenow={tempo}
         aria-valuetext={`${tempo} beats per minute`}
         {...dial.handlers}
-      />
+      >
+        <span className="tempo-dial__face" aria-hidden="true">
+          <strong>{tempo}</strong>
+          <span className="tempo-dial__unit">{unit}</span>
+        </span>
+      </div>
     </div>
   );
 }
