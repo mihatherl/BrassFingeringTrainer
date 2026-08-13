@@ -1369,6 +1369,29 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## A level beam clears its highest note — v2.8.2
+
+Reported from bar 41 of a hymn on 2026-08-14: a beamed run from middle C to the
+C above came out with a normal stem on the first note and none at all on the
+last, the beam running straight into the notehead.
+
+Beams are kept horizontal in this app on purpose — a level beam is easier to
+read on a display that scrolls, and it removes a class of layout edge cases — so
+the beam's *height* is the whole of the question, one line serving every note
+under it. It was measured a stem's length from the note **furthest** from it,
+which spends the whole stem on the note that needs it least: every other note in
+the group then loses the interval, and at exactly an octave the nearest note has
+nothing left.
+
+**Measured from the note nearest the beam instead**, so the notes further away
+grow longer stems to reach it. The floor that matters, and the one the tests
+state: no note in a group ever reaches the beam in less than a full stem,
+whatever the spread. A long stem is what a level beam over a wide interval costs
+and what an engraver draws; a missing one is a mistake on the page.
+
+`beamPlacement` is exported rather than kept inside the drawing, because the
+tuplet bracket and anything else that has to clear a beam wants the same answer.
+
 ## A tie is marked a bar at a time — v2.8.1
 
 Reported from a hymn on 2026-08-14: a G tied across three or four bars turned

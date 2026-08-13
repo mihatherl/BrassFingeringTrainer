@@ -177,6 +177,42 @@ export function drawNote(
  * that is continuously scrolling past a fixed line, a level beam is easier to
  * read and removes a whole class of layout edge cases.
  */
+/**
+ * Which way a beamed group's stems point, and the height its beam sits at.
+ *
+ * **Direction** goes to whichever extreme is furthest from the middle line,
+ * which is the standard engraving rule and one answer for the whole group.
+ *
+ * **Height** is a stem's length from the note *nearest* the beam, so the notes
+ * further away grow longer stems to reach it. Measured from the far note
+ * instead — which is what this did — every other note in the group loses
+ * whatever the interval is: a beamed run from middle C to the C above took the
+ * whole three and a half spaces away, and the beam arrived at the last notehead
+ * with no stem at all and ran straight into it. Reported from bar 41 of a hymn.
+ *
+ * The far note's stem then runs long, which is what a level beam over a wide
+ * interval costs and what an engraver draws. Beams are kept horizontal here on
+ * purpose — see `drawBeamGroup` — so this is the end of that bargain: a long
+ * stem is read at a glance, a missing one is a mistake on the page.
+ *
+ * Separate from the drawing because the tuplet bracket and anything else that
+ * has to clear a beam wants the same answer, and two sums for one line is how
+ * they come to disagree.
+ */
+export function beamPlacement(
+  m: StaveMetrics,
+  pitches: readonly SpelledPitch[],
+): { up: boolean; y: number } {
+  const steps = pitches.map(diatonicStep);
+  const middleStep = m.bottomLineStep + 4;
+  const highest = Math.max(...steps);
+  const lowest = Math.min(...steps);
+  const up = highest - middleStep <= middleStep - lowest;
+
+  const nearestToBeam = up ? highest : lowest;
+  return { up, y: yForStep(m, nearestToBeam) + (up ? -1 : 1) * STEM_LENGTH * m.staveSpace };
+}
+
 export function drawBeamGroup(
   ctx: CanvasRenderingContext2D,
   m: StaveMetrics,
@@ -188,17 +224,10 @@ export function drawBeamGroup(
     return;
   }
 
-  const steps = notes.map((n) => diatonicStep(n.pitch));
-  const middleStep = m.bottomLineStep + 4;
-  // One direction for the whole group, chosen by whichever extreme is furthest
-  // from the middle line — the standard engraving rule.
-  const highest = Math.max(...steps);
-  const lowest = Math.min(...steps);
-  const up = highest - middleStep <= middleStep - lowest;
-
-  const extremeStep = up ? lowest : highest;
-  const beamY =
-    yForStep(m, extremeStep) + (up ? -1 : 1) * STEM_LENGTH * m.staveSpace;
+  const { up, y: beamY } = beamPlacement(
+    m,
+    notes.map((note) => note.pitch),
+  );
 
   for (const note of notes) {
     drawNote(ctx, m, note, { beamed: true, forceStemUp: up, stemEndY: beamY });
