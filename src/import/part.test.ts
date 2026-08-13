@@ -834,9 +834,54 @@ describe('reading part of a piece', () => {
 
     // Two bars chosen; three passes with a bar's rest joining each.
     expect(barNumbers(passage)).toBe('1 2 – 1 2 – 1 2');
+    /*
+     * The whole period of the loop, the joining bar of rests included: two bars
+     * of music and the bar counted through to come in again. Not the music
+     * alone — Continue extends by exactly this, so measuring it to the last
+     * note leaves every cycle a gap short of the one before. See the test
+     * below, which is the property that failed.
+     */
+    expect(passage.exercise?.chosenBeats).toBe(12);
     // Eight bars in all: three passes of two, and a bar's rest joining each.
-    expect(passage.exercise?.chosenBeats).toBe(8);
     expect(passage.exercise?.totalBeats).toBe(32);
+  });
+
+  it('keeps the white over the whole of every pass, however many times round', () => {
+    /*
+     * The fault the player found: the grey crept back into the music by a bar
+     * on each cycle, until the end of their own selection was being shown as
+     * something they had not asked for.
+     *
+     * `Session.continuePlaying` extends by `chosenBeats` every time, so that
+     * figure has to be the period of the loop — the music *and* the bar of
+     * rests joining one pass to the next. Measured to the last note instead,
+     * each cycle came up one gap short of the one before, and the shortfall
+     * accumulated.
+     *
+     * Written as the arithmetic the session actually does, against where each
+     * pass's music really ends, because that is the thing that was wrong.
+     */
+    const bars = Array.from({ length: 4 }, () => note('C4', 4));
+    const times = 4;
+    const passage = read(score(...bars), {
+      kind: 'passage',
+      spans: [{ from: 0, to: 1 }],
+      times,
+    });
+
+    const exercise = passage.exercise!;
+    const gaps = passage.bars
+      .map((bar, index) => (bar.number === null ? index : -1))
+      .filter((index) => index >= 0);
+    expect(gaps).toHaveLength(times - 1);
+
+    let playUntil = exercise.chosenBeats;
+    for (let pass = 0; pass < times; pass++) {
+      // Where this pass's music ends: the gap after it, or the end of the run.
+      const endsAt = passage.bars[gaps[pass]]?.startBeat ?? exercise.totalBeats;
+      expect(playUntil, `pass ${pass + 1} is white to its last note`).toBeGreaterThanOrEqual(endsAt);
+      playUntil = Math.min(exercise.totalBeats, playUntil + Math.max(exercise.chosenBeats, 1));
+    }
   });
 
   it('has no horizon when it is asked for one pass', () => {

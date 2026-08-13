@@ -1092,15 +1092,28 @@ export function importPart(doc: Document, options: ImportOptions): Imported {
   const settledMetres = settleChanges(metres);
 
   /*
-   * Where the first time through the selection ends.
+   * Where the first time through the selection ends — the bar of rests after
+   * it included, not stopping at the last note.
    *
    * The rest of what was built is the same selection again, and it is behind
    * the horizon: drawn grey, not scheduled, not judged, and played only if the
    * offer at the end is taken. Exactly what a generated exercise does past its
-   * chosen length, doing the same job — so Continue needed nothing added to it.
+   * chosen length, so Continue needed nothing added to it.
+   *
+   * **But Continue extends by exactly this figure**, so it has to be the whole
+   * period of the loop and not merely the music in it. Measured to the last
+   * note, every cycle came up one gap bar short of the next: the grey crept
+   * back into the music by a bar a time, and by the third pass a player was
+   * being shown the end of their own selection as something they had not
+   * asked for. Which is how the player found it.
+   *
+   * Counting the gap as part of the block is also the truer reading of it. That
+   * empty bar is not a pause between two runs, it is the bar you count through
+   * to come in again — so it belongs to the music being played, and greying it
+   * would tell the player it was somebody else's.
    */
   const chosenBeats =
-    passLength === null ? beat : (bars[passLength]?.startBeat ?? beat);
+    passLength === null ? beat : (bars[passLength + 1]?.startBeat ?? beat);
 
   const located = barsByIndex(bars, settledMetres, barCount(settledMetres, beat));
 
