@@ -1,23 +1,28 @@
 /**
- * The play surface: notation, the last few notes played, and the valve buttons.
+ * The play surface: notation, the tempo, and the valve buttons.
  *
  * React mounts the canvas and then stays out of the way — the renderer and the
  * session own the animation and audio loops directly. Nothing in the hot path
  * goes through React state, so a re-render can never cost a frame of timing.
- * The score and the recent-notes list do re-render, but only once a note has
- * been judged, which is well after anything about it was time-critical.
+ * The score does re-render, but only once a note has been judged, which is well
+ * after anything about it was time-critical.
+ *
+ * A list of the last few notes played used to sit beside the stave. It is gone,
+ * on the player's verdict: *you can never pay enough attention to it to see
+ * what the fingering was supposed to be.* Nothing read off to the side survives
+ * contact with sight-reading, so the answer moved onto the note itself — see
+ * `hints.ts` — and the space went to the tempo, which is the control a player
+ * actually reaches for mid-practice.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
-import { formatMask } from '../domain/fingering';
-import { barAt } from '../domain/metre';
+import { barAt, metreFor } from '../domain/metre';
 import { instrumentById } from '../domain/instruments';
-import { formatPitch } from '../domain/pitch';
 import type { Transport } from '../engine/clock';
 import { Session } from '../engine/session';
-import { fingeringHints } from '../exercise/hints';
+import { fingeringHints, type Hints } from '../exercise/hints';
 import { soundingHeads } from '../exercise/ties';
 import { loadStats } from '../storage/stats';
 import { SCORE_WINDOW_BARS, type NoteJudgement, type SessionSummary, type Verdict } from '../engine/judge';
@@ -26,7 +31,7 @@ import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
 import { patternFor } from '../render/conductor';
 import { ConductorPanel } from './ConductorPanel';
-import { RecentNotes, type RecentNote } from './RecentNotes';
+import { TempoSlider } from './TempoSlider';
 import { ValvePad } from './ValvePad';
 
 interface PlayScreenProps {
@@ -34,44 +39,44 @@ interface PlayScreenProps {
   exercise: Exercise;
   onFinish: (summary: SessionSummary) => void;
   onExit: () => void;
+  /**
+   * The speed the player settled on, reported when the run ends.
+   *
+   * Not while it moves: the whole play surface is rebuilt when `settings`
+   * changes, so writing the slider back as it slides would restart the exercise
+   * under the player's fingers. At the end it is simply the tempo they were
+   * last playing at, which is the one they want next time.
+   */
+  onTempoSettled?: (bpm: number) => void;
 }
 
-/**
- * How many played notes stay on screen.
- *
- * Enough to cover a phrase's worth of glancing back, few enough to take in at
- * once — and few enough to sit beside the valve pad on a phone held sideways,
- * which is the tightest space it has to fit.
- */
-const RECENT_NOTES = 5;
-
-/** Turns a judgement into something readable at a glance. */
-function describeNote(exercise: Exercise, judgement: NoteJudgement): RecentNote {
-  const note = exercise.notes[judgement.noteIndex];
-  return {
-    id: judgement.noteIndex,
-    name: formatPitch(note.pitch),
-    verdict: judgement.verdict,
-    // A missed note means nothing was held. Saying "open" would credit the
-    // player with a fingering they never chose.
-    held: judgement.verdict === 'missed' ? null : formatMask(judgement.heldMask),
-    expected: formatMask(note.primaryMask),
-  };
-}
-
-export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenProps) {
+export function PlayScreen({
+  settings,
+  exercise,
+  onFinish,
+  onExit,
+  onTempoSettled,
+}: PlayScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<Session | null>(null);
   const rendererRef = useRef<StaveRenderer | null>(null);
   const verdictsRef = useRef<Array<Verdict | undefined>>([]);
+  const hintsRef = useRef<Hints | null>(null);
 
   const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stalled, setStalled] = useState(false);
   const [mask, setMask] = useState(0);
   const [progress, setProgress] = useState({ done: 0, accuracy: 0 });
-  const [recent, setRecent] = useState<RecentNote[]>([]);
+  /**
+   * The speed this run is being played at, which the player can move.
+   *
+   * Deliberately *not* `settings.tempo`: the effect below is keyed on the
+   * settings object, so a change there tears the session down and starts the
+   * exercise again. This is the run's own tempo, reported back once at the end.
+   */
+  const [tempo, setTempo] = useState(settings.tempo);
   /*
    * State rather than a ref, unlike the session and renderer beside it.
    * Those are only ever reached from callbacks; the conductor is a child that
@@ -86,9 +91,13 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
   // Held across the gate so the session can be handed the loaded voice.
   const voiceRef = useRef<Voice | undefined>(undefined);
 
-  // Kept in a ref so the callback the renderer holds never goes stale.
+  // Kept in refs so the callbacks the session holds never go stale.
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
+  const tempoRef = useRef(tempo);
+  tempoRef.current = tempo;
+  const settledRef = useRef(onTempoSettled);
+  settledRef.current = onTempoSettled;
 
   useEffect(() => {
     if (!started) return;
@@ -102,7 +111,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     // verdict up through a tie. Fixed by the exercise, so settled once here
     // rather than walked on every note of every frame.
     const heads = soundingHeads(exercise.notes);
-    setRecent([]);
+    setTempo(settings.tempo);
 
     // The very same context `unlockAudio` resumed — a second one would stay
     // suspended and the exercise would run in silence.
@@ -159,9 +168,21 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
           if (verdict === 'correct') correct++;
         });
         setProgress({ done, accuracy: inWindow === 0 ? 0 : correct / inWindow });
-        setRecent((current) => [describeNote(exercise, judgement), ...current].slice(0, RECENT_NOTES));
+
+        /*
+         * A mistake is answered on the note, immediately: the fingering appears
+         * over the note that went wrong and over every later note of that
+         * pitch. This is the whole reason the hints stopped being settled once
+         * from stored history — an answer that arrives next session is not
+         * teaching anybody anything.
+         */
+        if (judgement.verdict !== 'correct') hintsRef.current?.wentWrong(judgement.noteIndex);
       },
-      onFinish: (summary) => finishRef.current(summary),
+      onFinish: (summary) => {
+        // The speed they ended up playing at is the one they want next time.
+        if (tempoRef.current !== settings.tempo) settledRef.current?.(tempoRef.current);
+        finishRef.current(summary);
+      },
       /*
        * The offer opening and closing is also when the committed length can
        * have moved — the player may have taken it by playing on rather than
@@ -175,20 +196,22 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
     sessionRef.current = session;
     setTransport(session.transport);
 
-    // Which notes get their fingering printed. Settled once per run: the
-    // history behind it does not change mid-exercise, and a hint that came and
-    // went would be worse than none.
-    //
-    // Asked after the session exists so that how much time a note has is
-    // answered by the transport, which is the one thing that knows — rather
-    // than by dividing the tempo here and hoping the two agree.
-    const hints = settings.fingeringHints
+    /*
+     * Which notes get their fingering printed.
+     *
+     * Opened from the history the player brings and added to as the run goes:
+     * the object is live, so a note that goes wrong in bar three is answered in
+     * bar three. Asked after the session exists so that how much time a note
+     * has is answered by the transport, which is the one thing that knows —
+     * rather than by dividing the tempo here and hoping the two agree.
+     */
+    hintsRef.current = settings.fingeringHints
       ? fingeringHints({
           exercise,
           stats: loadStats(exercise.instrumentId, exercise.clef),
           secondsBetween: (from, to) => session.transport.secondsBetween(from, to),
         })
-      : new Map<number, string>();
+      : null;
 
     const renderer = new StaveRenderer({
       canvas,
@@ -200,13 +223,13 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       // Through the tie: its far end is never judged, so it wears the verdict of
       // the note it is tied from rather than staying unmarked beside it.
       verdictFor: (index) => verdictsRef.current[heads[index]],
-      hintFor: (index) => hints.get(index),
+      hintFor: (index) => hintsRef.current?.for(index),
       // White as far as the run is committed, and grey beyond — read per
       // frame, so accepting the offer turns the next block white at once.
       whiteUntil: () => session.endBeat,
       /*
        * The notation's own scale, handed to the stylesheet so the conductor
-       * and the recent-notes band can be measured in it too — see
+       * and the tempo slider can be measured in it too — see
        * `--stave-unit` in `index.css`. Without this they were sized by an
        * unrelated rule of their own, and on a tablet the notation grew past
        * them until the conductor looked like an afterthought.
@@ -260,6 +283,7 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       resizeObserver.disconnect();
       colourScheme?.removeEventListener('change', onSchemeChange);
       wakeLock?.release().catch(() => undefined);
+      hintsRef.current = null;
       sessionRef.current = null;
       rendererRef.current = null;
       setTransport(null);
@@ -453,13 +477,27 @@ export function PlayScreen({ settings, exercise, onFinish, onExit }: PlayScreenP
       </div>
 
       <div className="play-aside">
-        <RecentNotes notes={recent} />
+        <TempoSlider
+          tempo={tempo}
+          compound={metreFor(settings.beatsPerBar, settings.beatUnit).isCompound}
+          onChange={(bpm) => {
+            setTempo(bpm);
+            // The clock takes it at the next beat it has not committed to;
+            // the hints re-measure, since what there is time to read is a
+            // question about seconds and the seconds have just changed.
+            sessionRef.current?.transport.changeTempo(bpm);
+            hintsRef.current?.retime();
+          }}
+        />
         {settings.conductorEnabled && transport && (
           <ConductorPanel
             transport={transport}
             metres={exercise.metres}
             style={settings.conductorStyle}
-            tempo={settings.tempo}
+            /* The live one: the conductor chooses its pattern by tempo, and a
+               hand still beating the speed the player has just left would be
+               the one thing on screen disagreeing with the clock. */
+            tempo={tempo}
             tempoEvents={exercise.tempo}
           />
         )}

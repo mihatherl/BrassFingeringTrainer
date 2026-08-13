@@ -36,6 +36,15 @@ const TICK_MS = 25;
  */
 const MAX_EXTRAPOLATION_SECONDS = 0.1;
 
+/**
+ * Earliest beat a tempo change may be placed at.
+ *
+ * The map refuses events on or before beat zero — the region behind the music
+ * is where the count-in lives and is flat by construction — so a change asked
+ * for during the count-in lands as near the first note as the map allows.
+ */
+const MIN_CHANGE_BEAT = 1e-6;
+
 export class Transport {
   private timer: number | null = null;
   private originTime = 0;
@@ -55,13 +64,20 @@ export class Transport {
   readonly nominalSecondsPerBeat: number;
 
   /**
-   * The beat↔time arithmetic, compiled once at construction and immutable for
-   * the transport's life. That immutability is what `setTempo` used to guard
-   * with a throw: the mapping is anchored at a single origin, and changing it
-   * mid-run would retroactively move every note already scheduled. Now there
-   * is nothing to call — a different tempo is a different transport.
+   * The beat↔time arithmetic.
+   *
+   * Anchored at a single origin, which is why it may only ever be *extended*:
+   * re-anchoring it would retroactively move every note already scheduled, and
+   * `setTempo` used to guard that with a throw. `changeTempo` extends instead —
+   * it adds a step at a beat the scheduler has not reached, so every time
+   * already computed stays exactly what it was.
    */
-  private readonly map: TempoMap;
+  private map: TempoMap;
+
+  /** What the map is compiled from, kept so it can be recompiled with more. */
+  private readonly nominalBpm: number;
+  private readonly crotchetsPerBeat: number;
+  private events: TempoEvent[];
 
   private readonly context: AudioContext;
   /** NaN so the first comparison always misses and anchors afresh. */
@@ -85,7 +101,10 @@ export class Transport {
     // scrolling surface, which measures the page in the same crotchets every
     // note length is written in.
     this.nominalSecondsPerBeat = 60 / (tempo * crotchetsPerBeat);
-    this.map = compileTempo(tempo, events, crotchetsPerBeat);
+    this.nominalBpm = tempo;
+    this.crotchetsPerBeat = crotchetsPerBeat;
+    this.events = [...events];
+    this.map = compileTempo(tempo, this.events, crotchetsPerBeat);
   }
 
   get isRunning(): boolean {
@@ -185,6 +204,50 @@ export class Transport {
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
     this.onWindow = null;
+  }
+
+  /**
+   * Changes the tempo from here on — the player's hand on the speed, mid-run.
+   *
+   * Placed at the **next whole beat at or after the scheduling horizon**, which
+   * is what makes it safe and what keeps it cheap:
+   *
+   *  - *Safe*, because everything up to the horizon has already been handed to
+   *    the audio thread at absolute times. A step beyond it cannot move a note
+   *    that is already committed, and every beat behind the player keeps the
+   *    time it always had — which is the invariant this map is anchored on.
+   *  - *Cheap*, because a whole beat is a target a dragging finger keeps
+   *    landing on: a change asking for the same beat replaces the one already
+   *    pending rather than adding another. A drag becomes about one event per
+   *    beat instead of one per frame.
+   *
+   * The delay is the scheduling horizon and a fraction of a beat — the tempo
+   * gives way under the hand rather than a bar later, which is what a player
+   * reaching for a slider mid-phrase is asking for.
+   *
+   * Two things it will not do. It will not touch the count-in, which lives at
+   * negative beats where the map is flat by construction; a change made there
+   * takes force as the music starts. And it will not split a rit., since a step
+   * inside one has no meaning — it waits for the ramp to arrive.
+   */
+  changeTempo(bpm: number): void {
+    let atBeat = Math.max(Math.ceil(this.scheduledUntilBeat), MIN_CHANGE_BEAT);
+
+    for (const event of this.events) {
+      if (event.kind === 'ramp' && atBeat > event.fromBeat && atBeat < event.toBeat) {
+        atBeat = event.toBeat;
+      }
+    }
+
+    const last = this.events[this.events.length - 1];
+    const pending = last?.kind === 'tempo' && last.atBeat === atBeat;
+    const events = pending ? this.events.slice(0, -1) : [...this.events];
+    events.push({ kind: 'tempo', atBeat, bpm });
+
+    // Compiled before it is adopted, so a tempo the map refuses leaves the
+    // clock running on the one it had rather than half-changed.
+    this.map = compileTempo(this.nominalBpm, events, this.crotchetsPerBeat);
+    this.events = events;
   }
 
   private tick(): void {

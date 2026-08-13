@@ -173,3 +173,95 @@ describe('the transport under a tempo map', () => {
     expect(t.currentBeat()).toBeCloseTo(5, 12);
   });
 });
+
+/**
+ * Changing tempo mid-run, which is the play screen's slider.
+ *
+ * The map is anchored at one origin, so the only safe change is one that
+ * *extends* it: everything the scheduler has already handed to the audio thread
+ * must keep the time it was given, or the notes already committed play at the
+ * wrong moment. Every case here is that property in one form or another.
+ */
+describe('changing tempo while running', () => {
+  /** `start` reaches for the window's timers; nothing here needs them to fire. */
+  function started(bpm = 120, events: ConstructorParameters<typeof Transport>[2] = [], from = 0) {
+    (globalThis as { window?: unknown }).window = {
+      setInterval: () => 1,
+      clearInterval: () => undefined,
+    };
+    const t = new Transport(context, bpm, events);
+    t.start(() => undefined, from);
+    return t;
+  }
+
+  it('leaves every beat already scheduled exactly where it was', () => {
+    const t = started();
+    const before = [-4, -1, 0, 0.25, 0.5].map((beat) => t.timeForBeat(beat));
+
+    t.changeTempo(60);
+
+    expect([-4, -1, 0, 0.25, 0.5].map((beat) => t.timeForBeat(beat))).toEqual(before);
+  });
+
+  it('takes force at the next whole beat past the horizon', () => {
+    // The horizon a fresh start leaves is a fraction of a beat in, so the step
+    // lands on beat 1: half a second a beat before it, a second a beat after.
+    const t = started();
+
+    t.changeTempo(60);
+
+    expect(t.secondsBetween(0, 1)).toBeCloseTo(0.5, 12);
+    expect(t.secondsBetween(1, 2)).toBeCloseTo(1, 12);
+  });
+
+  it('does not stack up while a finger is dragging', () => {
+    /*
+     * A slider reports every pixel, and each report used to be another step in
+     * the map — hundreds of them in a run, all of them scanned on every query.
+     * Asking for the same beat replaces what is pending there, so a drag ends
+     * up indistinguishable from having asked once for where it stopped.
+     */
+    const dragged = started();
+    for (const bpm of [110, 100, 90, 80, 70, 60]) dragged.changeTempo(bpm);
+
+    const once = started();
+    once.changeTempo(60);
+
+    for (const beat of [1, 2, 8, 40]) {
+      expect(dragged.timeForBeat(beat), `beat ${beat}`).toBeCloseTo(once.timeForBeat(beat), 12);
+    }
+  });
+
+  it('waits for a rit. to arrive rather than splitting it', () => {
+    // Started inside the ramp, so the change has nowhere to go until it ends.
+    const ramp = { kind: 'ramp' as const, fromBeat: 2, toBeat: 6, toBpm: 60 };
+    const t = started(120, [ramp], 3);
+    const throughTheRamp = t.secondsBetween(3, 6);
+
+    t.changeTempo(120);
+
+    // The bend is untouched, and the new tempo holds from where it arrives.
+    expect(t.secondsBetween(3, 6)).toBeCloseTo(throughTheRamp, 12);
+    expect(t.secondsBetween(6, 8)).toBeCloseTo(1, 12);
+  });
+
+  it('leaves the count-in alone and starts the music at the new speed', () => {
+    // Nothing can be placed behind beat zero — that region is flat by
+    // construction and is where the count-in lives.
+    const t = started(120, [], -4);
+    const countIn = t.secondsBetween(-4, 0);
+
+    t.changeTempo(60);
+
+    expect(t.secondsBetween(-4, 0)).toBeCloseTo(countIn, 12);
+    // A millionth of a beat of the old tempo is left at the very start, which
+    // is where the map allows the step to sit; it is half a microsecond.
+    expect(t.secondsBetween(0, 4)).toBeCloseTo(4, 5);
+  });
+
+  it('keeps running on the tempo it had if it is handed a bad one', () => {
+    const t = started();
+    expect(() => t.changeTempo(0)).toThrow();
+    expect(t.secondsBetween(4, 8)).toBeCloseTo(2, 12);
+  });
+});

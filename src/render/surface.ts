@@ -109,7 +109,7 @@ const STAVE_SPACE_MAX = 22;
  * How large one stave space may be at a given display width, in CSS pixels.
  *
  * Width alone, deliberately, and that is what makes this safe to share. The
- * play screen sizes the conductor and the recent-notes band from this too, so
+ * play screen sizes the conductor and the band beside the stave from this too, so
  * the notation and everything beside it grow together instead of drifting
  * apart as the screen changes — which they did, badly, on a tablet.
  *

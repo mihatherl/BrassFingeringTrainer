@@ -1369,6 +1369,61 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## The play screen answers mistakes, and holds the tempo — v2.9.0
+
+Three changes the player asked for on 2026-08-14, which turn out to be one
+change: **the play screen should teach, and everything on it should earn its
+space.**
+
+**The list of recent notes is gone.** It sat beside the stave showing the last
+five notes played, what was held and what was wanted. The player's verdict:
+*you can never pay enough attention to it to see what the fingering was
+supposed to be.* That is the whole case. Nothing read off to the side survives
+contact with sight-reading — the eye is on the note coming, and a list is a
+second place to look at exactly the moment there is no attention to spare.
+
+**So the answer moved onto the note.** A note played wrong or missed now gets
+its fingering printed over it as it happens — over that note, where the eye
+already is, and over every later note of the same pitch. The hints used to be
+settled once per run from the stored statistics, which meant the answer to a
+mistake made in bar three arrived the *next* time the player pressed Start. An
+answer that late is not instruction.
+
+**And the cap on how many is gone.** There was one — at most one a bar, on the
+grounds that beyond that the hints become the part being read. The player asked
+for it removed, and the reasoning holds up: fingerings are what this app
+teaches, a hint only ever appears where something has actually gone wrong, and
+a run that has earned eight of them should be given eight. What still limits
+them is what always decided whether one could be *used*: whether there is time
+to read it before it has to be played, and whether it physically fits, which
+the callout's stacked shape made far easier to satisfy.
+
+The note that just went wrong is exempt from the reading rule. It is behind the
+player and nothing is going to be played to it; what it is doing is telling
+them what they should have held, which is the job the list was doing badly.
+
+**The tempo went into the space.** It is the setting a player reaches for
+constantly, and reaching for it used to mean stopping, walking back to the
+settings screen and starting the exercise again — an absurd amount of ceremony
+for the most common instruction in any practice room.
+
+**A live tempo change extends the map; it never re-anchors it.** This is the
+part that had to be right. `Transport`'s beat↔time map is anchored at a single
+origin, and `setTempo` was once a method that threw for exactly that reason:
+re-anchoring would retroactively move every note already handed to the audio
+thread. `changeTempo` instead appends a step at **the next whole beat at or
+after the scheduling horizon** — beyond everything already committed, so no
+time already computed can move — and a whole beat is a target a dragging finger
+keeps landing on, so a change asking for the same beat replaces the one pending
+there instead of adding another. A drag costs about one event a beat rather
+than one a frame. It will not place a step inside a rit., which has no meaning;
+it waits for the ramp to arrive. And it cannot touch the count-in, which lives
+at negative beats where the map is flat by construction.
+
+The tempo the player settles on is written back to the settings when the run
+ends — never while it moves, because the play surface is rebuilt when the
+settings change and that would restart the exercise under their fingers.
+
 ## A level beam clears its highest note — v2.8.2
 
 Reported from bar 41 of a hymn on 2026-08-14: a beamed run from middle C to the

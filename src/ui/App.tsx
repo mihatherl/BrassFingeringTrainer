@@ -155,6 +155,9 @@ export function App() {
           exercise={exercise}
           onFinish={onFinish}
           onExit={() => setScreen('settings')}
+          /* A tempo settled on while playing is the tempo to open with next
+             time — written back once the run is over, never during it. */
+          onTempoSettled={(tempo) => updateSettings({ ...chosen, tempo })}
         />
       );
     }

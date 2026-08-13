@@ -104,8 +104,8 @@ body {
 
 /*
  * Named areas rather than source order, because the two orientations want the
- * recent-notes list in genuinely different places — see `.recent` below — and
- * a grid can move it without the markup knowing.
+ * band beside the stave — the tempo and the conductor — in genuinely different
+ * places, and a grid can move it without the markup knowing.
  */
 .screen--play {
   display: grid;
@@ -113,7 +113,7 @@ body {
   grid-template-rows: auto auto 1fr auto;
   grid-template-areas:
     'bar'
-    'recent'
+    'aside'
     'stave'
     'pad';
   /*
@@ -247,16 +247,17 @@ body {
  * See the orientation rule at the foot of this file.
  */
 /*
- * The played notes and the conductor share one row, upright.
+ * The tempo and the conductor share one row, upright.
  *
- * The list is read in the gaps and the conductor is watched continuously, so
- * they want opposite corners of the same band: the list on the left where it
- * has always been, the beat top right where a conductor actually stands in a
- * player's vision. The conductor is capped as a share of the width as well as
- * in absolute terms, so a narrow phone gives the list what it needs first.
+ * The tempo is reached for and let go of, the conductor is watched
+ * continuously, so they want opposite corners of the same band: the slider on
+ * the left where the list of played notes used to be, the beat top right where
+ * a conductor actually stands in a player's vision. The conductor is capped as
+ * a share of the width as well as in absolute terms, so a narrow phone gives
+ * the slider what it needs first.
  */
 .play-aside {
-  grid-area: recent;
+  grid-area: aside;
   display: flex;
   align-items: stretch;
   /* Centred as a pair, so a gesture narrower than its cap sits in from the
@@ -351,77 +352,40 @@ body {
   line-height: 1.45;
 }
 
-.recent {
-  /*
-   * A definite share, and deliberately not `1 1 auto`.
-   *
-   * Growing to fill was what pushed the conductor into the right-hand corner:
-   * with the list taking every spare pixel there was nowhere else for the
-   * gesture to be. Fixed instead, so the pair can sit centred as a group and
-   * the conductor lands nearer the middle of the row — and so its position does
-   * not shift as the note names beside it change width, which a content-sized
-   * list would have done on every judgement.
-   */
+/*
+ * The tempo, under the hand that is not on the valves.
+ *
+ * A definite share rather than `1 1 auto`, for the reason the list here before
+ * it took one: growing to fill pushed the conductor into the corner, and a
+ * control whose width answered to its neighbour would move as the neighbour
+ * changed. Fixed, so the pair sits centred as a group.
+ */
+.tempo-live {
   flex: 0 0 38%;
   min-width: 0;
-  list-style: none;
-  margin: 0;
-  padding: 0.25rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  /* Fixed whether or not anything has been played, so the stave never jumps
-     as the first verdict lands — scaling with the conductor beside it now
-     rather than sitting at a fixed height of its own. */
+  display: grid;
+  align-content: center;
+  gap: 0.25rem;
   height: var(--aside-size);
-  overflow: hidden;
-  font-variant-numeric: tabular-nums;
 }
 
-.recent__item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  line-height: 1.4;
-  font-size: 0.9rem;
-  /* A row that wrapped would push the oldest note out of a fixed-height list,
-     which is a strange way to lose information. */
+.tempo-live__value {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
   white-space: nowrap;
 }
 
-.recent__pitch {
-  min-width: 3.2em;
-  font-weight: 600;
+.tempo-live__value strong {
+  color: var(--text);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.recent__played {
-  color: var(--text-muted);
-}
-
-/* An arrow rather than a label: the row is too narrow for a word, and "what
-   you played → what it was" needs no explaining to anyone who has just played
-   the wrong note. */
-.recent__wanted::before {
-  content: '→ ';
-  color: var(--text-muted);
-}
-
-.recent__wanted {
-  font-weight: 600;
-}
-
-.recent__item--correct .recent__pitch {
-  color: var(--correct);
-}
-
-.recent__item--wrong .recent__pitch,
-.recent__item--wrong .recent__wanted {
-  color: var(--wrong);
-}
-
-.recent__item--missed .recent__pitch,
-.recent__item--missed .recent__wanted {
-  color: var(--missed);
+/* Fat enough to catch with a thumb while the other hand is playing. */
+.tempo-live input[type='range'] {
+  width: 100%;
+  height: 1.75rem;
 }
 
 /*
@@ -1054,14 +1018,14 @@ input[type='checkbox'] {
  * 27rem of height; the smallest tablet in that position has 46rem. Nothing
  * sits near the line, so nothing flips across it by accident.
  *
- * What the concessions are: the recent-notes list drops down beside the valve
- * pad, because above the stave it would cost height the stave cannot spare —
- * sideways the stave is sized by height rather than width, so every row taken
- * from it shrinks the notation, while beside the pad it costs nothing, both
- * flanks there being empty already. The equal side columns keep the pad
- * centred on the screen rather than merely centred in what the list leaves
- * over: the buttons have to stay under the same fingers whether anything has
- * been played yet or not.
+ * What the concessions are: the band drops down beside the valve pad, because
+ * above the stave it would cost height the stave cannot spare — sideways the
+ * stave is sized by height rather than width, so every row taken from it
+ * shrinks the notation, while beside the pad it costs nothing, both flanks
+ * there being empty already. It also puts the tempo within reach of the same
+ * thumb that works the valves. The equal side columns keep the pad centred on
+ * the screen rather than merely centred in what the band leaves over: the
+ * buttons have to stay under the same fingers whatever is beside them.
  */
 @media (orientation: landscape) and (max-height: 32rem) {
   .screen--play {
@@ -1070,14 +1034,14 @@ input[type='checkbox'] {
     grid-template-areas:
       'bar bar bar'
       'stave stave stave'
-      'recent pad .';
+      'aside pad .';
   }
 
   .play-aside {
     align-self: end;
   }
 
-  .recent {
+  .tempo-live {
     height: auto;
     padding-bottom: 0.5rem;
   }
@@ -1101,8 +1065,8 @@ input[type='checkbox'] {
 
 /* Landscape phones have little vertical room; shrink the pad to protect the stave. */
 @media (orientation: landscape) and (max-height: 30rem) {
-  .recent {
-    font-size: 0.8rem;
+  .tempo-live {
+    font-size: 0.85rem;
   }
 
   .valve-pad {
@@ -1137,8 +1101,9 @@ input[type='checkbox'] {
  */
 @media (orientation: landscape) and (min-height: 32rem) {
   .screen--play {
-    /* The column is a share of the width with a floor under it, so the note
-       list stays readable on a modest window without eating a wide one. */
+    /* The column is a share of the width with a floor under it, so the tempo
+       and the conductor stay usable on a modest window without eating a wide
+       one. */
     grid-template-columns: 1fr minmax(11rem, 20%);
     grid-template-rows: auto 1fr auto;
     grid-template-areas:
@@ -1169,7 +1134,7 @@ input[type='checkbox'] {
   /*
    * Both sized by the column's width now, not by the shared band height —
    * there is no band. The conductor takes the full width and lets its
-   * `aspect-ratio` decide the height; the list takes whatever is left.
+   * `aspect-ratio` decide the height; the tempo takes whatever is left.
    */
   .conductor {
     width: 100%;
@@ -1177,7 +1142,7 @@ input[type='checkbox'] {
     height: auto;
   }
 
-  .recent {
+  .tempo-live {
     flex: 0 1 auto;
     width: 100%;
     height: auto;

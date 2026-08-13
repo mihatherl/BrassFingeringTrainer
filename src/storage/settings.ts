@@ -103,7 +103,7 @@ export interface Settings {
   countInBars: number;
   metronomeEnabled: boolean;
   /**
-   * Whether the conductor beats the metre beside the recent notes.
+   * Whether the conductor beats the metre beside the notation.
    *
    * Off by default. It is the newest thing on the screen and an installed app
    * should not sprout a moving object next to the notation because it updated;

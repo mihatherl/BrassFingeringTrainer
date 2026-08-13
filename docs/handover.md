@@ -75,6 +75,12 @@ user-visible:
 | v2.8.1 | **A tie is marked a bar at a time.** A G held over four bars used to turn green in all four the moment it was started — the far end of a tie wears the verdict of the note it is tied from, and that verdict lands at the attack. Reported from a hymn. |
 | v2.8.2 | **A level beam clears its highest note.** Its height was measured from the note furthest from it, so a beamed octave left the nearest note with no stem and the beam ran into the notehead. Reported from bar 41 of the same hymn. |
 
+**The play screen:**
+
+| | |
+|---|---|
+| v2.9.0 | **The notes list is gone; mistakes are answered on the note, and the tempo is under the player's hand.** A wrong note prints its fingering over itself and over every later note of that pitch, immediately, with no cap on how many. The space the list held is now a tempo slider that moves the clock mid-run. |
+
 ## The decisions worth not re-litigating
 
 **A selection is a walk, not a slice.** The importer has always read a list of

@@ -1,5 +1,5 @@
 /**
- * The conductor, beating the metre beside the recent-notes list.
+ * The conductor, beating the metre in the band beside the stave.
  *
  * Its own canvas and its own frame loop rather than a corner of the stave: the
  * two are sized and positioned by entirely different rules, and the stave has

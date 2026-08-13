@@ -558,7 +558,7 @@ describe('scrolling renderer', () => {
 
   describe('the shared stave unit', () => {
     /*
-     * The play screen measures the conductor and the recent-notes band in this
+     * The play screen measures the conductor and the band beside it in this
      * too, so that the notation and the things beside it grow together. Twice
      * they did not, and the conductor ended up looking like an afterthought on
      * a tablet; these are the properties that stop it happening again.
