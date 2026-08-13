@@ -1345,10 +1345,20 @@ to say it moved: the note is a small change a long way from the thumb, and a
 silent dial feels like a stuck one. Sound and haptics both, best-effort — no
 audio on this screen until something asks for it, and no vibration on a desktop.
 
-**The notes and the dials are laid out on one set of fractions** (`BOUND_X`),
-the canvas filling the same container the dials are positioned in. Nothing is
-measured in JavaScript, so the control cannot drift out from under the note it
-moves at any width.
+**A dial either side of the stave, not under each note — v2.7.1.** Beneath the
+notes they were plainly paired with them, on one set of fractions the canvas was
+drawn to, and the control was twice as tall as it needed to be. This is a
+settings screen being kept short: every row of it stands between a player and
+the Start button, and one row of dial-stave-dial is worth more than a diagram of
+which dial does what, which the stave says anyway by having its low note on the
+left. About 400 pixels became about 200.
+
+Losing that pairing is what frees the figure: nothing outside the canvas depends
+on where in it a note lands, so the clef and key signature can be **measured**
+and the notes placed after them. That is what keeps seven flats and two notes in
+half the width — and the notation is capped at fourteen pixels to the space
+rather than the chart's twenty-two, because a compass is thirteen spaces tall
+and on a wide window a bigger stave buys nothing but height.
 
 **A figure sizes itself to its ink, furniture included.** `range-stave.ts` is
 its own renderer rather than another caller of `note-chart.ts` for this reason:

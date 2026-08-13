@@ -8,10 +8,14 @@
  * The fingering sits over each, from the same `drawFingeringHint` the play
  * surface uses, so a bound reads as a note you can put your fingers on.
  *
- * Under each note is the dial that moves it, on the same fractions of the width
- * the notes are drawn at, so the control is beneath the thing it controls. They
- * turn in stave steps within the key, which is the unit the figure above them
- * is drawn in: one turn of a dial, one line or space.
+ * A dial either side of the stave moves them — the lower on the left, the upper
+ * on the right, the way the two notes are drawn and the way a stave is read.
+ * Beneath the notes to begin with, which was clearer about which dial went with
+ * which note and cost twice the height: this is a settings screen where every
+ * row is between a player and the Start button, and one row of controls beside
+ * a figure is worth more than a diagram of itself. They turn in stave steps
+ * within the key, which is the unit the figure is drawn in: one turn of a dial,
+ * one line or space.
  *
  * Neither dial may pass the other. Blocking rather than shoving is deliberate —
  * a dial that pushed its neighbour along would move a note the player was not
@@ -30,7 +34,7 @@ import { soundingFromWritten, writtenRange, type Clef, type Instrument } from '.
 import { keyLadder } from '../domain/ladder';
 import { spellInKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
-import { BOUND_X, drawRangeStave } from '../render/range-stave';
+import { drawRangeStave } from '../render/range-stave';
 import { NoteDial } from './NoteDial';
 import { StaveCanvas } from './StaveCanvas';
 
@@ -104,56 +108,37 @@ export function RangePicker({ instrument, clef, fifths, range, onChange }: Range
 
       {range !== null && (
         <>
-          <StaveCanvas
-            className="range__stave"
-            draw={draw}
-            label={`Range: ${name(range.low)} to ${name(range.high)}`}
-          />
-
           {/*
-            Absolute, on the fractions the notes are drawn at. The canvas fills
-            this container, so a percentage here and a fraction of the canvas
-            width are the same measurement — which is what keeps each dial
-            under its own note at every screen size, with nothing measured in
-            JavaScript to fall out of step.
+            One row: dial, stave, dial. The figure takes what is left, which on
+            a phone is little enough that the header has to be measured rather
+            than budgeted for — see `range-stave.ts`.
           */}
-          <div className="range__dials">
-            {(
-              [
-                {
-                  key: 'low' as const,
-                  label: 'Lowest',
-                  value: range.low,
-                  min: lowest,
-                  max: range.high,
-                  set: (midi: number) => onChange({ low: midi, high: range.high }),
-                },
-                {
-                  key: 'high' as const,
-                  label: 'Highest',
-                  value: range.high,
-                  min: range.low,
-                  max: highest,
-                  set: (midi: number) => onChange({ low: range.low, high: midi }),
-                },
-              ] as const
-            ).map((bound, index) => (
-              <div
-                key={bound.key}
-                className="range__dial"
-                style={{ left: `${BOUND_X[index] * 100}%` }}
-              >
-                <NoteDial
-                  label={bound.label}
-                  values={ladder}
-                  value={bound.value}
-                  min={bound.min}
-                  max={bound.max}
-                  name={name}
-                  onChange={bound.set}
-                />
-              </div>
-            ))}
+          <div className="range">
+            <NoteDial
+              label="Lowest"
+              values={ladder}
+              value={range.low}
+              min={lowest}
+              max={range.high}
+              name={name}
+              onChange={(low) => onChange({ low, high: range.high })}
+            />
+
+            <StaveCanvas
+              className="range__stave"
+              draw={draw}
+              label={`Range: ${name(range.low)} to ${name(range.high)}`}
+            />
+
+            <NoteDial
+              label="Highest"
+              values={ladder}
+              value={range.high}
+              min={range.low}
+              max={highest}
+              name={name}
+              onChange={(high) => onChange({ low: range.low, high })}
+            />
           </div>
 
           <p className="field__note muted">

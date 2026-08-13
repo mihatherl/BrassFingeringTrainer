@@ -60,6 +60,7 @@ user-visible:
 |---|---|
 | v2.6.0 | **The player says which notes free material is drawn from.** The band always existed and was centred on the compass; now it can be asked for, and an asked-for range is taken literally. |
 | v2.7.0 | **And says it by turning a dial.** Two dropdowns became two dials under the two notes, turned with the finger, a stave step of the key to a detent, each one clicking as it passes. |
+| v2.7.1 | **The dials moved to either side of the stave**, halving the height of the control. The settings screen is being kept short, and a row that stands between a player and Start has to earn it. |
 
 ## The decisions worth not re-litigating
 

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { BOUND_X, drawRangeStave, type RangeBound } from './range-stave';
+import { drawRangeStave, type RangeBound } from './range-stave';
 import { midiFromName } from '../domain/pitch';
 import { INSTRUMENTS, availableClefs, writtenRange } from '../domain/instruments';
 import { GLYPHS } from './glyphs';
@@ -88,8 +88,18 @@ function bound(name: string, fingering: string): RangeBound {
   return { writtenMidi: midiFromName(name), fingering };
 }
 
+/** One glyph, where it was actually put, in CSS pixels. */
+interface PlacedGlyph {
+  name: string;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
 /**
- * The top and bottom of every mark the drawing makes, in CSS pixels.
+ * Every mark the drawing makes, in CSS pixels: the glyphs by name, and the
+ * top and bottom of everything.
  *
  * Glyphs are the point of this: a clef is drawn as a path through a translate
  * and a scale, so a test that only watched line and text coordinates would see
@@ -98,11 +108,13 @@ function bound(name: string, fingering: string): RangeBound {
  * to their glyphs by their own path data, and measured through their bounding
  * boxes exactly as the browser would draw them.
  */
-function inkBounds(calls: RecordedCall[]): { top: number; bottom: number } {
-  const boxes = new Map(Object.values(GLYPHS).map((glyph) => [glyph.d, glyph.bbox]));
+function inkOf(calls: RecordedCall[]): { glyphs: PlacedGlyph[]; top: number; bottom: number } {
+  const named = new Map(Object.entries(GLYPHS).map(([name, glyph]) => [glyph.d, { name, ...glyph }]));
+  const glyphs: PlacedGlyph[] = [];
   let top = Infinity;
   let bottom = -Infinity;
 
+  let originX = 0;
   let originY = 0;
   let scale = 1;
   let fontSize = 0;
@@ -115,6 +127,7 @@ function inkBounds(calls: RecordedCall[]): { top: number; bottom: number } {
     const [first, second, third] = call.args as [unknown, unknown, unknown];
     switch (call.method) {
       case 'translate':
+        originX = Number(first);
         originY = Number(second);
         break;
       case 'scale':
@@ -132,26 +145,41 @@ function inkBounds(calls: RecordedCall[]): { top: number; bottom: number } {
         mark(Number(third) - fontSize, Number(third));
         break;
       case 'fill': {
-        const box = boxes.get((first as { d?: string })?.d ?? '');
-        if (box) mark(originY + box.top * scale, originY + box.bottom * scale);
+        const glyph = named.get((first as { d?: string })?.d ?? '');
+        if (!glyph) break;
+        const { bbox } = glyph;
+        glyphs.push({
+          name: glyph.name,
+          left: originX + bbox.left * scale,
+          right: originX + bbox.right * scale,
+          top: originY + bbox.top * scale,
+          bottom: originY + bbox.bottom * scale,
+        });
+        mark(originY + bbox.top * scale, originY + bbox.bottom * scale);
         break;
       }
     }
   }
 
-  return { top, bottom };
+  return { glyphs, top, bottom };
 }
 
-function draw(low: RangeBound, high: RangeBound, fifths = -3, clef: 'treble' | 'bass' = 'treble') {
+function draw(
+  low: RangeBound,
+  high: RangeBound,
+  fifths = -3,
+  clef: 'treble' | 'bass' = 'treble',
+  width = WIDTH,
+) {
   const calls: RecordedCall[] = [];
-  const canvas = mockCanvas(calls, WIDTH);
+  const canvas = mockCanvas(calls, width);
   const height = drawRangeStave(canvas, { low, high, clef, fifths, theme: LIGHT_THEME });
   return {
     calls,
     canvas,
     height,
     text: calls.filter((c) => c.method === 'fillText').map((c) => c.args[0]),
-    ink: inkBounds(calls),
+    ink: inkOf(calls),
   };
 }
 
@@ -216,15 +244,27 @@ describe('the range stave', () => {
     expect(far).toBeGreaterThan(near);
   });
 
-  it('puts the bounds where the dials will be', () => {
-    // The notes and the controls that move them are laid out on one set of
-    // fractions; a note drawn somewhere else would be a control pointing at
-    // nothing.
-    const { calls } = draw(bound('G3', '1-2'), bound('C5', 'open'));
-    const hints = calls.filter((c) => c.method === 'fillText');
+  it('keeps its notes clear of the clef and key signature', () => {
+    /*
+     * The figure sits between two dials now, so it is drawn in about half the
+     * width it had — and a bass clef with seven flats takes half of *that*. The
+     * header is measured rather than budgeted for precisely so this holds at
+     * the squeeze; bounds that belong to the key, so every accidental drawn
+     * here is the signature's own.
+     */
+    for (const width of [WIDTH, 240, 170]) {
+      const { ink } = draw(bound('Fb2', '1-2-3'), bound('Cb4', 'open'), -7, 'bass', width);
 
-    expect(Number(hints[0].args[1])).toBeCloseTo(BOUND_X[0] * WIDTH, 0);
-    expect(Number(hints[1].args[1])).toBeCloseTo(BOUND_X[1] * WIDTH, 0);
+      const heads = ink.glyphs.filter((glyph) => glyph.name === 'noteheadWhole');
+      const header = ink.glyphs.filter((glyph) => glyph.name !== 'noteheadWhole');
+
+      expect(heads, `${width}`).toHaveLength(2);
+      expect(Math.min(...heads.map((h) => h.left)), `${width}`).toBeGreaterThan(
+        Math.max(...header.map((glyph) => glyph.right)),
+      );
+      // And the low bound is the left-hand one, as a stave is read.
+      expect(heads[0].left, `${width}`).toBeLessThan(heads[1].left);
+    }
   });
 
   it('sizes the canvas to its width and reports the height', () => {

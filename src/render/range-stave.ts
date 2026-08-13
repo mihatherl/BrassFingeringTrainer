@@ -7,20 +7,20 @@
  * translation is the difficulty. So the bounds are semibreves on a stave, with
  * the fingering above each in the same relation the play surface puts it in.
  *
- * Two things this does that the fingering chart does not, and why it is its own
- * renderer rather than another caller of that one:
+ * What this does that the fingering chart does not, and the reason it is its own
+ * renderer rather than another caller of that one: **it makes room for whatever
+ * it is given, furniture included.** The chart reserves a fixed thirteen
+ * spaces, which is enough for notes near the stave and not enough for the ends
+ * of a brass compass — a written C#3 in treble clef sits four and a half spaces
+ * below the bottom line, exactly where that canvas stops. Here every extent is
+ * measured, because the whole point of this figure is to show the extremes.
  *
- *  - **It makes room for whatever it is given.** The chart reserves a fixed
- *    thirteen spaces, which is enough for notes near the stave and not enough
- *    for the ends of a brass compass — a written C#3 in treble clef sits four
- *    and a half spaces below the bottom line, exactly where that canvas stops.
- *    Here the height is measured from the notes themselves, because the whole
- *    point of this figure is to show the extremes.
- *  - **Its notes are at fixed fractions of the width**, published as `BOUND_X`,
- *    so the dial that moves each one can be placed directly beneath it. The
- *    chart spaces its notes evenly after a header whose width only the canvas
- *    knows, which is exactly what a control outside the canvas cannot line up
- *    with.
+ * The notes themselves are placed the way the chart places its own: evenly
+ * across whatever is left after the clef and the key signature have taken their
+ * room. The dials sit either side of the figure rather than beneath the notes,
+ * so nothing outside the canvas depends on where in it a note lands — which is
+ * what lets the header be measured rather than budgeted for, and lets the
+ * figure stay legible when it is squeezed between two controls.
  */
 
 import { needsAccidental, spellInKey } from '../domain/keys';
@@ -43,17 +43,6 @@ import {
   yForPitch,
 } from './stave';
 import type { StaveTheme } from './surface';
-
-/**
- * Where the lower and upper bounds sit, as fractions of the canvas width.
- *
- * The first clears the widest header there is — a bass clef and seven flats —
- * at the narrowest width this is drawn at, and the pair are far enough apart to
- * read as two notes rather than a chord. Exported because the dials are laid
- * out on the same fractions; one set of numbers, so the note and the control
- * that moves it cannot drift apart.
- */
-export const BOUND_X: readonly [number, number] = [0.46, 0.8];
 
 export interface RangeBound {
   writtenMidi: number;
@@ -129,7 +118,20 @@ function inkExtent(
 export function drawRangeStave(canvas: HTMLCanvasElement, options: RangeStaveOptions): number {
   const { low, high, clef, fifths, theme } = options;
   const width = Math.max(1, canvas.getBoundingClientRect().width);
-  const staveSpace = Math.min(22, Math.max(9, width / 26));
+  /*
+   * Twenty spaces of content: the widest header there is — a clef and seven
+   * accidentals — and a column each for two notes. A fixed figure rather than a
+   * measured one, deliberately: the notation should not change size when the
+   * player changes key, and a signature that is narrower than the worst case
+   * simply leaves its notes more room.
+   *
+   * The ceiling is well below the fingering chart's because height is what this
+   * figure costs. A brass compass is thirteen spaces tall counting its ledger
+   * lines, so every space the notation grows by is thirteen pixels of settings
+   * screen — and on a wide window that buys nothing: the stave is already as
+   * long as the row, and the notes only get bigger.
+   */
+  const staveSpace = Math.min(14, Math.max(9, width / 20));
 
   const pitches = [spellInKey(low.writtenMidi, fifths), spellInKey(high.writtenMidi, fifths)];
   const ink = inkExtent(clef, fifths, pitches);
@@ -154,24 +156,33 @@ export function drawRangeStave(canvas: HTMLCanvasElement, options: RangeStaveOpt
   ctx.fillStyle = theme.stave;
   drawStaveLines(ctx, metrics, 0, width);
 
+  // Both return the x to carry on from, so the header measures itself exactly
+  // rather than being budgeted for — which matters most where there is least to
+  // go round: seven flats on a phone take nearly half of what this is drawn in.
   let x = staveSpace * 0.4;
   x = drawClef(ctx, metrics, x);
-  drawKeySignature(ctx, metrics, x, fifths);
+  const headerWidth = drawKeySignature(ctx, metrics, x, fifths) + staveSpace * 0.5;
 
   const duration = { value: 'whole' as const, dotted: false };
-  const room = (BOUND_X[1] - BOUND_X[0]) * width;
+  // Two even columns of what is left — but never wider than a note needs. On a
+  // desktop, dividing the whole row between two semibreves pushes them to
+  // opposite ends of the stave, where they read as two things rather than as a
+  // range; seven spaces apart they stay a pair, and the stave simply runs on.
+  const step = Math.min((width - headerWidth - staveSpace * 0.5) / 2, staveSpace * 7);
 
   [low, high].forEach((bound, index) => {
     const pitch = pitches[index];
     const note = {
-      x: BOUND_X[index] * width - noteheadWidth(metrics, duration) / 2,
+      x: headerWidth + step * (index + 0.5) - noteheadWidth(metrics, duration) / 2,
       pitch,
       duration,
       showAccidental: needsAccidental(pitch, fifths),
       colour: theme.note,
     };
     drawNote(ctx, metrics, note);
-    drawFingeringHint(ctx, metrics, note, bound.fingering, room, theme.note);
+    // A note's own column is the room its fingering has, which is the same
+    // measure `note-chart.ts` gives one and generous for at most "1-2-3".
+    drawFingeringHint(ctx, metrics, note, bound.fingering, step, theme.note);
   });
 
   return height;

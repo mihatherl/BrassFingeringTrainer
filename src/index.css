@@ -919,31 +919,31 @@ input[type='checkbox'] {
 }
 
 /*
- * The range picker: a stave, and under each of its two notes the dial that
- * moves it.
+ * The range picker: a dial, the stave, a dial — the low bound on the left and
+ * the high one on the right, which is the order the notes are drawn in and the
+ * order a stave is read in.
  *
- * The dials are positioned in percentages of this container, and the canvas
- * fills the same container — so a percentage here and `BOUND_X`'s fraction of
- * the canvas width are one measurement, and note and control stay in line at
- * every width without either of them being measured.
+ * One row rather than two. Under the notes the pairing was plainer and the
+ * whole thing was twice as tall, which on a settings screen is height taken
+ * from every player who has already made this choice and only wants to start.
  */
-.range__stave {
+.range {
+  display: flex;
+  align-items: center;
+  /* Tight, because every pixel spent here comes out of the figure — and at
+     seven flats the figure has barely enough left to print a fingering in. */
+  gap: 0.375rem;
   margin-top: 0.5rem;
 }
 
-.range__dials {
-  position: relative;
-  /* Five detents and the caption beneath them. */
-  height: 11rem;
-}
-
-.range__dial {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
+/* The figure takes whatever the dials leave; `min-width: 0` is what lets it. */
+.range__stave {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .dial {
+  flex: 0 0 auto;
   display: grid;
   justify-items: center;
   gap: 0.25rem;
@@ -957,8 +957,11 @@ input[type='checkbox'] {
  */
 .dial__window {
   position: relative;
-  width: 4.75rem;
-  height: calc(var(--dial-step) * 5);
+  /* Room for the longest name there is — a letter, an accidental and an
+     octave — and no more, since the stave beside it wants the rest, and still
+     a comfortable target for a thumb. */
+  width: 3rem;
+  /* Its height comes from the component, which knows how many notes it shows. */
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -967,9 +970,10 @@ input[type='checkbox'] {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
-  /* The ends of the drum fall away rather than being cut off square. */
-  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  /* The neighbours fall away rather than being cut off square — gently, since
+     with one note either side there is little room to fade in. */
+  mask-image: linear-gradient(to bottom, transparent, #000 33%, #000 67%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 33%, #000 67%, transparent);
 }
 
 .dial__window:focus-visible {

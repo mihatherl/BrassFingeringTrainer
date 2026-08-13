@@ -38,8 +38,15 @@ import { stepOnLadder } from '../domain/ladder';
 /** Height of one detent, in CSS pixels. The CSS reads it back as a variable. */
 export const DIAL_STEP_PX = 30;
 
-/** How many notes are shown either side of the chosen one. */
-const RADIUS = 2;
+/**
+ * How many notes are shown either side of the chosen one.
+ *
+ * One. Two read better — a dial you can see further into is a dial you can aim
+ * — but this stands beside the stave in a settings screen being kept short, and
+ * two more rows is another half-inch between the player and the Start button
+ * for notes they are about to turn past anyway.
+ */
+const RADIUS = 1;
 
 /** Wheel travel that amounts to one detent. */
 const WHEEL_STEP = 24;
@@ -212,6 +219,7 @@ export function NoteDial({ label, values, value, min, max, name, onChange }: Not
       <div
         ref={windowRef}
         className={`dial__window ${dragging ? 'is-turning' : ''}`}
+        style={{ height: `calc(var(--dial-step) * ${RADIUS * 2 + 1})` }}
         role="spinbutton"
         tabIndex={0}
         aria-label={label}
