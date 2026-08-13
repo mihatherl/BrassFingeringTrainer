@@ -128,6 +128,19 @@ export interface GenerateOptions {
    */
   register?: PatternRegister;
   /**
+   * Written notes the free material is drawn from, lowest and highest.
+   *
+   * Absent lets the difficulty choose a band in the middle of the compass,
+   * which is what it always did. Present, it is taken literally — see
+   * `candidatePitches`.
+   *
+   * Free material only. A scale is placed by its tonic and its span, and asks
+   * `register` where it should sit; a theme is written in degrees and finds its
+   * own octave. Both would have to mean something different by a range, so
+   * neither is asked.
+   */
+  range?: { low: number; high: number };
+  /**
    * Bars to generate past the chosen length, as a cap on the whole.
    *
    * The horizon: the music carries on in grey past the length the player
@@ -480,18 +493,38 @@ export function generateExercise(options: GenerateOptions): Exercise {
 }
 
 /**
- * Every note the instrument can actually play, within the difficulty's range.
+ * Every note the instrument can actually play, within the range in force.
  *
- * The range is centred on the middle of the instrument's compass rather than on
- * an absolute pitch, so "one octave" means a comfortable octave on a tuba as
- * well as on a cornet.
+ * **A range the player asked for is taken literally.** All of it, none of it
+ * favoured: someone who says they want the bottom fifth of the horn has said
+ * something specific, and quietly pulling the notes back towards the middle
+ * would be the app disagreeing with them about the one thing they came to
+ * practise. Difficulty still governs everything else it governs — how far a
+ * leap may go, how often an accidental turns up, the rhythms and the rests —
+ * but it does not narrow this.
+ *
+ * **Where no range is asked for, the middle is favoured**, which is what an
+ * exercise wants when nobody has said otherwise: a band as wide as the
+ * difficulty allows, centred on the middle of the compass rather than on an
+ * absolute pitch, so "one octave" means a comfortable octave on a tuba as well
+ * as on a cornet.
+ *
+ * Ruled by the player on 2026-08-13.
  */
 function candidatePitches(options: GenerateOptions): Candidate[] {
   const [lowest, highest] = writtenRange(options.instrument, options.clef);
-  const centre = Math.round((lowest + highest) / 2);
-  const half = Math.floor(options.difficulty.rangeSemitones / 2);
-  const low = Math.max(lowest, centre - half);
-  const high = Math.min(highest, centre + half);
+
+  let low: number;
+  let high: number;
+  if (options.range) {
+    low = Math.max(lowest, Math.min(options.range.low, options.range.high));
+    high = Math.min(highest, Math.max(options.range.low, options.range.high));
+  } else {
+    const centre = Math.round((lowest + highest) / 2);
+    const half = Math.floor(options.difficulty.rangeSemitones / 2);
+    low = Math.max(lowest, centre - half);
+    high = Math.min(highest, centre + half);
+  }
 
   const candidates: Candidate[] = [];
   for (let midi = low; midi <= high; midi++) {

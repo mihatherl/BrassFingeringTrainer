@@ -7,7 +7,7 @@
  * breaking the app.
  */
 
-import { INSTRUMENTS, availableClefs, type Clef } from '../domain/instruments';
+import { INSTRUMENTS, availableClefs, writtenRange, type Clef, type Instrument } from '../domain/instruments';
 import type { ReadingMode } from '../render/surface';
 import type { PlaybackMode } from '../engine/session';
 import { FREE_TIER, type Entitlements } from '../licensing/entitlements';
@@ -81,6 +81,23 @@ export interface Settings {
    * the compass leaves a choice. Ignored by everything else.
    */
   register: PatternRegister;
+  /**
+   * The written notes free material is drawn from, or null to leave it to the
+   * difficulty.
+   *
+   * Null is the default and means what the app always did: a band as wide as
+   * the difficulty allows, in the middle of the compass. Set, it is taken
+   * literally — a player asking for the bottom fifth of the horn has said
+   * something specific, and difficulty then governs the leaps, the accidentals
+   * and the rhythm but not where the notes sit.
+   *
+   * **Written pitch, so it moves with the clef.** A range chosen in treble is a
+   * different set of numbers in bass, and `sanitise` clamps rather than clears
+   * when the instrument or clef changes — the notes it names are the ones the
+   * player can see on the stave beside the control, so a clamped range is
+   * visibly a clamped range rather than a silent one.
+   */
+  range: { low: number; high: number } | null;
   beatsPerBar: number;
   beatUnit: number;
   countInBars: number;
@@ -189,6 +206,8 @@ export const DEFAULT_SETTINGS: Settings = {
   bars: 8,
   cycles: 4,
   register: 'middle',
+  // Left to the difficulty, which is what the app has always done.
+  range: null,
   beatsPerBar: 4,
   beatUnit: 4,
   countInBars: 1,
@@ -352,6 +371,7 @@ export function sanitise(settings: Settings): Settings {
     register: REGISTERS.some((r) => r.id === settings.register)
       ? settings.register
       : DEFAULT_SETTINGS.register,
+    range: sanitiseRange(settings.range, instrument, clef),
     themeCount: clamp(settings.themeCount, 1, 8),
     countInBars: clamp(settings.countInBars, 0, 2),
     scrollSpeed: clamp(settings.scrollSpeed, SCROLL_SPEED_RANGE.min, SCROLL_SPEED_RANGE.max),
@@ -405,6 +425,30 @@ export function constrainToEntitlements(
   if (!entitlements.weakNoteDrilling) limited.weakNoteDrilling = false;
 
   return limited;
+}
+
+/**
+ * A chosen range, forced inside what the instrument can play.
+ *
+ * Clamped rather than cleared when it no longer fits: switching clef restates
+ * every written pitch, and a range chosen in treble names different numbers in
+ * bass. Clearing would silently drop a choice on a mis-tap; clamping keeps it,
+ * and the stave beside the control shows where it ended up.
+ *
+ * Anything that is not two numbers is nobody's choice, and goes back to null —
+ * which is the difficulty deciding, not a range of none.
+ */
+function sanitiseRange(
+  range: Settings['range'],
+  instrument: Instrument,
+  clef: Clef,
+): Settings['range'] {
+  if (!range || !Number.isFinite(range.low) || !Number.isFinite(range.high)) return null;
+
+  const [lowest, highest] = writtenRange(instrument, clef);
+  const low = clamp(Math.min(range.low, range.high), lowest, highest);
+  const high = clamp(Math.max(range.low, range.high), lowest, highest);
+  return { low, high };
 }
 
 function clamp(value: number, min: number, max: number): number {

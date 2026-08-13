@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it } from 'vitest';
+import { instrumentById, writtenRange } from '../domain/instruments';
 import {
   DEFAULT_SETTINGS,
   PLAYBACK_MODES,
@@ -149,5 +150,59 @@ describe('sanitising', () => {
 
   it('rejects a key signature off the circle of fifths', () => {
     expect(sanitise({ ...DEFAULT_SETTINGS, fifths: 42 }).fifths).toBe(DEFAULT_SETTINGS.fifths);
+  });
+});
+
+describe('a chosen range', () => {
+  /*
+   * Written pitch, so it moves with the clef and the instrument: a range picked
+   * on an Eb bass in treble names different numbers on a euphonium in bass.
+   * Clamped rather than cleared, because clearing would silently drop a choice
+   * on a mis-tap and the stave beside the control shows where a clamped one
+   * ended up.
+   */
+  const [low, high] = writtenRange(instrumentById('eb-bass'), 'treble');
+
+  it('is left alone when it fits', () => {
+    const range = { low: low + 3, high: low + 15 };
+    expect(sanitise({ ...DEFAULT_SETTINGS, range }).range).toEqual(range);
+  });
+
+  it('is pulled inside the horn when it does not fit', () => {
+    const settings = sanitise({
+      ...DEFAULT_SETTINGS,
+      range: { low: low - 20, high: high + 20 },
+    });
+    expect(settings.range).toEqual({ low, high });
+  });
+
+  it('is put the right way round', () => {
+    // A stored file can say anything, and a backwards range would otherwise
+    // reach the generator as an empty pool.
+    const settings = sanitise({ ...DEFAULT_SETTINGS, range: { low: low + 12, high: low + 4 } });
+    expect(settings.range).toEqual({ low: low + 4, high: low + 12 });
+  });
+
+  it('follows the clef, which restates every written pitch', () => {
+    // Treble E flat bass and bass-clef euphonium share no written pitches at
+    // all; a range kept from one is meaningless in the other, and comes back
+    // as the nearest thing the new instrument can play.
+    const [bassLow, bassHigh] = writtenRange(instrumentById('euphonium'), 'bass');
+    const settings = sanitise({
+      ...DEFAULT_SETTINGS,
+      instrumentId: 'euphonium',
+      clef: 'bass',
+      range: { low: low + 3, high: low + 15 },
+    });
+    expect(settings.range!.low).toBeGreaterThanOrEqual(bassLow);
+    expect(settings.range!.high).toBeLessThanOrEqual(bassHigh);
+  });
+
+  it('is nothing at all where nothing was chosen', () => {
+    // Null is the difficulty deciding, which is the default and is not the
+    // same as a range of none.
+    expect(sanitise({ ...DEFAULT_SETTINGS, range: null }).range).toBeNull();
+    expect(sanitise({ ...DEFAULT_SETTINGS, range: { low: NaN, high: 4 } }).range).toBeNull();
+    expect(sanitise({ ...DEFAULT_SETTINGS, range: 'wide' as never }).range).toBeNull();
   });
 });

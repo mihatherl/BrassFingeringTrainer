@@ -1256,3 +1256,93 @@ describe('where a pattern sits in the instrument', () => {
     expect(low).toBe(60);
   });
 });
+
+describe('a range the player chose', () => {
+  /*
+   * Ruled on 2026-08-13: a range asked for is taken literally, all of it and
+   * none of it favoured. Someone asking for the bottom fifth of the horn has
+   * said something specific, and pulling the notes back towards the middle
+   * would be the app disagreeing with them about the thing they came to
+   * practise. Difficulty keeps everything else it governs — the leaps, the
+   * accidentals, the rhythms — and stops governing where the notes sit.
+   *
+   * Where nothing is asked for, the middle is favoured, which is what the app
+   * always did and what an exercise wants when nobody has said otherwise.
+   */
+  const written = (exercise: ReturnType<typeof generateExercise>) =>
+    exercise.notes.map((note) => note.writtenMidi);
+
+  const [lowest, highest] = writtenRange(ebBass, 'treble');
+
+  it('stays inside the notes it was given', () => {
+    const range = { low: lowest + 2, high: lowest + 9 };
+    for (const kind of ['random', 'phrases'] as ExerciseKind[]) {
+      for (const seed of [1, 7, 99]) {
+        const notes = written(generateExercise(options({ kind, seed, range })));
+        expect(Math.min(...notes), `${kind} ${seed}`).toBeGreaterThanOrEqual(range.low);
+        expect(Math.max(...notes), `${kind} ${seed}`).toBeLessThanOrEqual(range.high);
+      }
+    }
+  });
+
+  it('uses the low end of the horn when that is what was asked for', () => {
+    /*
+     * The point of the feature. Left to the difficulty these notes are
+     * unreachable at any level below Expert, because the band is centred — so
+     * a player who wants to work on the bottom of the instrument could not get
+     * there at all.
+     */
+    const range = { low: lowest, high: lowest + 7 };
+    const notes = written(generateExercise(options({ range, difficulty: difficultyById('easy') })));
+    expect(Math.max(...notes)).toBeLessThanOrEqual(lowest + 7);
+
+    // And the same request left to the difficulty lands nowhere near it.
+    const auto = written(generateExercise(options({ difficulty: difficultyById('easy') })));
+    expect(Math.min(...auto)).toBeGreaterThan(lowest + 7);
+  });
+
+  it('is not narrowed by an easier level', () => {
+    // Difficulty governs the leaps and the rhythm now, not the compass. Two
+    // levels, one range, the same ceiling and floor available to both.
+    const range = { low: lowest + 4, high: lowest + 28 };
+    const reach = (id: string) => {
+      const notes = written(generateExercise(options({ range, difficulty: difficultyById(id), bars: 24 })));
+      return Math.max(...notes) - Math.min(...notes);
+    };
+    // Beginner asks for twelve semitones; given a range of twenty-four it may
+    // use them all, and over twenty-four bars it does.
+    expect(reach('beginner')).toBeGreaterThan(12);
+  });
+
+  it('favours the middle when no range is asked for', () => {
+    // Unchanged behaviour, which is what every player who never touches this
+    // control keeps getting.
+    const notes = written(generateExercise(options({ difficulty: difficultyById('easy') })));
+    const centre = Math.round((lowest + highest) / 2);
+    const half = Math.ceil(difficultyById('easy').rangeSemitones / 2);
+    expect(Math.min(...notes)).toBeGreaterThanOrEqual(centre - half);
+    expect(Math.max(...notes)).toBeLessThanOrEqual(centre + half);
+  });
+
+  it('survives a range given the wrong way round or off the horn', () => {
+    // The settings screen clamps, but a stored file can say anything and the
+    // generator throwing would take the whole run with it.
+    const backwards = generateExercise(options({ range: { low: highest, high: lowest } }));
+    expect(backwards.notes.length).toBeGreaterThan(0);
+
+    const beyond = generateExercise(options({ range: { low: lowest - 40, high: highest + 40 } }));
+    for (const midi of written(beyond)) {
+      expect(midi).toBeGreaterThanOrEqual(lowest);
+      expect(midi).toBeLessThanOrEqual(highest);
+    }
+  });
+
+  it('leaves scales and arpeggios to their register', () => {
+    // A pattern is placed by its tonic and its span; a range would mean
+    // something different there, so it is not asked and not honoured.
+    const range = { low: lowest, high: lowest + 7 };
+    const scale = generateExercise(options({ kind: 'scales', range }));
+    expect(scale.notes.length).toBeGreaterThan(0);
+    expect(Math.max(...written(scale))).toBeGreaterThan(lowest + 7);
+  });
+});

@@ -11,6 +11,7 @@ import { EXERCISE_KINDS } from '../exercise/types';
 import { toleranceFor } from '../engine/judge';
 import type { ExerciseKind } from '../exercise/types';
 import { styleName } from '../render/conductor';
+import { RangePicker } from './RangePicker';
 import {
   BARS_OPTIONS,
   CONDUCTOR_STYLE_RANGE,
@@ -194,6 +195,13 @@ export function SettingsScreen({
         : keySignature && `${keySignature.name} major`,
       material?.name,
       patternKind ? difficulty.patterns.label : difficulty.name,
+      // Only when it has been asked for. Left to the difficulty it is not a
+      // choice the player made, and a summary should not recite the defaults.
+      !patternKind && settings.kind !== 'themes' && settings.range
+        ? `${formatPitch(spellInKey(settings.range.low, shown.fifths))}–${formatPitch(
+            spellInKey(settings.range.high, shown.fifths),
+          )}`
+        : undefined,
     ),
     playing: summarise(
       reading?.name,
@@ -504,6 +512,23 @@ export function SettingsScreen({
             )}
           </label>
         </div>
+
+        {/*
+          The range, opposite the register: one or the other is shown, never
+          both and never neither. A pattern is placed by its tonic and asks
+          which end of the horn to sit at; free material is drawn from a pool
+          and asks what the pool is. They are the same question put to two kinds
+          of material that answer it differently.
+        */}
+        {!patternKind && settings.kind !== 'themes' && (
+          <RangePicker
+            instrument={instrument}
+            clef={settings.clef}
+            fifths={shown.fifths}
+            range={settings.range}
+            onChange={(range) => update('range', range)}
+          />
+        )}
 
         {/* Only where the compass leaves a choice to make: a two-octave scale
             takes most of a brass instrument and usually has one place to go. */}

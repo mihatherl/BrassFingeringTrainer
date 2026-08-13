@@ -23,7 +23,15 @@ export interface ChartNote {
   writtenMidi: number;
   /** "1-2", or "open", or "—" where the note has no fingering at all. */
   fingering: string;
-  accuracy: number;
+  /**
+   * How often it went right, drawn as a percentage under the note.
+   *
+   * Optional because the chart is also used to *show* notes rather than to
+   * report on them — the range picker draws its two bounds through here, and
+   * a percentage under a note nobody has played yet would be an answer to a
+   * question no one asked.
+   */
+  accuracy?: number;
 }
 
 export interface NoteChartOptions {
@@ -96,17 +104,19 @@ export function drawNoteChart(canvas: HTMLCanvasElement, options: NoteChartOptio
     // width check never bites here.
     drawFingeringHint(ctx, metrics, item, note.fingering, step, theme.note);
 
-    ctx.save();
-    ctx.fillStyle = theme.hint;
-    ctx.font = `${Math.round(staveSpace * 0.95)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(
-      `${Math.round(note.accuracy * 100)}%`,
-      centre,
-      metrics.bottomLineY + staveSpace * SCORE_OFFSET,
-    );
-    ctx.restore();
+    if (note.accuracy !== undefined) {
+      ctx.save();
+      ctx.fillStyle = theme.hint;
+      ctx.font = `${Math.round(staveSpace * 0.95)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(
+        `${Math.round(note.accuracy * 100)}%`,
+        centre,
+        metrics.bottomLineY + staveSpace * SCORE_OFFSET,
+      );
+      ctx.restore();
+    }
   });
 
   return height;
