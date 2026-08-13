@@ -1369,6 +1369,51 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## The fingering callout — v2.8.0
+
+A fingering used to be printed as a line of text over its note: `1-2-3`, set in
+the same band as the bar numbers, which is where the player found the two
+written on top of each other. Their design, asked for on 2026-08-13: the valve
+numbers stacked in a small capsule with a long tapered tail pointing down at the
+note.
+
+**Stacked, because the room a hint needs is horizontal.** `1-2-3` is three
+characters wide in the one direction a stave has nothing to spare, and
+`drawFingeringHint` will not print a hint wider than the gap to the next note —
+so the fingerings most worth having were the first to be dropped, three valves
+being both the hardest to remember and the widest to print. One number wide and
+three tall costs nothing horizontally, and hints can now sit over consecutive
+notes. **Open is written `0`**, which is what a published chart prints and the
+only form of the word that fits in a circle.
+
+**The tail is what keeps it legible.** A capsule floating in a lane of its own
+has stopped saying which note it belongs to; a line drawn to the note says it
+exactly. Tapered, because the end that has to be *precise* is a point and the
+end that has to be *seen* is broad — and it aims at the note's own ink, so on a
+stemmed note it stops at the stem's tip rather than crossing it.
+
+**The capsule sits in a lane; the tail is what varies.** Never lower than the
+top line, so every note in or below the stave gets its capsule at the same
+height with a longer tail the further down it lives. A row of hints then reads
+as a row rather than as marks scattered at the heights of their notes. A note
+*above* the stave takes its capsule with it, since a fixed lane would be
+underneath it.
+
+**The bar number gives way, not the fingering.** It is furniture — it belongs to
+the page rather than to the music — so it is the one that moved: tucked against
+the stave, set smaller, and on the scrolling line drawn at its bar line instead
+of at the downbeat, which is exactly where the note carrying the callout stands.
+The tail passes through that band on its way down, which is a thin line crossing
+a number rather than two things written over each other, and the capsule is
+filled so anything it does meet is passed over cleanly.
+
+**A taller thing above the stave means more room above the stave.** A paged
+system went from eleven spaces to twelve, four and a half of them above the top
+line: three valves stacked stand that far over it. Both charts size themselves
+from `fingeringHintY` and `fingeringHintRise` rather than from a constant — the
+weak-note chart was found to be cropping its own percentages while that constant
+stood.
+
 ## Fermata
 
 Draw it whenever, but it has no honest meaning against a metronome. A fermata

@@ -79,10 +79,19 @@ const MIN_BEATS_VISIBLE = 3;
 /**
  * Height of one system in stave spaces.
  *
- * Four for the stave itself; the rest is what hangs off it — ledger lines and
- * accidentals above and below. Also what decides how many systems a page holds.
+ * Four for the stave itself, four and a half above and three and a half below.
+ * The rest is what hangs off it — ledger lines and accidentals either side, and
+ * above the stave the bar numbers and a fingering callout, which is the tallest
+ * of them: three valves stacked in a capsule stand four and a half spaces over
+ * the top line. It was eleven while a fingering was one line of text, and the
+ * top system's hints were the thing that would have been cropped.
+ *
+ * Also what decides how many systems a page holds.
  */
-export const SYSTEM_SPACES = 11;
+export const SYSTEM_SPACES = 12;
+
+/** How much of that sits above the top line. */
+const SYSTEM_CLEARANCE = 4.5;
 
 /**
  * Largest a stave space may be drawn, in CSS pixels.
@@ -890,10 +899,20 @@ export class StaveRenderer {
       /*
        * Numbered every so many bars rather than at the head of a system,
        * because a scrolling line is one unbroken system and has no heads. The
-       * number goes to the right of its bar line, inside the bar it labels.
+       * number goes just right of its bar line, inside the bar it labels —
+       * *not* at the beat, which is where the downbeat note is: a note carrying
+       * a fingering callout drops a tail straight down its own centre, and the
+       * number was sitting exactly under it.
        */
       if (onScreen && bar % SCROLLING_BAR_NUMBER_EVERY === 0) {
-        drawBarNumber(ctx, this.metrics, x, barLabel(exercise, bar), theme.stave);
+        const lineX = x - BAR_LINE_SETBACK * this.metrics.staveSpace;
+        drawBarNumber(
+          ctx,
+          this.metrics,
+          lineX + this.metrics.staveSpace * 0.2,
+          barLabel(exercise, bar),
+          theme.stave,
+        );
       }
       if (changes.has(beat) || insideMultiRest(spans, beat)) continue;
       if (!onScreen) continue;
@@ -1015,20 +1034,20 @@ export class StaveRenderer {
       /*
        * Culled by its stave rather than by the whole system's extent.
        *
-       * A system is three and a half spaces of clearance, then the stave, then
-       * as much clearance again — so a line whose stave sits below the canvas
+       * A system is its clearance, then the stave, then more clearance — so a
+       * line whose stave sits below the canvas
        * can still have its clearance on screen, and what lands there is the
        * tops of stems and the ledger lines of high notes, drawn in mid air
        * with no stave under them. Read as a stray mark rather than as music,
        * which is exactly what it was reported as.
        */
-      const staveTop = top + this.metrics.staveSpace * 3.5;
+      const staveTop = top + this.metrics.staveSpace * SYSTEM_CLEARANCE;
       const staveBottom = staveTop + this.metrics.staveSpace * 4;
       if (staveBottom < 0 || staveTop > this.height) return;
 
       const lastBar = this.systemStarts[index + 1] ?? totalBars;
-      // Three and a half spaces of clearance above the stave for ledger lines
-      // and accidentals, and as much again beneath.
+      // Clearance above the stave for ledger lines, accidentals, bar numbers
+      // and fingering callouts; what is left over goes beneath.
       const metrics = staveMetrics(exercise.clef, staveTop, this.metrics.staveSpace);
 
       const final = lastBar >= totalBars;
@@ -1105,7 +1124,7 @@ export class StaveRenderer {
     for (const group of groups.values()) drawBeamGroup(this.ctx, this.metrics, group);
     this.drawTies(xForBeat);
     for (const { note, text, room } of hints) {
-      drawFingeringHint(this.ctx, this.metrics, note, text, room, theme.hint);
+      drawFingeringHint(this.ctx, this.metrics, note, text, room, theme.hint, theme.background);
     }
   }
 

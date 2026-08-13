@@ -81,6 +81,26 @@ export class SvgContext {
     this.path.push(`Q${cx} ${cy} ${x} ${y}`);
   }
 
+  closePath(): void {
+    this.path.push('Z');
+  }
+
+  /** Enough of it for the fingering callout's capsule: one uniform radius. */
+  roundRect(x: number, y: number, w: number, h: number, r: number): void {
+    this.path.push(
+      `M${x + r} ${y}`,
+      `H${x + w - r}`,
+      `A${r} ${r} 0 0 1 ${x + w} ${y + r}`,
+      `V${y + h - r}`,
+      `A${r} ${r} 0 0 1 ${x + w - r} ${y + h}`,
+      `H${x + r}`,
+      `A${r} ${r} 0 0 1 ${x} ${y + h - r}`,
+      `V${y + r}`,
+      `A${r} ${r} 0 0 1 ${x + r} ${y}`,
+      'Z',
+    );
+  }
+
   stroke(): void {
     this.out.push(
       this.wrap(
@@ -96,11 +116,19 @@ export class SvgContext {
 
   fillText(text: string, x: number, y: number): void {
     const anchor = this.textAlign === 'center' ? 'middle' : this.textAlign === 'right' ? 'end' : 'start';
+    // Only the two the renderer actually asks for; anything else is the
+    // alphabetic default, which is what SVG does anyway.
+    const baseline =
+      this.textBaseline === 'middle'
+        ? ' dominant-baseline="central"'
+        : this.textBaseline === 'top'
+          ? ' dominant-baseline="hanging"'
+          : '';
     // The renderer sets its own font; fall back to something legible if not.
     const font = this.font || '500 12px sans-serif';
     this.out.push(
       this.wrap(
-        `<text x="${x}" y="${y}" style="font: ${font}" text-anchor="${anchor}" fill="${this.fillStyle}">${text}</text>`,
+        `<text x="${x}" y="${y}" style="font: ${font}" text-anchor="${anchor}"${baseline} fill="${this.fillStyle}">${text}</text>`,
       ),
     );
   }

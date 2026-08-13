@@ -46,6 +46,8 @@ function mockContext(calls: RecordedCall[]): CanvasRenderingContext2D {
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
     quadraticCurveTo: record('quadraticCurveTo'),
+    closePath: record('closePath'),
+    roundRect: record('roundRect'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),
@@ -691,11 +693,20 @@ describe('scrolling renderer', () => {
     }
 
     it('prints nothing when no note asks for one', () => {
-      expect(withHint(undefined)).not.toContain('1-2');
+      expect(withHint(undefined)).toHaveLength(0);
     });
 
-    it('prints the fingering above the note that asked', () => {
-      expect(withHint('1-2')).toContain('1-2');
+    it('prints the fingering above the note that asked, a valve to a row', () => {
+      // Stacked, not written along the stave: "1-2" is two rows of one digit,
+      // which is what keeps a hint out of the bar numbers and out of the way of
+      // the next note.
+      expect(withHint('1-2')).toEqual(['1', '2']);
+    });
+
+    it('writes open as the nought a fingering chart prints', () => {
+      // The word will not go in a circle, and every chart a player has met
+      // prints a nought for it.
+      expect(withHint('open')).toEqual(['0']);
     });
 
     it('keeps quiet when there is no room for one', () => {
@@ -713,12 +724,36 @@ describe('scrolling renderer', () => {
 
       const printed = (room: number) => {
         const calls: RecordedCall[] = [];
-        drawFingeringHint(mockContext(calls), metrics, note, '1-2-3', room, '#888');
+        drawFingeringHint(mockContext(calls), metrics, note, '1-2-3', room, '#888', '#fff');
         return calls.some((c) => c.method === 'fillText');
       };
 
-      expect(printed(8)).toBe(false);
+      expect(printed(4)).toBe(false);
       expect(printed(400)).toBe(true);
+    });
+
+    it('needs no more room for three valves than for one', () => {
+      // The reason for stacking them. Written along the stave "1-2-3" is three
+      // times the width of "1", and the difference decided whether a hint was
+      // printed at all.
+      const metrics = staveMetrics('treble', 40, 12);
+      const note: LayoutNote = {
+        x: 100,
+        pitch: { letter: 'G', alter: 0, octave: 4 },
+        duration: { value: 'quarter', dotted: false },
+        showAccidental: false,
+        colour: '#000',
+      };
+
+      const fits = (text: string, room: number) => {
+        const calls: RecordedCall[] = [];
+        drawFingeringHint(mockContext(calls), metrics, note, text, room, '#888', '#fff');
+        return calls.some((c) => c.method === 'fillText');
+      };
+
+      const room = 14;
+      expect(fits('1', room)).toBe(true);
+      expect(fits('1-2-3', room)).toBe(true);
     });
 
     it('draws it in the hint colour, not the note colour', () => {

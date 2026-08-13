@@ -62,6 +62,12 @@ user-visible:
 | v2.7.0 | **And says it by turning a dial.** Two dropdowns became two dials under the two notes, turned with the finger, a stave step of the key to a detent, each one clicking as it passes. |
 | v2.7.1 | **The dials moved to either side of the stave**, halving the height of the control. The settings screen is being kept short, and a row that stands between a player and Start has to earn it. |
 
+**The fingerings:**
+
+| | |
+|---|---|
+| v2.8.0 | **A fingering is a callout now** — valve numbers stacked in a capsule on a tapered tail pointing at its note. Stacked because the room a hint needs is horizontal, and the bar numbers moved out from under them. |
+
 ## The decisions worth not re-litigating
 
 **A selection is a walk, not a slice.** The importer has always read a list of

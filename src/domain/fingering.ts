@@ -50,10 +50,30 @@ export function maskToValves(mask: number): number[] {
   return valves;
 }
 
+/** How an open fingering is written out where there is room for a word. */
+export const OPEN = 'open';
+
 /** "1-2", "open", … for display. */
 export function formatMask(mask: number): string {
   const valves = maskToValves(mask);
-  return valves.length === 0 ? 'open' : valves.join('-');
+  return valves.length === 0 ? OPEN : valves.join('-');
+}
+
+/**
+ * The same fingering set out one valve to a row: "1-2" → ["1", "2"].
+ *
+ * For the callout over a note, which stacks its numbers rather than writing
+ * them along the stave — see `drawFingeringHint`. Open becomes **0**, which is
+ * what a published fingering chart prints and the only form of the word that
+ * fits in a circle; anything else that reaches here — the dash for a note with
+ * no fingering at all — is one row of whatever it already was.
+ *
+ * Here rather than in the renderer because how a fingering is written down is
+ * this module's business, and `formatMask` is the same fact in a wider hand.
+ */
+export function fingeringRows(text: string): string[] {
+  if (text === OPEN) return ['0'];
+  return text.split('-');
 }
 
 export interface Fingering {

@@ -30,6 +30,8 @@ function mockCanvas(calls: RecordedCall[], width = 400) {
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
     quadraticCurveTo: record('quadraticCurveTo'),
+    closePath: record('closePath'),
+    roundRect: record('roundRect'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),
@@ -81,8 +83,10 @@ describe('the fingering chart', () => {
   it('prints a fingering and a score for each note', () => {
     const { text } = draw([G4, C4]);
 
-    expect(text).toContain('1-2');
-    expect(text).toContain('open');
+    // A valve to a row in the callout over each note, open written as a nought.
+    expect(text).toContain('1');
+    expect(text).toContain('2');
+    expect(text).toContain('0');
     expect(text).toContain('40%');
     expect(text).toContain('60%');
   });

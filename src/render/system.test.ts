@@ -44,6 +44,8 @@ function mockContext(calls: RecordedCall[]): CanvasRenderingContext2D {
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
     quadraticCurveTo: record('quadraticCurveTo'),
+    closePath: record('closePath'),
+    roundRect: record('roundRect'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),
@@ -84,12 +86,14 @@ beforeAll(() => {
   };
 });
 
-function exerciseOf(): Exercise {
-  const notes: NoteEvent[] = [0, 1, 2, 3].map((beat) => ({
+/** Four crotchets, in whichever bar the system being drawn covers. */
+function exerciseOf(firstBar = 0): Exercise {
+  const from = firstBar * 4;
+  const notes: NoteEvent[] = [0, 1, 2, 3].map((offset) => ({
     writtenMidi: 67,
     pitch: spellInKey(67, 0),
     soundingMidi: 46,
-    startBeat: beat,
+    startBeat: from + offset,
     duration: { value: 'quarter', dotted: false },
     acceptedMasks: [0],
     primaryMask: 0,
@@ -107,26 +111,27 @@ function exerciseOf(): Exercise {
     keys: [{ fromBeat: 0, fifths: -3 }],
     metres: [{ fromBeat: 0, metre: metreFor(4, 4) }],
     tempo: [],
-    totalBeats: 4,
-    chosenBeats: 4,
+    totalBeats: from + 4,
+    chosenBeats: from + 4,
     seed: 1,
     kind: 'random',
   };
 }
 
-function draw(clef: boolean, firstBar = 0): RecordedCall[] {
+function draw(clef: boolean, firstBar = 0, hint?: string): RecordedCall[] {
   const calls: RecordedCall[] = [];
-  const exercise = exerciseOf();
+  const exercise = exerciseOf(firstBar);
   drawSystem(mockContext(calls), {
     exercise,
-    metrics: staveMetrics(exercise.clef, 0, 20),
-    xForBeat: (beat) => 300 + beat * 40,
+    metrics: staveMetrics(exercise.clef, 200, 20),
+    xForBeat: (beat) => 300 + (beat - firstBar * 4) * 40,
     firstBar,
     lastBar: firstBar + 1,
     theme: LIGHT_THEME,
     colourFor: () => LIGHT_THEME.note,
     final: true,
     clef,
+    hintFor: hint === undefined ? undefined : (index) => (index === 0 ? hint : undefined),
   });
   return calls;
 }
@@ -175,15 +180,40 @@ describe('drawSystem bar numbers', () => {
     expect(texts(draw(true, 0))).toEqual([]);
   });
 
-  it('puts the number above the stave, clear of the metronome mark band', () => {
+  it('puts the number above the stave, tucked under everything else there', () => {
     const number = draw(true, 4).find((c) => c.method === 'fillText');
-    const metrics = staveMetrics('treble', 0, 20);
+    const metrics = staveMetrics('treble', 200, 20);
     const y = (number?.args[2] as number) ?? 0;
-    // Above the top line, and below where a metronome mark starts — the two
-    // both anchor to a bar line, and a tempo change is written at one, so they
-    // would meet constantly if they shared a band.
+    // Above the top line, and inside the space a metronome mark leaves under
+    // itself — everything else that lives above a stave anchors to a bar line
+    // too, and a number is the piece of it that gives way.
     expect(y).toBeLessThan(metrics.topLineY);
     expect(y).toBeGreaterThan(metrics.topLineY - 20 * 2.5);
+  });
+
+  it('leaves a fingering callout a band of its own', () => {
+    /*
+     * The fault this pair of lanes exists to stop. A hint over the first note
+     * of a numbered bar used to be set in the same band as the number, at
+     * nearly the same x — the bar number is drawn at the head of the bar and
+     * the downbeat is the note right after it — so the two were printed over
+     * each other.
+     *
+     * Vertical separation is the guarantee, because the horizontal kind cannot
+     * be had: where the note sits is decided by the music.
+     */
+    const calls = draw(true, 4, '1-2-3');
+    const size = 20 * 0.9;
+
+    const number = calls.find((c) => c.method === 'fillText' && c.args[0] === '5');
+    const numberBaseline = Number(number?.args[2]);
+    const capsule = calls.find((c) => c.method === 'roundRect');
+    const capsuleBottom = Number(capsule?.args[1]) + Number(capsule?.args[3]);
+
+    expect(number, 'the number was not drawn').toBeDefined();
+    expect(capsule, 'the callout was not drawn').toBeDefined();
+    // The capsule finishes above where the number's ink begins.
+    expect(capsuleBottom).toBeLessThan(numberBaseline - size);
   });
 
   it('draws it in the stave colour, not the note colour', () => {

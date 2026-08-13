@@ -13,10 +13,23 @@
  * notation; the percentages underneath say which is worst.
  */
 
+import { fingeringRows } from '../domain/fingering';
 import { needsAccidental, spellInKey } from '../domain/keys';
 import type { Clef } from '../domain/instruments';
-import { drawFingeringHint, drawNote, noteheadWidth } from './notes';
-import { drawClef, drawKeySignature, drawStaveLines, staveMetrics } from './stave';
+import {
+  drawFingeringHint,
+  drawNote,
+  fingeringHintRise,
+  fingeringHintY,
+  noteheadWidth,
+} from './notes';
+import {
+  drawClef,
+  drawKeySignature,
+  drawStaveLines,
+  staveMetrics,
+  yForPitch,
+} from './stave';
 import type { StaveTheme } from './surface';
 
 export interface ChartNote {
@@ -43,13 +56,15 @@ export interface NoteChartOptions {
 }
 
 /**
- * Height of the chart in stave spaces: four for the stave, room above for the
- * numbers and ledger lines, room below for ledger lines and the percentages.
+ * Least clearance above the stave and below it, in stave spaces — enough for
+ * the percentages underneath and a note or two outside the stave.
  */
-const CHART_SPACES = 13;
+const CHART_ABOVE = 4.5;
+const CHART_BELOW = 4.5;
 
-/** Where the percentage sits, in stave spaces below the bottom line. */
+/** Where the percentage sits, in stave spaces below the bottom line, and its size. */
 const SCORE_OFFSET = 4.4;
+const SCORE_SIZE = 0.95;
 
 /** Sizes the canvas to its width, draws, and returns the height used. */
 export function drawNoteChart(canvas: HTMLCanvasElement, options: NoteChartOptions): number {
@@ -58,7 +73,36 @@ export function drawNoteChart(canvas: HTMLCanvasElement, options: NoteChartOptio
   const { notes, clef, fifths, theme } = options;
 
   const staveSpace = Math.min(22, Math.max(9, width / 26));
-  const height = CHART_SPACES * staveSpace;
+
+  /*
+   * Sized to the notes it was given rather than to a fixed thirteen spaces.
+   *
+   * The weak notes are whichever ones the player keeps missing, which for a
+   * brass part is as likely to be the bottom of the horn as the middle — and
+   * each carries a fingering callout standing several spaces over it. Measured
+   * from `fingeringHintY` and `fingeringHintRise`, which are the numbers the
+   * drawing itself uses; `range-stave.ts` sizes itself the same way and for the
+   * same reason.
+   */
+  const probe = staveMetrics(clef, 0, 1);
+  let above = CHART_ABOVE;
+  // The percentages hang below everything, and hung *off* the canvas while its
+  // height was a constant: four and a half spaces of room for a row of figures
+  // set four and a half spaces down.
+  let below = notes.some((note) => note.accuracy !== undefined)
+    ? SCORE_OFFSET + SCORE_SIZE + 0.3
+    : CHART_BELOW;
+  for (const note of notes) {
+    const pitch = spellInKey(note.writtenMidi, fifths);
+    const rows = fingeringRows(note.fingering).length;
+    above = Math.max(
+      above,
+      -(fingeringHintY(probe, pitch) - fingeringHintRise(probe, rows)) + 0.4,
+    );
+    below = Math.max(below, yForPitch(probe, pitch) - probe.bottomLineY + 1);
+  }
+
+  const height = (above + 4 + below) * staveSpace;
 
   const dpr = window.devicePixelRatio || 1;
   canvas.style.height = `${height}px`;
@@ -70,9 +114,7 @@ export function drawNoteChart(canvas: HTMLCanvasElement, options: NoteChartOptio
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
 
-  // Four and a half spaces of clearance above for the numbers and any ledger
-  // lines they have to clear.
-  const metrics = staveMetrics(clef, staveSpace * 4.5, staveSpace);
+  const metrics = staveMetrics(clef, staveSpace * above, staveSpace);
   ctx.strokeStyle = theme.stave;
   ctx.fillStyle = theme.stave;
   drawStaveLines(ctx, metrics, 0, width);
@@ -102,12 +144,12 @@ export function drawNoteChart(canvas: HTMLCanvasElement, options: NoteChartOptio
     // The same placement the play surface uses, so a fingering sits in the same
     // relation to its note wherever it appears. `step` is generous, so the
     // width check never bites here.
-    drawFingeringHint(ctx, metrics, item, note.fingering, step, theme.note);
+    drawFingeringHint(ctx, metrics, item, note.fingering, step, theme.note, theme.background);
 
     if (note.accuracy !== undefined) {
       ctx.save();
       ctx.fillStyle = theme.hint;
-      ctx.font = `${Math.round(staveSpace * 0.95)}px system-ui, sans-serif`;
+      ctx.font = `${Math.round(staveSpace * SCORE_SIZE)}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(

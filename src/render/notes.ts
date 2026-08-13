@@ -6,6 +6,7 @@
  * any static preview.
  */
 
+import { fingeringRows } from '../domain/fingering';
 import { diatonicStep, type SpelledPitch } from '../domain/pitch';
 import { NOTE_VALUE_FLAGS, type Duration, type NoteValue } from '../domain/rhythm';
 import { drawGlyph, glyphWidth, type GlyphName } from './glyphs';
@@ -391,44 +392,85 @@ export function drawRest(
   }
 }
 
-/** How far a fingering sits above whatever it has to clear, in stave spaces. */
-const HINT_CLEARANCE = 0.8;
-/** Its size, and how much of that stands above the baseline it is set on. */
-const HINT_SIZE = 1.1;
-const HINT_RISE = 1.25;
+/**
+ * How far a callout floats above whatever it has to clear, in stave spaces.
+ *
+ * Enough to clear a bar number as well as the stave, since above the top line
+ * that is the other tenant: the number is tucked against the stave and the
+ * capsule floats over it. See `BAR_NUMBER_RISE`.
+ */
+const HINT_CLEARANCE = 1.45;
+/** Size of one valve number, and the vertical pitch of a stack of them. */
+const HINT_SIZE = 0.85;
+const HINT_ROW = 0.88;
+/** Air inside the capsule, either side of the numbers and above and below. */
+const HINT_PAD_X = 0.32;
+const HINT_PAD_Y = 0.18;
+/** Width of the tail where it leaves the capsule; it tapers to a point. */
+const HINT_TAIL_WIDTH = 0.5;
+/** How far down the tail its waist sits, as a fraction of its length. */
+const HINT_TAIL_WAIST = 0.22;
+/** How much of a gap the tail's point leaves above the note it aims at. */
+const HINT_TAIL_GAP = 0.15;
 
 /**
- * The baseline a fingering hint sits on, and how far its ink reaches above it.
+ * Where the top of a note's ink is, for anything that has to sit clear of it.
+ *
+ * Stems point away from the middle line, so an upward stem is the thing to
+ * clear on a low note and the notehead itself on a high one — and a semibreve
+ * has no stem to clear at all, which is what a callout's tail was aiming at
+ * before this asked: on the range picker it stopped in mid-stave, three and a
+ * half spaces above a note that had nothing there.
+ */
+function noteCeiling(m: StaveMetrics, pitch: SpelledPitch, duration?: Duration): number {
+  const y = yForStep(m, diatonicStep(pitch));
+  const stemmed = duration === undefined || duration.value !== 'whole';
+  return stemmed && stemUp(m, pitch) ? y - STEM_LENGTH * m.staveSpace : y;
+}
+
+/**
+ * The bottom of a fingering callout — where its tail leaves the capsule.
+ *
+ * Never lower than the top line, which is what turns this into a *lane*: every
+ * note in or below the stave gets its capsule at the same height, with a longer
+ * tail the further down it lives, so a row of hints reads as a row rather than
+ * as marks scattered at the heights of the notes they belong to. A note above
+ * the stave takes its capsule with it, since a fixed lane would be underneath.
  *
  * Published rather than kept inside the drawing because a canvas that has to
- * *contain* a hint needs the same answer the drawing uses — the range picker
+ * *contain* a callout needs the same answer the drawing uses — the range picker
  * sizes itself around its two, and sizing it by anything but this is how a
  * figure ends up with the numbers cropped along its top edge.
  */
 export function fingeringHintY(m: StaveMetrics, pitch: SpelledPitch): number {
-  const y = yForStep(m, diatonicStep(pitch));
-  // Stems point away from the middle line, so an upward stem is the thing a
-  // hint has to clear on a low note, and ledger lines on a high one.
-  const above = stemUp(m, pitch) ? y - STEM_LENGTH * m.staveSpace : y;
-  return Math.min(m.topLineY, above) - m.staveSpace * HINT_CLEARANCE;
+  return Math.min(m.topLineY, noteCeiling(m, pitch)) - m.staveSpace * HINT_CLEARANCE;
 }
 
-/** How far a hint's ink stands above its baseline. */
-export function fingeringHintRise(m: StaveMetrics): number {
-  return m.staveSpace * HINT_RISE;
+/** How far a callout's capsule stands above that point. */
+export function fingeringHintRise(m: StaveMetrics, rows: number): number {
+  return m.staveSpace * (2 * HINT_PAD_Y + rows * HINT_ROW);
 }
 
 /**
- * Prints a fingering above a note, if it will fit.
+ * A fingering over a note: the valve numbers in a capsule, on a tapered tail
+ * pointing down at the note they belong to.
  *
- * Placed clear of whatever that note already has above it — its stem, its
- * ledger lines — rather than at a fixed height, so a hint never lands on the
- * notation it is meant to help with.
+ * Stacked rather than written along the stave, which is the whole point of the
+ * shape. "1-2-3" set as text is three characters of horizontal room in a place
+ * that has none to spare — hints were being dropped for want of it, and the
+ * ones that fitted ran into the bar numbers, which are set in the same band.
+ * One number wide and three tall costs nothing horizontally, so hints can sit
+ * over consecutive notes, and the capsule keeps them out of the numbers' way by
+ * standing above them.
+ *
+ * The tail is what makes that legibility safe. A mark floating in a lane of its
+ * own has stopped saying which note it is about; a line drawn to the note says
+ * it exactly, and tapering means the end that has to be precise is a point
+ * while the end that has to be *seen* is broad.
  *
  * The width check is the last word on `hints.ts`'s "if space permits". Which
  * notes deserve a hint is a musical question answered from the exercise and the
- * tempo; whether one fits is a question only the layout can answer, and it is
- * answered here by measuring the text against the room to the next note.
+ * tempo; whether one fits is a question only the layout can answer.
  */
 export function drawFingeringHint(
   ctx: CanvasRenderingContext2D,
@@ -437,21 +479,74 @@ export function drawFingeringHint(
   text: string,
   room: number,
   colour: string,
+  /** What the capsule is filled with, so it sits *over* whatever it crosses. */
+  background: string,
 ): void {
-  const size = Math.max(8, Math.round(m.staveSpace * HINT_SIZE));
+  const { staveSpace } = m;
+  const rows = fingeringRows(text);
+  const size = Math.max(8, Math.round(staveSpace * HINT_SIZE));
+
   ctx.save();
   ctx.font = `600 ${size}px system-ui, sans-serif`;
 
-  if (ctx.measureText(text).width <= room) {
-    ctx.fillStyle = colour;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(
-      text,
-      note.x + noteheadWidth(m, note.duration) / 2,
-      fingeringHintY(m, note.pitch),
-    );
+  const widest = Math.max(...rows.map((row) => ctx.measureText(row).width));
+  const width = widest + 2 * HINT_PAD_X * staveSpace;
+  if (width > room) {
+    ctx.restore();
+    return;
   }
+
+  const height = fingeringHintRise(m, rows.length);
+  const centreX = note.x + noteheadWidth(m, note.duration) / 2;
+  const bottom = fingeringHintY(m, note.pitch);
+  const top = bottom - height;
+
+  // Down to the note's own ink, so the point lands on the thing it means and
+  // not on the stem or the ledger lines in front of it.
+  const tip = noteCeiling(m, note.pitch, note.duration) - HINT_TAIL_GAP * staveSpace;
+
+  ctx.fillStyle = colour;
+  ctx.strokeStyle = colour;
+
+  if (tip > bottom) {
+    /*
+     * Two curves meeting at the point, rather than a triangle: a straight taper
+     * of this length reads as a wedge, and the eye follows a needle down to
+     * where it lands far more readily than it follows a wedge.
+     */
+    const half = (HINT_TAIL_WIDTH * staveSpace) / 2;
+    // The waist sits near the capsule, so the shape is broad where it leaves
+    // the capsule and a fine line for the rest of the way down. Placed at the
+    // middle it stays thick for half its length, which on the long tail a low
+    // note needs reads as a stick rather than as a pointer.
+    const waist = bottom + (tip - bottom) * HINT_TAIL_WAIST;
+    ctx.beginPath();
+    ctx.moveTo(centreX - half, bottom);
+    ctx.quadraticCurveTo(centreX - half * 0.12, waist, centreX, tip);
+    ctx.quadraticCurveTo(centreX + half * 0.12, waist, centreX + half, bottom);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // The capsule last, so it covers the head of its own tail — and filled, so a
+  // bar number or a ledger line behind it is passed over rather than tangled
+  // with.
+  const radius = Math.min(width, height) / 2;
+  ctx.beginPath();
+  ctx.roundRect(centreX - width / 2, top, width, height, radius);
+  ctx.fillStyle = background;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, staveSpace * 0.09);
+  ctx.strokeStyle = colour;
+  ctx.stroke();
+
+  ctx.fillStyle = colour;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  rows.forEach((row, index) => {
+    ctx.fillText(row, centreX, top + (HINT_PAD_Y + HINT_ROW * (index + 0.5)) * staveSpace);
+  });
+
   ctx.restore();
 }
 

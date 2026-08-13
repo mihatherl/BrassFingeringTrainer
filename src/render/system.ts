@@ -183,11 +183,22 @@ const MARK_RISE = 2.5;
 /**
  * How high above the top line a bar number sits, in stave spaces.
  *
- * Below the metronome mark's band, which starts at `MARK_RISE`, so the two
- * never meet — and they would otherwise meet often, since both anchor to a bar
- * line and a tempo change is written at one.
+ * Tucked against the stave, under everything else that lives above it: the
+ * metronome mark's band starts at `MARK_RISE`, and a fingering callout's
+ * capsule floats above that again. It used to sit at 1.5, which is inside the
+ * band a fingering occupies, so a hint over the first note of a numbered bar
+ * landed on top of its number — and the number is furniture, so it is the one
+ * that gives way.
+ *
+ * The callout's tail passes through this band on its way down to its note.
+ * That is a thin line crossing a number rather than two things written over
+ * each other, and the capsule is filled, so what the tail meets it passes over
+ * cleanly.
  */
-const BAR_NUMBER_RISE = 1.5;
+const BAR_NUMBER_RISE = 0.35;
+
+/** How big a bar number is set, in stave spaces. */
+const BAR_NUMBER_SIZE = 0.9;
 
 /**
  * How often a bar is numbered where there are no systems to number the start
@@ -242,7 +253,10 @@ export function drawBarNumber(
 
   ctx.save();
   ctx.fillStyle = colour;
-  ctx.font = `500 ${Math.round(staveSpace * 1.1)}px system-ui, sans-serif`;
+  // Smaller than it was, now that it shares the space above the stave with a
+  // fingering's capsule: furniture set at the size of the music was taking room
+  // the music needs.
+  ctx.font = `500 ${Math.max(8, Math.round(staveSpace * BAR_NUMBER_SIZE))}px system-ui, sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(label, x, metrics.topLineY - staveSpace * BAR_NUMBER_RISE);
@@ -632,7 +646,7 @@ export function drawSystem(ctx: CanvasRenderingContext2D, options: SystemOptions
   });
 
   for (const { note, text, room } of hints) {
-    drawFingeringHint(ctx, metrics, note, text, room, theme.hint);
+    drawFingeringHint(ctx, metrics, note, text, room, theme.hint, theme.background);
   }
 
   if (options.final) {

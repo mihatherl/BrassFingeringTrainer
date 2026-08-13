@@ -34,6 +34,9 @@ function mockCanvas(calls: RecordedCall[], width = 400) {
     beginPath: record('beginPath'),
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
+    quadraticCurveTo: record('quadraticCurveTo'),
+    closePath: record('closePath'),
+    roundRect: record('roundRect'),
     stroke: record('stroke'),
     fill: record('fill'),
     save: record('save'),
@@ -118,13 +121,14 @@ function inkOf(calls: RecordedCall[]): { glyphs: PlacedGlyph[]; top: number; bot
   let originY = 0;
   let scale = 1;
   let fontSize = 0;
+  let baseline = 'alphabetic';
   const mark = (from: number, to: number) => {
     top = Math.min(top, from);
     bottom = Math.max(bottom, to);
   };
 
   for (const call of calls) {
-    const [first, second, third] = call.args as [unknown, unknown, unknown];
+    const [first, second, third, fourth] = call.args as [unknown, unknown, unknown, unknown];
     switch (call.method) {
       case 'translate':
         originX = Number(first);
@@ -136,13 +140,25 @@ function inkOf(calls: RecordedCall[]): { glyphs: PlacedGlyph[]; top: number; bot
       case 'font':
         fontSize = Number(/(\d+(?:\.\d+)?)px/.exec(String(first))?.[1] ?? 0);
         break;
+      case 'textBaseline':
+        baseline = String(first);
+        break;
       case 'moveTo':
       case 'lineTo':
         mark(Number(second), Number(second));
         break;
+      case 'quadraticCurveTo':
+        // A quadratic stays inside its control hull, so the control point and
+        // the end point together bound it.
+        mark(Math.min(Number(second), Number(fourth)), Math.max(Number(second), Number(fourth)));
+        break;
+      case 'roundRect':
+        mark(Number(second), Number(second) + Number(fourth));
+        break;
       case 'fillText':
-        // Set on a `bottom` baseline, so the ink stands above the y given.
-        mark(Number(third) - fontSize, Number(third));
+        // Centred rows inside a capsule, or set on a `bottom` baseline.
+        if (baseline === 'middle') mark(Number(third) - fontSize * 0.6, Number(third) + fontSize * 0.6);
+        else mark(Number(third) - fontSize, Number(third));
         break;
       case 'fill': {
         const glyph = named.get((first as { d?: string })?.d ?? '');
@@ -184,14 +200,11 @@ function draw(
 }
 
 describe('the range stave', () => {
-  it('prints a fingering for each bound and names no pitches', () => {
+  it('prints a fingering for each bound, stacked, and names no pitches', () => {
     const { text } = draw(bound('G3', '1-2'), bound('C5', 'open'));
 
-    expect(text).toContain('1-2');
-    expect(text).toContain('open');
-    for (const printed of text) {
-      expect(String(printed)).toMatch(/^(\d(-\d)*|open|—)$/);
-    }
+    // A valve to a row, and open written as the nought a chart prints.
+    expect(text).toEqual(['1', '2', '0']);
   });
 
   it('crops nothing, for any instrument, clef, key or pair of notes', () => {
@@ -288,7 +301,8 @@ describe('the range stave', () => {
 
   it('draws both ends even when they are the same note', () => {
     const { text } = draw(bound('G3', '1-2'), bound('G3', '1-2'));
-    // One note asked for is still two bounds, each with a dial under it.
-    expect(text.filter((t) => t === '1-2')).toHaveLength(2);
+    // One note asked for is still two bounds, each with its own dial beside
+    // the figure — so two noteheads, and two fingerings of two rows each.
+    expect(text).toEqual(['1', '2', '1', '2']);
   });
 });

@@ -23,6 +23,7 @@
  * figure stay legible when it is squeezed between two controls.
  */
 
+import { fingeringRows } from '../domain/fingering';
 import { needsAccidental, spellInKey } from '../domain/keys';
 import type { SpelledPitch } from '../domain/pitch';
 import type { Clef } from '../domain/instruments';
@@ -93,6 +94,8 @@ function inkExtent(
   clef: Clef,
   fifths: number,
   pitches: SpelledPitch[],
+  /** Valve rows in each bound's callout, which is what makes it tall. */
+  rows: number[],
 ): { above: number; below: number } {
   const m = staveMetrics(clef, 0, 1);
   const header = headerExtent(clef, fifths);
@@ -100,16 +103,16 @@ function inkExtent(
   let top = -header.above;
   let bottom = m.bottomLineY + header.below;
 
-  for (const pitch of pitches) {
+  pitches.forEach((pitch, index) => {
     const y = yForPitch(m, pitch);
     // A notehead is a space tall, and its ledger lines never reach past it.
-    top = Math.min(top, y - 0.5, fingeringHintY(m, pitch) - fingeringHintRise(m));
+    top = Math.min(top, y - 0.5, fingeringHintY(m, pitch) - fingeringHintRise(m, rows[index]));
     bottom = Math.max(bottom, y + 0.5);
     if (needsAccidental(pitch, fifths)) {
       top = Math.min(top, y - ACCIDENTAL_RISE);
       bottom = Math.max(bottom, y + ACCIDENTAL_DROP);
     }
-  }
+  });
 
   return { above: -top, below: bottom - m.bottomLineY };
 }
@@ -134,7 +137,8 @@ export function drawRangeStave(canvas: HTMLCanvasElement, options: RangeStaveOpt
   const staveSpace = Math.min(14, Math.max(9, width / 20));
 
   const pitches = [spellInKey(low.writtenMidi, fifths), spellInKey(high.writtenMidi, fifths)];
-  const ink = inkExtent(clef, fifths, pitches);
+  const rows = [low, high].map((bound) => fingeringRows(bound.fingering).length);
+  const ink = inkExtent(clef, fifths, pitches, rows);
 
   const topLineY = (ink.above + MARGIN) * staveSpace;
   const height = topLineY + (4 + ink.below + MARGIN) * staveSpace;
@@ -182,7 +186,7 @@ export function drawRangeStave(canvas: HTMLCanvasElement, options: RangeStaveOpt
     drawNote(ctx, metrics, note);
     // A note's own column is the room its fingering has, which is the same
     // measure `note-chart.ts` gives one and generous for at most "1-2-3".
-    drawFingeringHint(ctx, metrics, note, bound.fingering, step, theme.note);
+    drawFingeringHint(ctx, metrics, note, bound.fingering, step, theme.note, theme.background);
   });
 
   return height;
