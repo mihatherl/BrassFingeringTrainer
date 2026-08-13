@@ -224,6 +224,38 @@ export function drawKeySignature(
   return x + width;
 }
 
+/**
+ * How far the clef and key signature reach past the stave, in stave spaces.
+ *
+ * A treble clef is the tallest thing on any line and hangs a space and a half
+ * below the bottom line; a sharp sits over a space below the line it is on. A
+ * canvas sized for the *notes* alone therefore crops the furniture, which is
+ * how the range picker first came out — the clef's tail cut off square by the
+ * bottom of its own figure.
+ *
+ * Measured from the glyph outlines and the same placement `drawClef` and
+ * `layoutKeySignature` use, so this cannot drift away from what is drawn. Both
+ * numbers are zero-or-more: `above` is how far past the top line, `below` how
+ * far past the bottom, and furniture that stays inside the stave asks for
+ * nothing.
+ */
+export function headerExtent(clef: Clef, fifths: number): { above: number; below: number } {
+  // One pixel to the space, so every y below is already measured in spaces.
+  const m = staveMetrics(clef, 0, 1);
+
+  const clefBox = GLYPHS[CLEF_GLYPH[clef]].bbox;
+  const clefY = yForStep(m, CLEF_ANCHOR_STEP[clef]);
+  let top = clefY + clefBox.top;
+  let bottom = clefY + clefBox.bottom;
+
+  for (const { glyph, y } of layoutKeySignature(m, fifths).glyphs) {
+    top = Math.min(top, y + GLYPHS[glyph].bbox.top);
+    bottom = Math.max(bottom, y + GLYPHS[glyph].bbox.bottom);
+  }
+
+  return { above: Math.max(0, -top), below: Math.max(0, bottom - m.bottomLineY) };
+}
+
 export function drawTimeSignature(
   ctx: CanvasRenderingContext2D,
   m: StaveMetrics,

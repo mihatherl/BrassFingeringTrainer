@@ -59,6 +59,7 @@ user-visible:
 | | |
 |---|---|
 | v2.6.0 | **The player says which notes free material is drawn from.** The band always existed and was centred on the compass; now it can be asked for, and an asked-for range is taken literally. |
+| v2.7.0 | **And says it by turning a dial.** Two dropdowns became two dials under the two notes, turned with the finger, a stave step of the key to a detent, each one clicking as it passes. |
 
 ## The decisions worth not re-litigating
 
@@ -117,6 +118,17 @@ catch it. And the first `barRects` tests checked internal consistency (bars
 abutting, entries in order) rather than agreement with the drawing, so they
 passed with the setback removed. **Mutation testing found both; neither was
 visible by reading.**
+
+**I sized a canvas for the notes and forgot the furniture.** The range stave
+was measured for its two noteheads, their ledger lines and their fingerings, and
+came out with a treble clef's tail cut off square along the bottom edge — and,
+at the other end, the fingering over a note sitting quietly *inside* the stave,
+where nothing looked like it needed room at all: a hint clears an imaginary
+stem, so a note just below the middle line reaches higher than one above it.
+Both were invisible to a suite that measures notes against each other and
+visible in the first screenshot. The fix is the rule this codebase already had:
+`headerExtent` and `fingeringHintY` publish the numbers the drawing uses, and
+the figure sizes itself from those rather than from a second opinion.
 
 **I proposed a rule without counting.** "Whole number of beats, and few of
 them" as the test for whether a bar is music or corruption — then counted the

@@ -1306,15 +1306,58 @@ finds its own octave. Both would mean something different by a range, so the
 control appears opposite the register: one or the other, never both and never
 neither.
 
-**Named and drawn.** Two dropdowns give the note and its fingering — a control
-has to be operated — and a stave beside them draws the two bounds where they
-actually live. That is the reasoning `note-chart.ts` already sets out for the
+**Named and drawn.** The two bounds are semibreves on a stave with the fingering
+over each, which is the reasoning `note-chart.ts` already sets out for the
 weak-note chart: a letter and an octave number ask the reader to translate, and
 translating is the thing someone practising this is not yet fluent at.
 
 Written pitch, so it moves with the clef. `sanitise` clamps rather than clears
 when the instrument or clef changes: clearing would silently drop a choice on a
 mis-tap, and the stave shows where a clamped one landed.
+
+### The dials — v2.7.0
+
+Two dropdowns operated it to begin with, which is a list of thirty-six notes to
+hunt through for a choice that is really *a place on the horn*. Asked for by the
+player on 2026-08-13 as a dial under each note, turned with the finger.
+
+**A turn is a stave step in the key, not a semitone.** The player's call, and
+the figure above agrees with it: one turn, one line or space, spelled by the
+signature so no bound arrives carrying an accidental nobody asked for. Three
+octaves of tuba is about twenty-one stops rather than thirty-six. It narrows
+nothing — the pool between two bounds is every chromatic note in it, as it
+always was.
+
+**The ends of the compass are always on the ladder**, key or no key. An Eb bass
+in treble bottoms out on a written C#3, which is in no flat key at all, and a
+dial that could not reach the bottom of the horn would be refusing to say the
+thing a low-brass player most often wants to say. `domain/ladder.ts` holds both
+that rule and the stepping, including from a note left off the ladder by a key
+change — one click moves one place from where the note actually is.
+
+**The dials block rather than shove.** A lower bound driven up into the upper
+one stops there. Shoving would move a note the player is not touching, and the
+pair would walk up the horn together with nothing on screen to say why. They may
+still meet on one note, which is a thing worth asking for and reads as one.
+
+**Each detent clicks and taps.** A control turned by a finger has nothing else
+to say it moved: the note is a small change a long way from the thumb, and a
+silent dial feels like a stuck one. Sound and haptics both, best-effort — no
+audio on this screen until something asks for it, and no vibration on a desktop.
+
+**The notes and the dials are laid out on one set of fractions** (`BOUND_X`),
+the canvas filling the same container the dials are positioned in. Nothing is
+measured in JavaScript, so the control cannot drift out from under the note it
+moves at any width.
+
+**A figure sizes itself to its ink, furniture included.** `range-stave.ts` is
+its own renderer rather than another caller of `note-chart.ts` for this reason:
+the chart reserves a fixed thirteen spaces, which crops the ends of a brass
+compass, and the first two things this cropped were not the extremes at all but
+a treble clef's tail and a fingering over a note sitting quietly inside the
+stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
+numbers the drawing itself uses — the same "laid out rather than drawn" rule
+`layoutKeySignature` was written under.
 
 ## Fermata
 

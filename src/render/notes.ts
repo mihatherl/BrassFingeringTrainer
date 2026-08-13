@@ -391,6 +391,33 @@ export function drawRest(
   }
 }
 
+/** How far a fingering sits above whatever it has to clear, in stave spaces. */
+const HINT_CLEARANCE = 0.8;
+/** Its size, and how much of that stands above the baseline it is set on. */
+const HINT_SIZE = 1.1;
+const HINT_RISE = 1.25;
+
+/**
+ * The baseline a fingering hint sits on, and how far its ink reaches above it.
+ *
+ * Published rather than kept inside the drawing because a canvas that has to
+ * *contain* a hint needs the same answer the drawing uses — the range picker
+ * sizes itself around its two, and sizing it by anything but this is how a
+ * figure ends up with the numbers cropped along its top edge.
+ */
+export function fingeringHintY(m: StaveMetrics, pitch: SpelledPitch): number {
+  const y = yForStep(m, diatonicStep(pitch));
+  // Stems point away from the middle line, so an upward stem is the thing a
+  // hint has to clear on a low note, and ledger lines on a high one.
+  const above = stemUp(m, pitch) ? y - STEM_LENGTH * m.staveSpace : y;
+  return Math.min(m.topLineY, above) - m.staveSpace * HINT_CLEARANCE;
+}
+
+/** How far a hint's ink stands above its baseline. */
+export function fingeringHintRise(m: StaveMetrics): number {
+  return m.staveSpace * HINT_RISE;
+}
+
 /**
  * Prints a fingering above a note, if it will fit.
  *
@@ -411,22 +438,18 @@ export function drawFingeringHint(
   room: number,
   colour: string,
 ): void {
-  const size = Math.max(8, Math.round(m.staveSpace * 1.1));
+  const size = Math.max(8, Math.round(m.staveSpace * HINT_SIZE));
   ctx.save();
   ctx.font = `600 ${size}px system-ui, sans-serif`;
 
   if (ctx.measureText(text).width <= room) {
-    const y = yForStep(m, diatonicStep(note.pitch));
-    // Stems point away from the middle line, so an upward stem is the thing a
-    // hint has to clear on a low note, and ledger lines on a high one.
-    const above = stemUp(m, note.pitch) ? y - STEM_LENGTH * m.staveSpace : y;
     ctx.fillStyle = colour;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillText(
       text,
       note.x + noteheadWidth(m, note.duration) / 2,
-      Math.min(m.topLineY, above) - m.staveSpace * 0.8,
+      fingeringHintY(m, note.pitch),
     );
   }
   ctx.restore();

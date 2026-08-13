@@ -1,26 +1,37 @@
 /**
  * Choosing the notes free material is drawn from.
  *
- * Two ends and a stave. The dropdowns name the notes because a control has to
- * be operated, and the stave draws them because that is where a player reads a
- * note — the same reasoning `note-chart.ts` sets out for the weak-note chart:
- * a letter and an octave number ask the reader to translate, and translating
- * is the very thing someone practising this is not yet fluent at.
- *
- * The fingering sits under each, from the same `drawFingeringHint` the play
+ * Two ends and a stave. The stave draws them because that is where a player
+ * reads a note — the same reasoning `note-chart.ts` sets out for the weak-note
+ * chart: a letter and an octave number ask the reader to translate, and
+ * translating is the very thing someone practising this is not yet fluent at.
+ * The fingering sits over each, from the same `drawFingeringHint` the play
  * surface uses, so a bound reads as a note you can put your fingers on.
+ *
+ * Under each note is the dial that moves it, on the same fractions of the width
+ * the notes are drawn at, so the control is beneath the thing it controls. They
+ * turn in stave steps within the key, which is the unit the figure above them
+ * is drawn in: one turn of a dial, one line or space.
+ *
+ * Neither dial may pass the other. Blocking rather than shoving is deliberate —
+ * a dial that pushed its neighbour along would move a note the player was not
+ * touching, and the pair would drift up the horn together with no way to see
+ * why. Stopped against each other, the two can still meet on one note, which is
+ * a legitimate thing to ask for and reads as one.
  *
  * Free material only: a scale is placed by its tonic and asks `register` where
  * to sit, and a theme finds its own octave from the degrees it is written in.
  * Neither would mean the same thing by a range, so neither is offered one.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { formatMask, primaryFingering } from '../domain/fingering';
 import { soundingFromWritten, writtenRange, type Clef, type Instrument } from '../domain/instruments';
+import { keyLadder } from '../domain/ladder';
 import { spellInKey } from '../domain/keys';
 import { formatPitch } from '../domain/pitch';
-import { drawNoteChart } from '../render/note-chart';
+import { BOUND_X, drawRangeStave } from '../render/range-stave';
+import { NoteDial } from './NoteDial';
 import { StaveCanvas } from './StaveCanvas';
 
 interface RangePickerProps {
@@ -31,14 +42,6 @@ interface RangePickerProps {
   /** The chosen range, or null to leave it to the difficulty. */
   range: { low: number; high: number } | null;
   onChange: (range: { low: number; high: number } | null) => void;
-}
-
-/** How a note is offered in the list: where it is, and what holds it down. */
-function label(midi: number, fifths: number, instrument: Instrument, clef: Clef): string {
-  const sounding = soundingFromWritten(midi, instrument, clef);
-  const mask = primaryFingering(sounding, instrument)?.mask;
-  const name = formatPitch(spellInKey(midi, fifths));
-  return mask === undefined ? name : `${name} · ${formatMask(mask)}`;
 }
 
 /** Semitones described the way a player would say it, for the summary line. */
@@ -54,22 +57,24 @@ function describeSpan(semitones: number): string {
 
 export function RangePicker({ instrument, clef, fifths, range, onChange }: RangePickerProps) {
   const [lowest, highest] = writtenRange(instrument, clef);
-  const notes: number[] = [];
-  for (let midi = lowest; midi <= highest; midi++) notes.push(midi);
+  const ladder = useMemo(() => keyLadder(fifths, lowest, highest), [fifths, lowest, highest]);
 
   const chosen = range ?? { low: lowest, high: highest };
+  const name = useCallback(
+    (midi: number) => formatPitch(spellInKey(midi, fifths)),
+    [fifths],
+  );
 
   const draw = useCallback(
-    (canvas: HTMLCanvasElement, theme: Parameters<typeof drawNoteChart>[1]['theme']) => {
-      const chart = (midi: number) => {
+    (canvas: HTMLCanvasElement, theme: Parameters<typeof drawRangeStave>[1]['theme']) => {
+      const bound = (midi: number) => {
         const sounding = soundingFromWritten(midi, instrument, clef);
         const mask = primaryFingering(sounding, instrument)?.mask;
         return { writtenMidi: midi, fingering: mask === undefined ? '—' : formatMask(mask) };
       };
-      // No percentages: nothing here has been played, and a figure under these
-      // two would be an answer to a question nobody asked.
-      drawNoteChart(canvas, {
-        notes: chosen.low === chosen.high ? [chart(chosen.low)] : [chart(chosen.low), chart(chosen.high)],
+      drawRangeStave(canvas, {
+        low: bound(chosen.low),
+        high: bound(chosen.high),
         clef,
         fifths,
         theme,
@@ -99,49 +104,57 @@ export function RangePicker({ instrument, clef, fifths, range, onChange }: Range
 
       {range !== null && (
         <>
-          <div className="field-row">
-            <label className="field">
-              <span className="field__label">Lowest</span>
-              <select
-                value={range.low}
-                onChange={(event) => {
-                  const low = Number(event.target.value);
-                  onChange({ low, high: Math.max(low, range.high) });
-                }}
-              >
-                {notes.map((midi) => (
-                  <option key={midi} value={midi}>
-                    {label(midi, fifths, instrument, clef)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Highest</span>
-              <select
-                value={range.high}
-                onChange={(event) => {
-                  const high = Number(event.target.value);
-                  onChange({ low: Math.min(high, range.low), high });
-                }}
-              >
-                {notes.map((midi) => (
-                  <option key={midi} value={midi}>
-                    {label(midi, fifths, instrument, clef)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
           <StaveCanvas
-            className="range-stave"
+            className="range__stave"
             draw={draw}
-            label={`Range: ${formatPitch(spellInKey(range.low, fifths))} to ${formatPitch(
-              spellInKey(range.high, fifths),
-            )}`}
+            label={`Range: ${name(range.low)} to ${name(range.high)}`}
           />
+
+          {/*
+            Absolute, on the fractions the notes are drawn at. The canvas fills
+            this container, so a percentage here and a fraction of the canvas
+            width are the same measurement — which is what keeps each dial
+            under its own note at every screen size, with nothing measured in
+            JavaScript to fall out of step.
+          */}
+          <div className="range__dials">
+            {(
+              [
+                {
+                  key: 'low' as const,
+                  label: 'Lowest',
+                  value: range.low,
+                  min: lowest,
+                  max: range.high,
+                  set: (midi: number) => onChange({ low: midi, high: range.high }),
+                },
+                {
+                  key: 'high' as const,
+                  label: 'Highest',
+                  value: range.high,
+                  min: range.low,
+                  max: highest,
+                  set: (midi: number) => onChange({ low: range.low, high: midi }),
+                },
+              ] as const
+            ).map((bound, index) => (
+              <div
+                key={bound.key}
+                className="range__dial"
+                style={{ left: `${BOUND_X[index] * 100}%` }}
+              >
+                <NoteDial
+                  label={bound.label}
+                  values={ladder}
+                  value={bound.value}
+                  min={bound.min}
+                  max={bound.max}
+                  name={name}
+                  onChange={bound.set}
+                />
+              </div>
+            ))}
+          </div>
 
           <p className="field__note muted">
             {/* What the choice actually amounts to, since a pair of note names

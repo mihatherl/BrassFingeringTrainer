@@ -919,6 +919,122 @@ input[type='checkbox'] {
 }
 
 /*
+ * The range picker: a stave, and under each of its two notes the dial that
+ * moves it.
+ *
+ * The dials are positioned in percentages of this container, and the canvas
+ * fills the same container — so a percentage here and `BOUND_X`'s fraction of
+ * the canvas width are one measurement, and note and control stay in line at
+ * every width without either of them being measured.
+ */
+.range__stave {
+  margin-top: 0.5rem;
+}
+
+.range__dials {
+  position: relative;
+  /* Five detents and the caption beneath them. */
+  height: 11rem;
+}
+
+.range__dial {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.dial {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+}
+
+/*
+ * The window the drum turns behind.
+ *
+ * `touch-action: none` is what makes this a dial rather than a piece of the
+ * page: without it a vertical drag is a scroll, and the note never moves.
+ */
+.dial__window {
+  position: relative;
+  width: 4.75rem;
+  height: calc(var(--dial-step) * 5);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  /* The ends of the drum fall away rather than being cut off square. */
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+}
+
+.dial__window:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dial__window.is-turning {
+  cursor: grabbing;
+}
+
+.dial__drum {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: center;
+  /* Snapping back after the finger lets go; suppressed while it is down, when
+     the drum is following the finger and must not lag behind it. */
+  transition: transform 120ms ease-out;
+}
+
+.dial__window.is-turning .dial__drum {
+  transition: none;
+}
+
+.dial__note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--dial-step);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.dial__note.is-chosen {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The band the chosen note sits in, as a physical dial has a window. */
+.dial__detent {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--dial-step);
+  transform: translateY(-50%);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.dial__label {
+  font-size: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dial__drum {
+    transition: none;
+  }
+}
+
+/*
  * Sideways *and short* — a phone on its side, and nothing else.
  *
  * The height test is the whole point of this rule and was missing from it for
