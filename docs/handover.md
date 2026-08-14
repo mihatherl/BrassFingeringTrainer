@@ -80,6 +80,7 @@ user-visible:
 | | |
 |---|---|
 | v2.9.0 | **The notes list is gone; mistakes are answered on the note, and the tempo is under the player's hand.** A wrong note prints its fingering over itself and over every later note of that pitch, immediately, with no cap on how many. The space the list held is now a tempo control that moves the clock mid-run. |
+| v2.10.1 | **A rewind plays at the tempo on the dial**, and the dial turns twice as far for a swipe. The player's tempo changes were living in the same list as the score's own, so going back replayed a passage at the speed it had the first time while the dial said otherwise — and the scoring, which follows the clock, appeared to race ahead of the playing. |
 | v2.10.0 | **Pause, and take it from a bar or five back.** A pause freezes the clock rather than the scheduler; starting again counts in one real bar. A rewind goes to the top of a bar and un-judges everything after it, so the passage can be played again. The tempo dial grew, took the reading onto its face, and shows a big callout only while it turns. |
 | v2.9.1 | **That control is a dial, with the reading above it.** A slider had to fit forty to two hundred and twenty into the width beside the stave; the dial gives the same travel to every beat a minute and takes a few spins to cross. The number is large and above, because the thumb covers the dial. `useDial` now carries the gesture for both dials in the app. |
 

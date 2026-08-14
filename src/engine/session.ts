@@ -373,6 +373,13 @@ export class Session {
     this.synth.setVolume(this.offering ? OFFER_VOLUME : 1);
     this.input.clearHistory();
 
+    /*
+     * At the speed the dial is showing, not the speed this passage had the
+     * first time through. Safe here and only here: `start` below re-anchors the
+     * clock, which is the condition `rebaseTempo` asks for.
+     */
+    this.transport.rebaseTempo();
+
     const { barBeats } = metreAt(this.options.exercise.metres, Math.max(0, beat));
     this.transport.start((from, to) => this.schedule(from, to), beat - barBeats);
 

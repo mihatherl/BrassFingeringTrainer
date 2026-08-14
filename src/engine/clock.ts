@@ -74,10 +74,22 @@ export class Transport {
    */
   private map: TempoMap;
 
-  /** What the map is compiled from, kept so it can be recompiled with more. */
-  private readonly nominalBpm: number;
+  /**
+   * What the map is compiled from, kept so it can be recompiled with more.
+   *
+   * The two kinds of event are held apart because they answer to different
+   * things. **The score's** are the music's own instructions — a written step,
+   * a rit. — and they belong to the piece however often it is played. **The
+   * player's** are the dial: not a fact about the music but about the speed
+   * being practised at, which is why a rewind must not resurrect the ones they
+   * have since turned away from. See `rebaseTempo`.
+   */
+  private nominalBpm: number;
   private readonly crotchetsPerBeat: number;
-  private events: TempoEvent[];
+  private readonly scoreEvents: readonly TempoEvent[];
+  private playerEvents: TempoEvent[] = [];
+  /** The last speed the player asked for, or null if they never have. */
+  private askedTempo: number | null = null;
 
   private readonly context: AudioContext;
   /** NaN so the first comparison always misses and anchors afresh. */
@@ -114,8 +126,12 @@ export class Transport {
     this.nominalSecondsPerBeat = 60 / (tempo * crotchetsPerBeat);
     this.nominalBpm = tempo;
     this.crotchetsPerBeat = crotchetsPerBeat;
-    this.events = [...events];
-    this.map = compileTempo(tempo, this.events, crotchetsPerBeat);
+    this.scoreEvents = [...events];
+    this.map = compileTempo(tempo, this.scoreEvents, crotchetsPerBeat);
+  }
+
+  private get events(): TempoEvent[] {
+    return [...this.scoreEvents, ...this.playerEvents];
   }
 
   get isRunning(): boolean {
@@ -280,15 +296,51 @@ export class Transport {
       }
     }
 
-    const last = this.events[this.events.length - 1];
-    const pending = last?.kind === 'tempo' && last.atBeat === atBeat;
-    const events = pending ? this.events.slice(0, -1) : [...this.events];
-    events.push({ kind: 'tempo', atBeat, bpm });
+    /*
+     * Anything the player asked for at this beat or later is dropped.
+     *
+     * All of it lies beyond the scheduling horizon, so no time already computed
+     * can move — and it is how a drag stays cheap: asking again for the same
+     * beat replaces what is pending there instead of stacking another step
+     * behind it. It also stops an abandoned speed lying in wait: rewind past a
+     * change and play forward again, and the change would otherwise fire a
+     * second time from a dial that has long since moved on.
+     */
+    const kept = this.playerEvents.filter(
+      (event) => event.kind !== 'tempo' || event.atBeat < atBeat,
+    );
+    const mine = [...kept, { kind: 'tempo' as const, atBeat, bpm }];
 
     // Compiled before it is adopted, so a tempo the map refuses leaves the
     // clock running on the one it had rather than half-changed.
-    this.map = compileTempo(this.nominalBpm, events, this.crotchetsPerBeat);
-    this.events = events;
+    this.map = compileTempo(
+      this.nominalBpm,
+      [...this.scoreEvents, ...mine],
+      this.crotchetsPerBeat,
+    );
+    this.playerEvents = mine;
+    this.askedTempo = bpm;
+  }
+
+  /**
+   * Puts the speed on the dial in charge, for a jump that re-anchors the clock.
+   *
+   * A rewind replays music the player has already been through, and the steps
+   * they made while going through it are still in the map — so the passage came
+   * back at whatever speed it had the first time, while the dial went on
+   * showing the speed they had chosen. Everything follows the clock, scoring
+   * included, so the marking appeared to run ahead of the playing. Reported
+   * from a hymn taken back five bars at a time.
+   *
+   * Safe only where the caller is about to re-anchor the origin, because it
+   * rewrites the past as well as the future: with the player's steps gone the
+   * whole run is at one speed, which is what they asked for by setting it.
+   */
+  rebaseTempo(): void {
+    if (this.askedTempo === null) return;
+    this.nominalBpm = this.askedTempo;
+    this.playerEvents = [];
+    this.map = compileTempo(this.nominalBpm, this.scoreEvents, this.crotchetsPerBeat);
   }
 
   private tick(): void {

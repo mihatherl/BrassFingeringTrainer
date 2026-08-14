@@ -259,6 +259,51 @@ describe('changing tempo while running', () => {
     expect(t.secondsBetween(0, 4)).toBeCloseTo(4, 5);
   });
 
+  it('replays at the tempo on the dial, not the one the passage had before', () => {
+    /*
+     * The fault a player found by taking a hymn back five bars at a time: the
+     * steps they had made were still in the map, so the passage came back at
+     * whatever speed it had the first time through while the dial went on
+     * showing what they had chosen. Everything follows the clock — the judging
+     * included — so the marking appeared to race ahead of the playing.
+     */
+    const t = started();
+    t.changeTempo(60);
+    expect(t.secondsBetween(4, 8)).toBeCloseTo(4, 12);
+
+    // What a rewind does: rebase, then re-anchor at the beat gone back to.
+    t.stop();
+    t.rebaseTempo();
+    t.start(() => undefined, 0);
+
+    // The whole of it at the speed asked for, count-in and all — no step left
+    // at beat one to trip over on the way back through.
+    expect(t.secondsBetween(0, 4)).toBeCloseTo(4, 12);
+    expect(t.secondsBetween(-4, 0)).toBeCloseTo(4, 12);
+    expect(t.secondsBetween(40, 44)).toBeCloseTo(4, 12);
+  });
+
+  it('leaves an abandoned speed nowhere to lie in wait', () => {
+    // Two changes, the second before the first has been reached: the first is
+    // dropped rather than kept to fire later from a dial that has moved on.
+    const t = started();
+    t.changeTempo(60);
+    t.stop();
+    t.start(() => undefined, 0);
+    t.changeTempo(240);
+
+    // Whatever beat it is asked about beyond the horizon, one speed answers.
+    expect(t.secondsBetween(4, 8)).toBeCloseTo(1, 12);
+    expect(t.secondsBetween(40, 44)).toBeCloseTo(1, 12);
+  });
+
+  it('does nothing on a rebase if the player never touched it', () => {
+    const t = started();
+    const before = t.timeForBeat(8);
+    t.rebaseTempo();
+    expect(t.timeForBeat(8)).toBe(before);
+  });
+
   it('keeps running on the tempo it had if it is handed a bad one', () => {
     const t = started();
     expect(() => t.changeTempo(0)).toThrow();

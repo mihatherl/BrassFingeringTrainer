@@ -25,8 +25,15 @@ import type { CSSProperties } from 'react';
 import { TEMPO_RANGE } from '../domain/tempo';
 import { useDial } from './useDial';
 
-/** Travel to one beat a minute, in CSS pixels. */
-const STEP_PX = 18;
+/**
+ * Travel to one beat a minute, in CSS pixels.
+ *
+ * Halved on the player's call after living with it: a swipe is worth twice
+ * what it was, so crossing a useful stretch of the range is a couple of spins
+ * rather than five. Fine control is still a beat a minute — the detent has not
+ * changed, only how far the finger goes to reach the next one.
+ */
+const STEP_PX = 9;
 
 /** What a page key moves by — a useful lump of tempo, not a nudge. */
 const PAGE_STEP = 10;

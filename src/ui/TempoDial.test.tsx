@@ -41,9 +41,9 @@ function spin(pixels: number) {
 describe('the tempo dial', () => {
   it('turns a beat a minute for each detent of travel', () => {
     show(120);
-    // Eighteen pixels to the detent: five detents down.
+    // Nine pixels to the detent, so ninety pixels is ten of them.
     spin(-90);
-    expect(at()).toBe(115);
+    expect(at()).toBe(110);
     spin(90);
     expect(at()).toBe(120);
   });
@@ -58,7 +58,7 @@ describe('the tempo dial', () => {
     show(140);
     const spins = [];
     for (let i = 0; i < 5; i++) {
-      spin(-216); // twelve detents, about a thumb's worth
+      spin(-108); // twelve beats a minute, which is about a thumb's worth
       spins.push(at());
     }
 
@@ -69,7 +69,7 @@ describe('the tempo dial', () => {
     // The reading is above the wheel and large, because the hand turning the
     // dial covers the dial and the eye is on the stave.
     show(120);
-    spin(-36);
+    spin(-18);
     expect(screen.getByText('118')).toBeTruthy();
   });
 

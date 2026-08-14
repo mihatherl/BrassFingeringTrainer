@@ -1369,6 +1369,34 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## A rewind plays at the tempo on the dial — v2.10.1
+
+Found by the player taking a hymn back five bars at a time: the passage came
+back at the speed it had the *first* time through, while the dial went on
+showing the speed they had chosen. Everything follows the clock, the judging
+included, so the marking appeared to race ahead of the playing — "bars being
+scored before they are complete".
+
+The cause is that the two kinds of tempo event were kept in one list. **The
+score's** are the music's own instructions — a written step, a rit. — and they
+belong to the piece however often it is played. **The player's** are the dial:
+not a fact about the music but about the speed being practised at. Held apart,
+two rules follow:
+
+- **A change drops the player's own steps at or after it.** All of them lie
+  beyond the scheduling horizon, so nothing already computed can move — and it
+  stops an abandoned speed lying in wait to fire from a dial that has long
+  since moved on.
+- **A jump rebases on the dial.** `rebaseTempo` throws the player's steps away
+  and makes their current speed the nominal one, count-in included. It rewrites
+  the past as well as the future, which is safe *only* because the caller is
+  about to re-anchor the origin — `Session.restartAt` is the one caller, and
+  re-anchoring is exactly what it does next.
+
+Measured in a browser rather than argued: at 200 the run judged 3.8 notes a
+second, wound down to 40 it judged 0.5, and after a rewind it judged 3.2 —
+which is the fault. It now judges 0.5.
+
 ## Hold it, and take it from a bar back — v2.10.0
 
 The two things said most often in a practice room, and neither was possible:
