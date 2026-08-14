@@ -234,10 +234,7 @@ release.
     2026-08-15, and each step is useless before the one above it.
     1. ~~Subtractions and defaults~~ — built, v2.14.0. See *Fewer things to
        choose*.
-    2. **The accordion**: one box per mode, expanding to show only the settings
-       that apply to it, and only one open at a time. Expanding a box *is*
-       choosing that mode — two states saying the same thing can disagree.
-       Pure UI; no model change.
+    2. ~~The accordion~~ — built, v2.15.0. See *One box per material*.
     3. **Drills**: Scales and Arpeggios become one box with a selectable drill
        type, and the key choice moves down into it. The generator is already
        built for this — `SCALE_PATTERNS` and `ARPEGGIO_PATTERNS` are lists of
@@ -275,6 +272,46 @@ same format and nothing in the app changes.
 
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
+
+## One box per material — v2.15.0
+
+The second of the four steps. Pure presentation: not a line of the model, the
+generator or the storage changed, and every control is the same control it was.
+
+**The open box is the material.** Deliberately not two states. A selected box and
+an expanded box say almost the same thing, and two states saying almost the same
+thing can disagree — the screen would then have to answer what it means to
+expand Themes while Scales is chosen, and there is no good answer to that. So
+there is one state, `settings.kind`, and the open box shows it. Which is also why
+the open box does not close: closing it would leave no material chosen, and an
+exercise has to be made of something.
+
+**A box holds only what applies to it**, which is the whole reason to have boxes.
+Most of what used to sit in one column belongs to one material and is noise
+beside the others:
+
+| | Keys | Difficulty | Time signature | Range | Register |
+|---|---|---|---|---|---|
+| Scales | ✓ | ✓ *(as a span)* | — | — | ✓ |
+| Arpeggios | ✓ | ✓ *(as a span)* | — | — | ✓ |
+| Sight-reading | ✓ | ✓ | ✓ | ✓ | — |
+| Themes | ✓ | ✓ | ✓ | — | — |
+
+A register is a question about where a scale sits on the horn and means nothing
+to a written tune. A range is a question about the pool free material is drawn
+from, and neither a pattern placed by its tonic nor a theme already written has
+a pool. A scale is a shape played against a click rather than a piece with a
+metre, so it has no time signature to choose — that was a *disabled* dropdown
+reading "4/4" before, which is a control explaining itself where no control was
+wanted.
+
+The fields are values built once in the component and placed by the accordion,
+rather than laid out in a fixed column with guards on each. Only one of each is
+ever rendered, which is what keeps them plainly the same control wherever shown.
+
+**Both `aria-pressed` and `aria-expanded`** sit on each box's button, because
+both are true of it and neither implies the other to a screen reader: it is the
+pressed one, and it is the expanded one.
 
 ## Fewer things to choose — v2.14.0
 

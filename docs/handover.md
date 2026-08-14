@@ -177,9 +177,11 @@ things here are waiting on:
   on the notes that can be judged.
 
 **The settings screen**, being reorganised in four steps agreed on 2026-08-15.
-Step 1 shipped as v2.14.0 — *Random notes*, Expert and the length settings are
-gone, and the paywall moved from lengths to playing on. Steps 2 to 4 are the
-accordion, *Drills* as one box with a selectable type, and named minor scales.
+Steps 1 and 2 shipped as v2.14.0 and v2.15.0 — *Random notes*, Expert and the
+length settings are gone, the paywall moved from lengths to playing on, and the
+material chooser became one box per material holding only its own settings.
+Steps 3 and 4 are *Drills* as one box with a selectable type, and named minor
+scales.
 `v2-design.md` item 11 carries the plan, and *Fewer things to choose* carries
 what step 1 cost. Three things ruled there are waiting on later work:
 

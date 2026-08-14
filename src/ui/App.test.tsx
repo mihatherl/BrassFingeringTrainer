@@ -160,6 +160,87 @@ describe('the app', () => {
     expect(screen.getByText(/Timing tolerance/)).toBeTruthy();
   });
 
+  /**
+   * One box per material, the open one being the material chosen.
+   *
+   * The point of the accordion is that a box shows only what applies to it: a
+   * register is a question about where a scale sits, a range is a question about
+   * the pool free material is drawn from, and neither means anything to the
+   * other. Shown together they are noise, which is what the player asked to be
+   * rid of.
+   */
+  describe('the material boxes', () => {
+    const openBox = () => document.querySelector('.mode.is-open .mode__summary strong')?.textContent;
+    const fieldsShown = () =>
+      Array.from(document.querySelectorAll('.mode.is-open .mode__body .field__label')).map(
+        (label) => label.textContent?.trim(),
+      );
+    const hasRange = () =>
+      document.querySelectorAll('.mode.is-open .mode__body input[type=checkbox]').length > 0;
+
+    const choose = (name: RegExp) => fireEvent.click(screen.getByRole('button', { name }));
+
+    it('opens exactly one box, and it is the material chosen', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      expect(openBox(), 'the stored default').toBe('Sight-reading');
+      expect(document.querySelectorAll('.mode__body')).toHaveLength(1);
+
+      choose(/Themes/);
+      expect(openBox()).toBe('Themes');
+      expect(document.querySelectorAll('.mode__body'), 'the last one closed').toHaveLength(1);
+    });
+
+    it('will not close the open box, since an exercise has to be made of something', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      choose(/Scales/);
+      expect(openBox()).toBe('Scales');
+      // Pressing the open one again is not a way to choose nothing.
+      choose(/Scales/);
+      expect(openBox()).toBe('Scales');
+    });
+
+    it('shows a material only the settings that apply to it', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      // A scale is a shape played against a click, so it has no metre to choose
+      // and no pool to be drawn from — it asks where on the horn to sit instead.
+      choose(/Scales/);
+      expect(fieldsShown()).toEqual(['Keys', 'Difficulty', 'Register']);
+      expect(hasRange(), 'a scale is placed by its tonic').toBe(false);
+
+      // Free material is the one thing drawn from a pool, so it is the one
+      // thing that asks what the pool is.
+      choose(/Sight-reading/);
+      expect(fieldsShown()).toEqual(['Keys', 'Difficulty', 'Time signature']);
+      expect(hasRange(), 'and it is the only one that asks').toBe(true);
+
+      // A theme is written already: neither a register nor a range to ask about.
+      choose(/Themes/);
+      expect(fieldsShown()).toEqual(['Keys', 'Difficulty', 'Time signature']);
+      expect(hasRange()).toBe(false);
+    });
+
+    it('says which box is open to anyone not looking at it', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+      choose(/Themes/);
+
+      const themes = screen.getByRole('button', { name: /Themes/ });
+      const scales = screen.getByRole('button', { name: /Scales/ });
+      // Both are true of it and neither implies the other: it is the pressed
+      // one, and it is the expanded one.
+      expect(themes.getAttribute('aria-pressed')).toBe('true');
+      expect(themes.getAttribute('aria-expanded')).toBe('true');
+      expect(scales.getAttribute('aria-pressed')).toBe('false');
+      expect(scales.getAttribute('aria-expanded')).toBe('false');
+    });
+  });
+
   describe('choosing keys', () => {
     /*
      * One control, not two. There used to be a dropdown naming the starting key

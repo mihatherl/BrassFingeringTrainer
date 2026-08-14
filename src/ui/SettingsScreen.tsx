@@ -238,6 +238,164 @@ export function SettingsScreen({
     );
   };
 
+  /*
+   * The fields a material's box holds, built here and placed by the accordion
+   * below rather than laid out in one fixed column.
+   *
+   * Every one of them applies to some materials and not to others, which is the
+   * whole reason the boxes exist: a register is a question about where a scale
+   * sits and means nothing to a written tune, a range is a question about the
+   * pool free material is drawn from and means nothing to either.
+   *
+   * Values rather than components, so they close over `settings`, `shown`,
+   * `locked` and `update` exactly as they did when they were written inline —
+   * and so that each is plainly the same one control wherever it is shown.
+   */
+  const keysField = (
+    <>
+        {/*
+          One control for keys, not two.
+
+          There used to be a dropdown naming the starting key and a grid naming
+          the keys in play, which said the same thing twice: `keySet[0]` *is*
+          the starting key and always was. The pair also needed a rule to keep
+          them agreeing — the starting key's chip could not be deselected —
+          which is a rule that only existed because there were two controls.
+
+          Pick keys in the order you want them. The first is where the exercise
+          opens; the collapsed summary spells the whole route out, so the order
+          is never a secret you have to remember choosing.
+        */}
+        <div className="field">
+          <span className="field__label">Keys</span>
+          <div className="segmented segmented--wrap">
+            {MAJOR_KEYS.map((key) => {
+              const chosen = shown.keySet.includes(key.fifths);
+              const start = shown.keySet[0] === key.fifths;
+              const full = shown.keySet.length >= MAX_KEYS_IN_PLAY;
+              const only = chosen && shown.keySet.length === 1;
+              return (
+                <button
+                  key={key.fifths}
+                  type="button"
+                  /*
+                   * Beyond the cap only what is already chosen can be undone,
+                   * and the last one standing cannot be — an exercise has to be
+                   * in some key. Neither is a *withheld* control, which is why
+                   * the locked marker is separate from the disabled attribute.
+                   */
+                  disabled={only || (!chosen && full) || locked.key(key.fifths)}
+                  aria-pressed={chosen}
+                  // The accidentals are shown as "3♭" beside the name, which a
+                  // screen reader would spell out as a number and a symbol.
+                  aria-label={`${key.name} major, ${describeFifths(key.fifths)}`}
+                  className={`segmented__option key ${chosen ? 'is-selected' : ''} ${
+                    start ? 'is-start' : ''
+                  } ${locked.key(key.fifths) ? 'is-locked' : ''}`}
+                  onClick={() => {
+                    const next = chosen
+                      ? settings.keySet.filter((f) => f !== key.fifths)
+                      : [...settings.keySet, key.fifths];
+                    if (next.length === 0) return;
+                    onChange(sanitise({ ...settings, keySet: next }));
+                  }}
+                >
+                  <span className="key__name">{key.name}</span>
+                  <span className="key__accidentals muted">{accidentalCount(key.fifths)}</span>
+                </button>
+              );
+            })}
+          </div>
+          {shown.keySet.length > 1 && (
+            <p className="field__note muted">
+              Starts in {MAJOR_KEYS.find((k) => k.fifths === shown.keySet[0])?.name}, and changes
+              key as it goes.
+            </p>
+          )}
+        </div>
+    </>
+  );
+
+  const difficultyField = (
+        <div className="field">
+          <span className="field__label">Difficulty</span>
+          <div className="segmented segmented--wrap">
+            {DIFFICULTIES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                disabled={locked.difficulty(option.id)}
+                className={`segmented__option ${
+                  shown.difficultyId === option.id ? 'is-selected' : ''
+                } ${locked.difficulty(option.id) ? 'is-locked' : ''}`}
+                onClick={() => update('difficultyId', option.id)}
+              >
+                {/* For scales and arpeggios the useful thing to know is how far
+                    the pattern reaches, not what the level is called. */}
+                {patternKind ? option.patterns.label : option.name}
+              </button>
+            ))}
+          </div>
+          <p className="field__note muted">
+            {patternKind ? difficulty.patterns.blurb : difficulty.blurb}
+          </p>
+          {patternKind && shortenedSpan && (
+            <p className="field__note muted">
+              {instrument.name} in {MAJOR_KEYS.find((k) => k.fifths === settings.fifths)?.name} has
+              only room for {shortenedSpan}, so that is what you will get — the tonic sits too high
+              for anything further.
+            </p>
+          )}
+        </div>
+  );
+
+  const timeSignatureField = (
+    <label className="field">
+      <span className="field__label">Time signature</span>
+      <select
+        value={`${settings.beatsPerBar}/${settings.beatUnit}`}
+        onChange={(event) => {
+          const [beatsPerBar, beatUnit] = event.target.value.split('/').map(Number);
+          onChange({ ...settings, beatsPerBar, beatUnit });
+        }}
+      >
+        {TIME_SIGNATURES.map((time) => (
+          <option key={time.label} value={`${time.beatsPerBar}/${time.beatUnit}`}>
+            {time.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const rangeField = (
+    <RangePicker
+      instrument={instrument}
+      clef={settings.clef}
+      fifths={shown.fifths}
+      range={settings.range}
+      onChange={(range) => update('range', range)}
+    />
+  );
+
+  const registerField = (
+    <div className="field">
+      <span className="field__label">Register</span>
+      <div className="segmented">
+        {REGISTERS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={`segmented__option ${settings.register === option.id ? 'is-selected' : ''}`}
+            onClick={() => update('register', option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="screen screen--settings">
       <header className="masthead">
@@ -342,177 +500,69 @@ export function SettingsScreen({
       <Panel id="exercise" title="Exercise" values={panelValues.exercise} open={isOpen('exercise')} onToggle={setOpen}>
 
         {/*
-          One control for keys, not two.
+          One box per material, and the open one is the material.
 
-          There used to be a dropdown naming the starting key and a grid naming
-          the keys in play, which said the same thing twice: `keySet[0]` *is*
-          the starting key and always was. The pair also needed a rule to keep
-          them agreeing — the starting key's chip could not be deselected —
-          which is a rule that only existed because there were two controls.
+          Chosen over a chooser with the settings underneath it, on the player's
+          call and for the reason they gave: presented with too many options at
+          once, attention snaps. Most of what used to be on this screen applies
+          to one material and is noise beside the others — a register is a
+          question about where a scale sits and means nothing to a written tune,
+          a range is a question about the pool free material is drawn from and
+          means nothing to either.
 
-          Pick keys in the order you want them. The first is where the exercise
-          opens; the collapsed summary spells the whole route out, so the order
-          is never a secret you have to remember choosing.
+          **Opening a box is choosing that material.** Deliberately not two
+          separate things: a selected box and an expanded box are two states
+          saying almost the same thing, and two states saying almost the same
+          thing can disagree — the screen would then have to answer what it means
+          to expand Themes while Scales is selected, and there is no good answer.
+          So there is one state, `settings.kind`, and the open box shows it.
+
+          Which is also why the open box does not close. Closing it would leave
+          no material chosen, and an exercise has to be made of something. The
+          button carries both `aria-pressed` and `aria-expanded` because both are
+          true of it and neither implies the other to a screen reader.
         */}
-        <div className="field">
-          <span className="field__label">Keys</span>
-          <div className="segmented segmented--wrap">
-            {MAJOR_KEYS.map((key) => {
-              const chosen = shown.keySet.includes(key.fifths);
-              const start = shown.keySet[0] === key.fifths;
-              const full = shown.keySet.length >= MAX_KEYS_IN_PLAY;
-              const only = chosen && shown.keySet.length === 1;
-              return (
-                <button
-                  key={key.fifths}
-                  type="button"
-                  /*
-                   * Beyond the cap only what is already chosen can be undone,
-                   * and the last one standing cannot be — an exercise has to be
-                   * in some key. Neither is a *withheld* control, which is why
-                   * the locked marker is separate from the disabled attribute.
-                   */
-                  disabled={only || (!chosen && full) || locked.key(key.fifths)}
-                  aria-pressed={chosen}
-                  // The accidentals are shown as "3♭" beside the name, which a
-                  // screen reader would spell out as a number and a symbol.
-                  aria-label={`${key.name} major, ${describeFifths(key.fifths)}`}
-                  className={`segmented__option key ${chosen ? 'is-selected' : ''} ${
-                    start ? 'is-start' : ''
-                  } ${locked.key(key.fifths) ? 'is-locked' : ''}`}
-                  onClick={() => {
-                    const next = chosen
-                      ? settings.keySet.filter((f) => f !== key.fifths)
-                      : [...settings.keySet, key.fifths];
-                    if (next.length === 0) return;
-                    onChange(sanitise({ ...settings, keySet: next }));
-                  }}
-                >
-                  <span className="key__name">{key.name}</span>
-                  <span className="key__accidentals muted">{accidentalCount(key.fifths)}</span>
-                </button>
-              );
-            })}
-          </div>
-          {shown.keySet.length > 1 && (
-            <p className="field__note muted">
-              Starts in {MAJOR_KEYS.find((k) => k.fifths === shown.keySet[0])?.name}, and changes
-              key as it goes.
-            </p>
-          )}
-        </div>
-
-        <div className="field">
-          <span className="field__label">Material</span>
-          <div className="cards">
-            {EXERCISE_KINDS.map((kind) => (
-              <button
+        <div className="modes">
+          {EXERCISE_KINDS.map((kind) => {
+            const chosen = shown.kind === kind.id;
+            const bodyId = `mode-${kind.id}`;
+            return (
+              <div
                 key={kind.id}
-                type="button"
-                disabled={locked.kind(kind.id)}
-                className={`card ${shown.kind === kind.id ? 'is-selected' : ''} ${
+                className={`mode ${chosen ? 'is-open' : ''} ${
                   locked.kind(kind.id) ? 'is-locked' : ''
                 }`}
-                onClick={() => update('kind', kind.id as ExerciseKind)}
               >
-                <strong>{kind.name}</strong>
-                <span className="muted">{kind.blurb}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="field">
-          <span className="field__label">Difficulty</span>
-          <div className="segmented segmented--wrap">
-            {DIFFICULTIES.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                disabled={locked.difficulty(option.id)}
-                className={`segmented__option ${
-                  shown.difficultyId === option.id ? 'is-selected' : ''
-                } ${locked.difficulty(option.id) ? 'is-locked' : ''}`}
-                onClick={() => update('difficultyId', option.id)}
-              >
-                {/* For scales and arpeggios the useful thing to know is how far
-                    the pattern reaches, not what the level is called. */}
-                {patternKind ? option.patterns.label : option.name}
-              </button>
-            ))}
-          </div>
-          <p className="field__note muted">
-            {patternKind ? difficulty.patterns.blurb : difficulty.blurb}
-          </p>
-          {patternKind && shortenedSpan && (
-            <p className="field__note muted">
-              {instrument.name} in {MAJOR_KEYS.find((k) => k.fifths === settings.fifths)?.name} has
-              only room for {shortenedSpan}, so that is what you will get — the tonic sits too high
-              for anything further.
-            </p>
-          )}
-        </div>
-
-        <div className="field-row">
-          <label className="field">
-            <span className="field__label">Time signature</span>
-            {/* A scale is a shape played against a click rather than a piece
-                with a metre, so it is always four-four; the choice is kept
-                and comes back with the next material that has one. */}
-            <select
-              value={patternKind ? '4/4' : `${settings.beatsPerBar}/${settings.beatUnit}`}
-              disabled={patternKind}
-              onChange={(event) => {
-                const [beatsPerBar, beatUnit] = event.target.value.split('/').map(Number);
-                onChange({ ...settings, beatsPerBar, beatUnit });
-              }}
-            >
-              {TIME_SIGNATURES.map((time) => (
-                <option key={time.label} value={`${time.beatsPerBar}/${time.beatUnit}`}>
-                  {time.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-        </div>
-
-        {/*
-          The range, opposite the register: one or the other is shown, never
-          both and never neither. A pattern is placed by its tonic and asks
-          which end of the horn to sit at; free material is drawn from a pool
-          and asks what the pool is. They are the same question put to two kinds
-          of material that answer it differently.
-        */}
-        {!patternKind && settings.kind !== 'themes' && (
-          <RangePicker
-            instrument={instrument}
-            clef={settings.clef}
-            fifths={shown.fifths}
-            range={settings.range}
-            onChange={(range) => update('range', range)}
-          />
-        )}
-
-        {/* Only where the compass leaves a choice to make: a two-octave scale
-            takes most of a brass instrument and usually has one place to go. */}
-        {patternKind && (
-          <div className="field">
-            <span className="field__label">Register</span>
-            <div className="segmented">
-              {REGISTERS.map((option) => (
                 <button
-                  key={option.id}
                   type="button"
-                  className={`segmented__option ${settings.register === option.id ? 'is-selected' : ''}`}
-                  onClick={() => update('register', option.id)}
+                  className="mode__summary"
+                  disabled={locked.kind(kind.id)}
+                  aria-pressed={chosen}
+                  aria-expanded={chosen}
+                  aria-controls={bodyId}
+                  onClick={() => update('kind', kind.id as ExerciseKind)}
                 >
-                  {option.label}
+                  <strong>{kind.name}</strong>
+                  <span className="muted">{kind.blurb}</span>
                 </button>
-              ))}
-            </div>
-          </div>
-        )}
+                {chosen && (
+                  <div className="mode__body" id={bodyId}>
+                    {keysField}
+                    {difficultyField}
+                    {/* A scale is a shape played against a click rather than a
+                        piece with a metre, so it is always four-four and asks
+                        instead which end of the horn to sit at. */}
+                    {isPattern(kind.id) ? registerField : timeSignatureField}
+                    {/* The pool free material is drawn from. A pattern is placed
+                        by its tonic and a theme is written already, so neither
+                        has a pool to ask about. */}
+                    {kind.id === 'phrases' && rangeField}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </Panel>
 
       <Panel id="playing" title="Playing" values={panelValues.playing} open={isOpen('playing')} onToggle={setOpen}>
