@@ -227,6 +227,9 @@ release.
    local MusicXML file. Gated. See *My Music, and why it is not a material*.
 9. **A server**, only if step 8 shows people want a library rather than their
    own files.
+10. **The key on a dial, turned mid-run** — asked for by the player on
+    2026-08-14, alongside the tempo dial it sits next to. Not built. See *The
+    key on a dial* below, which carries the rulings and the measurement.
 
 **Before any of those, if the app is ever to be sold**: the gated settings
 screen, which currently accepts choices it then silently overrides. It is a
@@ -250,6 +253,92 @@ same format and nothing in the app changes.
 
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
+
+## The key on a dial — not built
+
+Asked for by the player on 2026-08-14: the key signature on a dial beside the
+stave, turned mid-run the way the tempo is. The third dial in the app and the
+same gesture as the other two — `useDial` already carries it, a detent per step
+round the circle of fifths.
+
+**The dial takes over from the settings screen, and keeps it.** The player's
+ruling, stated plainly: the key chosen in settings is honoured until the dial is
+touched, and from that moment the run stays in whatever the dial says until the
+dial is moved again. So the settings key is the key a run *opens* in, not a key
+it is held to. Nothing needs to remember the old one.
+
+**The change lands on a bar line ahead of the playhead, never at it.** Two
+reasons, and the second is the binding one. Musically a key signature belongs at
+a bar line, and a player needs to see it before they are asked to play it. And
+mechanically the scheduling horizon is already on the audio thread — the same
+constraint `changeTempo` works around by appending its step at the next whole
+beat past it. The key wants the same rule rounded up to the next bar line, plus
+whatever reading room a play-test says it needs.
+
+### The rewrite waits for the hand to come off — but not for the reason it looks like
+
+The player's concern was cost: two hundred bars are pre-written, and sliding
+from one flat to two sharps is three detents, which would be three rewrites of
+the whole remaining paper in quick succession.
+
+Measured rather than assumed, on this machine, for two hundred bars of medium
+sight-reading:
+
+| | |
+|---|---|
+| generating the paper | ~4ms (1032 notes) |
+| engraving the paged layout | ~0.5ms |
+| three keys back to back | ~11ms |
+
+So the rewrite is not the expensive thing, and a tablet several times slower
+still lands inside a frame or two. **Debouncing on release is right anyway, and
+for a musical reason:** a key is a destination, not a path. Passing through Bb
+and F on the way to D should not put Bb and F on the page, and a player watching
+the notation respell itself twice on the way to somewhere they never chose is
+being shown work rather than music. The dial names the key it is pointing at
+while it turns; the paper is rewritten when it is let go.
+
+That is the difference between what the rule costs and what it *means* — the
+same trap as the hint timing rule in v2.12.0, and worth naming before it is
+built rather than after.
+
+### What is already built, and what is genuinely new
+
+**Mid-piece key changes are a solved problem.** `Exercise.keys` is a list of
+`KeyChange`s with a `fromBeat`, `keyAt` answers what is in force, and
+`signatureChangesIn` and `drawSignatureChange` already engrave a change mid-line
+— the key tour generates exactly this shape today. Nothing in the model or the
+renderers has to learn anything.
+
+**The new part is splicing a live exercise.** Regenerating the tail past the
+change beat and leaving the head alone, while a run is in progress. The hazards,
+in the order they will bite:
+
+- **Everything keyed by note index.** `judgements`, `noticed`, the hint state and
+  the weak-note stats are all indexed into `exercise.notes`. This is safe *only*
+  because the change lands ahead of the playhead: every judged note is below the
+  splice point, so indices below it never move. That invariant is the whole
+  design and deserves an assertion rather than a comment.
+- **`noticed` is sized once, in the constructor.** It has to be resized with the
+  note list, and the hints re-measured, exactly as `retime` does for tempo.
+- **A narrow range in a distant key may have nothing in it.**
+  `generateExercise` throws *No playable notes in range for this instrument and
+  difficulty* when the range holds no usable scale tone. The stored range is
+  absolute written pitch, so it does not move with the key — but which of its
+  notes belong to the key does. A dial that can be turned into a throw is not
+  finished; either the detents skip such keys or the generator is asked first.
+- **The key tour.** If the material is touring keys, the tour's remaining
+  changes are the score's instruction and the dial is the player's — the same
+  split `changeTempo` draws. The player's rule says the dial wins from the
+  moment it is touched, which means dropping the tour's later changes. Worth
+  confirming with them before building, since it silently ends a tour.
+
+### Left for playing
+
+How far ahead the change should land; whether the reference tone should follow
+the key immediately or at the change; and whether an imported part should have
+the dial at all — a real part's key is the composer's, and transposing one is a
+different act from choosing what to practise in.
 
 ## What the model costs
 
@@ -1405,8 +1494,10 @@ nothing until the music actually arrives. There is no pickup case hiding behind
 it either — an imported part that begins part-way through a bar is padded up to
 the bar line by the importer, so an exercise's beat 0 is always a bar line.
 `Session.canRewind` was written to grey those buttons out and was never wired to
-anything; left as it is, since restarting the count-in is a reasonable thing for
-"back one bar" to do at the top of a piece.
+anything. **Deleted in v2.12.2** on the player's ruling: the buttons stay live
+and ◀5 in bar two simply goes back to the start, which is most of what it is for
+early in a piece. There is nothing to warn anyone off, so there was nothing for
+the getter to do.
 
 ## What a fingering hint answers, and for how long — v2.11.0
 

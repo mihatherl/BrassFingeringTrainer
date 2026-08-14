@@ -321,6 +321,13 @@ export class Session {
    * From the top of the bar the player is in: "back one" from the middle of
    * bar six is the top of bar five, which is the bar of music before where
    * they are, rather than the fraction of bar six they happen to have left.
+   *
+   * Asking for more bars than there are behind you takes you to the start of
+   * the piece, and pressing it there restarts from the top with a fresh bar of
+   * counting in. The buttons are always live and deliberately so: there is
+   * nothing to warn a player off, and "back to the beginning" is a perfectly
+   * ordinary thing to want from ◀5. A `canRewind` getter written to grey them
+   * out was carried unused for a release and has been deleted.
    */
   rewind(bars: number): void {
     if (this.finished) return;
@@ -337,12 +344,6 @@ export class Session {
       return;
     }
     this.restartAt(beat);
-  }
-
-  /** Whether there is anything behind the playhead to go back to. */
-  get canRewind(): boolean {
-    const here = this.transport.pausedAt ?? this.transport.currentBeat();
-    return here > 1e-9;
   }
 
   /**

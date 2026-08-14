@@ -141,14 +141,17 @@ things here are waiting on:
 - ~~`offering` is not reset by a rewind.~~ **Fixed in v2.12.1**, along with the
   count-in question below. `unplay` withdraws the offer; the run's committed
   length survives, since that was the player's answer and not a verdict.
+- **The key belongs on a dial too** — asked for on 2026-08-14 and written up in
+  `v2-design.md` as *The key on a dial*, item 10 of the direction. Not built.
 - **A stray metronome click can land after a pause**, since the scheduling
   horizon is already on the audio thread. The sounding note is cut; a click
   cannot be. Not fixable from this side.
 - ~~A rewind during the count-in is untested against a pickup.~~ **Answered in
   v2.12.1**: a pickup is padded to a bar line by the importer, so no exercise
   has a short first bar and there is no pickup case. Rewinding into the
-  count-in restarts it, and is now tested. `Session.canRewind` is dead code —
-  written to grey the buttons out at the top of a piece, never wired up.
+  count-in restarts it, and is now tested. `Session.canRewind` was dead code
+  written to grey the buttons out; the player ruled the buttons stay live and
+  simply rewind to the start, so it has been deleted.
 
 **The fingering hints:**
 
@@ -158,8 +161,10 @@ things here are waiting on:
   into a cluster of semiquavers is a worse answer than silence — but if a
   player asks for it, `hints.ts` should decide the anchor and the renderers
   draw a slanted tail.
-- **"Every note" at Expert is a dense row of capsules.** Legible, but busy;
-  worth the player's eye before it is called finished.
+- ~~"Every note" at Expert is a dense row of capsules.~~ **Settled by the
+  player on 2026-08-14: leave it.** Their reasoning, which closes the question
+  rather than deferring it — *experts shouldn't need it anyway*. The mode is
+  there to be available, not to be pleasant to read at that difficulty.
 - ~~A bar containing a note the instrument cannot play never reveals its
   verdicts in paged reading.~~ **Fixed in v2.12.1**: `revealByBar` waits only
   on the notes that can be judged.

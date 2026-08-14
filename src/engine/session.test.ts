@@ -601,6 +601,39 @@ describe('the offer to carry on', () => {
     session.stop();
   });
 
+  /**
+   * ◀5 pressed in bar two, which is most of what it is for early in a piece.
+   * The buttons are never disabled — asking for more bars than there are is
+   * simply a request to go back to the top, and it is granted.
+   */
+  it('goes to the top when asked for more bars than there are', () => {
+    const judged: number[] = [];
+    const session = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onJudgement: (j) => judged.push(j.noteIndex),
+    });
+
+    session.start();
+    run(0, 3);
+    expect(judged.length, 'a couple of bars in').toBeGreaterThan(0);
+
+    // Only bar two is behind the playhead, and five were asked for.
+    const played = judged.length;
+    session.rewind(5);
+    expect(session.judgements, 'everything played is disowned').toEqual([]);
+
+    // From note 0, after the bar it counts in — not from wherever it gave up.
+    run(3, 12);
+    expect(judged[played], 'the piece starts again at its first note').toBe(0);
+    session.stop();
+  });
+
   /** The same, paused: a rewind while held moves where the run picks up from. */
   it('withdraws the offer on a rewind made while paused', () => {
     const { session, offers } = watched(horizonExercise());
