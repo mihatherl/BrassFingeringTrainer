@@ -18,7 +18,7 @@ const exercise = generateExercise({
   clef: 'treble',
   fifths: -3,
   difficulty: difficultyById('easy'),
-  kind: 'random',
+  kind: 'phrases',
   bars: 4,
   cycles: 2,
   themeCount: 2,

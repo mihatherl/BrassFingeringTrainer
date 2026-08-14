@@ -57,7 +57,7 @@ function generated(overrides: Partial<GenerateOptions> = {}): Exercise {
     clef: 'treble',
     fifths: -3,
     difficulty: difficultyById('hard'),
-    kind: 'random',
+    kind: 'phrases',
     bars: 8,
     cycles: 2,
     themeCount: 2,
@@ -75,9 +75,12 @@ function generated(overrides: Partial<GenerateOptions> = {}): Exercise {
  * head of the next line, which every line states anyway — so the double bar and
  * the cancelling naturals, the part with arithmetic in it, go unexercised. This
  * seed puts the change in the middle of a system instead, and `keeps its change
- * mid-system` below fails if that ever stops being true.
+ * mid-system` below fails if that ever stops being true. It has: seed 6 held
+ * this until v2.14.0, when the figure's material stopped being *Random notes*
+ * and the layout moved under it. Seventeen is the replacement, found by the
+ * test that was failing.
  */
-const KEY_CHANGE_MID_SYSTEM: Partial<GenerateOptions> = { keySet: [-3, -1], bars: 8, seed: 6 };
+const KEY_CHANGE_MID_SYSTEM: Partial<GenerateOptions> = { keySet: [-3, -1], bars: 8, seed: 17 };
 
 /**
  * Two themes with the tempo moving at their join, and the end broadening.

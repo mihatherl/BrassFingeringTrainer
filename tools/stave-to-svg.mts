@@ -70,7 +70,7 @@ const exercise = arg('theme', '')
     ? arg('keys', '').split(',').map(Number)
     : undefined,
   difficulty: difficultyById(arg('difficulty', 'hard')),
-  kind: arg('kind', 'random') as 'random' | 'scales' | 'arpeggios' | 'phrases' | 'themes',
+  kind: arg('kind', 'phrases') as 'scales' | 'arpeggios' | 'phrases' | 'themes',
   bars: Number(arg('bars', '8')),
   cycles: Number(arg('cycles', '2')),
   themeCount: Number(arg('themes', '2')),

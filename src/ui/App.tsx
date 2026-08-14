@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { instrumentById } from '../domain/instruments';
 import { difficultyById } from '../exercise/difficulty';
 import { metreFor } from '../domain/metre';
-import { generateExercise, HORIZON_BARS } from '../exercise/generate';
+import { defaultLengthFor, generateExercise, HORIZON_BARS } from '../exercise/generate';
 import { exerciseFromTheme } from '../exercise/theme';
 import { themeById } from '../exercise/themes';
 import { canRekeyKind } from '../exercise/rekey';
@@ -20,6 +20,7 @@ import {
   refreshEntitlements,
   watchEntitlements,
 } from '../licensing/licence';
+import { horizonBarsFor } from '../licensing/entitlements';
 import { loadStats, noteWeights, recordSession, type NoteStats } from '../storage/stats';
 import { ImportScreen } from './ImportScreen';
 import { PlayScreen } from './PlayScreen';
@@ -109,6 +110,7 @@ export function App() {
         if (one) return one;
       }
 
+    const length = defaultLengthFor(settings.kind);
       return generateExercise({
         instrument,
         clef: settings.clef,
@@ -116,16 +118,26 @@ export function App() {
         keySet: settings.keySet,
         difficulty: difficultyById(settings.difficultyId),
         kind: settings.kind,
-        bars: settings.bars,
-        themeCount: settings.themeCount,
-        cycles: settings.cycles,
+        bars: length.bars,
+        themeCount: length.themeCount,
+        cycles: length.cycles,
         register: settings.register,
         range: settings.range ?? undefined,
         metre: metreFor(settings.beatsPerBar, settings.beatUnit),
         seed,
         tempo: settings.tempo,
         variableTempo: settings.variableTempo,
-        horizonBars: HORIZON_BARS,
+        /*
+         * The paper past the committed end — and the whole of what the paid
+         * tier now buys.
+         *
+         * Without it the exercise is exactly the length it was asked for, so
+         * `Session.canContinue` is false, the offer is never made and the run
+         * ends where the music does. Refusing by not generating rather than by
+         * declining: there is no moment where the app has to say no, and no
+         * green button that turns out to be a shop.
+         */
+        horizonBars: horizonBarsFor(entitlements, HORIZON_BARS),
         noteWeights: weights,
       });
     },

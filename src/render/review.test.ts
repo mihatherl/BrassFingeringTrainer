@@ -102,7 +102,7 @@ function build(difficultyId: string, bars = 8) {
     clef: 'treble',
     fifths: -3,
     difficulty: difficultyById(difficultyId),
-    kind: 'random',
+    kind: 'phrases',
     bars,
     cycles: 2,
     themeCount: 2,
@@ -114,7 +114,7 @@ function build(difficultyId: string, bars = 8) {
 describe('planning the review', () => {
   it('covers every bar exactly once, in order', () => {
     for (const width of [320, 390, 600, 900, 1400]) {
-      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard', 'expert']) {
+      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard', 'hard']) {
         const exercise = build(difficultyId);
         const plan = planReview(width, exercise);
         const totalBars = Math.ceil(exercise.totalBeats / metreAt(exercise.metres, 0).barBeats);
@@ -141,7 +141,7 @@ describe('planning the review', () => {
   it('sets the bars to different widths', () => {
     // Room follows the notes, not the barlines. Even spacing gave every bar the
     // width its busiest one needed; the rule itself is tested in spacing.test.
-    const exercise = build('expert', 16);
+    const exercise = build('hard', 16);
     const { spacing } = planReview(900, exercise);
     const { barBeats } = metreAt(exercise.metres, 0);
     const totalBars = Math.ceil(exercise.totalBeats / barBeats);
@@ -187,7 +187,7 @@ describe('planning the review', () => {
 
   it('never lets a bar overflow the line it is on', () => {
     for (const width of [320, 600, 1200]) {
-      for (const difficultyId of ['easy', 'hard', 'expert']) {
+      for (const difficultyId of ['easy', 'hard', 'hard']) {
         const exercise = build(difficultyId);
         const plan = planReview(width, exercise);
         const usable = width - plan.headerWidth - plan.staveSpace * 2;
@@ -256,7 +256,7 @@ describe('drawing the review', () => {
 
   it('draws every difficulty and both clefs without throwing', () => {
     for (const clef of ['treble', 'bass'] as const) {
-      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard', 'expert']) {
+      for (const difficultyId of ['beginner', 'easy', 'medium', 'hard', 'hard']) {
         const exercise = generateExercise({
           instrument: instrumentById(clef === 'bass' ? 'euphonium' : 'eb-bass'),
           clef,

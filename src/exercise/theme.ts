@@ -126,6 +126,30 @@ export function tonicWindow(instrument: Instrument, clef: Clef): [number, number
  * argued with — the corpus is cheap to write again, and a tune that does not
  * add up is not a tune.
  */
+/**
+ * The widest leap an authored theme may be written with, in semitones.
+ *
+ * A tenth, and deliberately not `difficulty.maxInterval` — which is what this
+ * checked until v2.14.0, and which is a rule about something else. That number
+ * constrains a *random walk*: a generated line picking freely inside a wide
+ * interval is a sequence of unrelated jumps rather than music, so it is held to
+ * a step it can be musical within. A written tune has an author. Its tenth is
+ * placed, prepared and resolved, and reads in context in a way a walk's never
+ * does; binding one to the other was borrowing a constraint from a problem
+ * themes do not have.
+ *
+ * It came to light when Expert was removed on the player's call and the eight
+ * themes filed under it had nowhere to go — every one of them failing on a leap,
+ * none on anything else. The player's ruling was to file them as Hard, together
+ * with an observation worth keeping: **the corpus's difficulty labels are
+ * miscalibrated anyway**, themes reading easier than the sight-reading of the
+ * same name. Recategorising them is its own piece of work.
+ *
+ * A ceiling remains because it still catches the thing worth catching — a typo
+ * in a degree, which lands two octaves out rather than a third too far.
+ */
+const THEME_MAX_LEAP = 16;
+
 export function validateTheme(theme: Theme): string[] {
   const problems: string[] = [];
   const at = (what: string) => `${theme.id}: ${what}`;
@@ -224,10 +248,8 @@ export function validateTheme(theme: Theme): string[] {
       if (sounded[i - 1].tied) continue;
       const leap = Math.abs(offsets[i] - offsets[i - 1]);
       widestLeap = Math.max(widestLeap, leap);
-      if (leap > difficulty.maxInterval) {
-        problems.push(
-          at(`leaps ${leap} semitones at note ${i}; ${theme.difficulty} leaps ${difficulty.maxInterval}`),
-        );
+      if (leap > THEME_MAX_LEAP) {
+        problems.push(at(`leaps ${leap} semitones at note ${i}; a theme may leap ${THEME_MAX_LEAP}`));
       }
     }
 

@@ -63,7 +63,7 @@ export function tiedFigure(): Exercise {
     totalBeats: 12,
     chosenBeats: 12,
     seed: 0,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 
@@ -123,7 +123,7 @@ export function tripletFigure(): Exercise {
       totalBeats: beat,
       chosenBeats: beat,
       seed: 0,
-      kind: 'random',
+      kind: 'phrases',
     },
   );
 }
@@ -154,7 +154,7 @@ export function multiBarRestFigure(): Exercise {
     totalBeats: 96,
     chosenBeats: 96,
     seed: 0,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 

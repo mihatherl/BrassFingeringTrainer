@@ -13,11 +13,8 @@ import type { ExerciseKind } from '../exercise/types';
 import { styleName } from '../render/conductor';
 import { RangePicker } from './RangePicker';
 import {
-  BARS_OPTIONS,
   CONDUCTOR_STYLE_RANGE,
-  CYCLE_OPTIONS,
   REGISTERS,
-  THEME_OPTIONS,
   DEFAULT_SETTINGS,
   FINGERING_MODES,
   MAX_KEYS_IN_PLAY,
@@ -172,7 +169,6 @@ export function SettingsScreen({
       !entitlements.allMaterial && !FREE_TIER.kinds.includes(id as ExerciseKind),
     difficulty: (id: string) =>
       !entitlements.allDifficulties && !FREE_TIER.difficultyIds.includes(id),
-    bars: (bars: number) => !entitlements.allLengths && bars > FREE_TIER.bars,
     reading: (id: string) => !entitlements.pagedReading && id !== FREE_TIER.readingMode,
   };
 
@@ -276,8 +272,15 @@ export function SettingsScreen({
           {[
             !entitlements.allKeys &&
               `${MAJOR_KEYS.find((k) => k.fifths === FREE_TIER.fifths)?.name} major`,
-            !entitlements.allLengths && `${FREE_TIER.bars} bars`,
+            // Named as what it takes away rather than as a number, because
+            // that is what it now is: every tier is given the same exercise,
+            // and only a paid one may carry on past the end of it.
+            !entitlements.playOn && 'one exercise at a time',
+            // Only where it actually withholds something. `FREE_TIER.kinds`
+            // currently names every kind there is, and a notice announcing the
+            // whole list as a limitation reads as a much smaller app than it is.
             !entitlements.allMaterial &&
+              FREE_TIER.kinds.length < EXERCISE_KINDS.length &&
               FREE_TIER.kinds
                 .map((id) => EXERCISE_KINDS.find((k) => k.id === id)?.name?.toLowerCase())
                 .filter(Boolean)
@@ -472,46 +475,6 @@ export function SettingsScreen({
             </select>
           </label>
 
-          {/* A scale is measured in times through rather than in bars: the
-              cycle is the thing being practised, and how many bars it fills
-              follows from how many notes it has. */}
-          <label className="field">
-            <span className="field__label">Length</span>
-            {settings.kind === 'themes' ? (
-              <select
-                value={settings.themeCount}
-                onChange={(event) => update('themeCount', Number(event.target.value))}
-              >
-                {THEME_OPTIONS.map((count) => (
-                  <option key={count} value={count}>
-                    {count === 1 ? 'One theme' : `${count} themes`}
-                  </option>
-                ))}
-              </select>
-            ) : patternKind ? (
-              <select
-                value={settings.cycles}
-                onChange={(event) => update('cycles', Number(event.target.value))}
-              >
-                {CYCLE_OPTIONS.map((cycles) => (
-                  <option key={cycles} value={cycles}>
-                    {cycles === 1 ? 'Once through' : `${cycles} times through`}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <select
-                value={shown.bars}
-                onChange={(event) => update('bars', Number(event.target.value))}
-              >
-                {BARS_OPTIONS.map((bars) => (
-                  <option key={bars} value={bars} disabled={locked.bars(bars)}>
-                    {bars} bars
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
         </div>
 
         {/*

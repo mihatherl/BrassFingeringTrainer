@@ -50,6 +50,48 @@ import type { Exercise, ExerciseKind } from './types';
 export const HORIZON_BARS = 200;
 
 /**
+ * How much of each material a run is committed to, before it is asked whether
+ * to carry on.
+ *
+ * A setting until v2.14.0, and dropped on the player's call: *people's attention
+ * span will snap when presented with too many options*. It was never one setting
+ * either — free material is measured in bars, a pattern in times through and
+ * themes in whole tunes, so "length" was three controls wearing one label, only
+ * one of which was ever visible at a time.
+ *
+ * What replaced it is not a shorter run but an open-ended one. Every run now
+ * opens on the figure below, and a player who wants more plays on into the grey
+ * and is given it — which was already how the offer worked, so removing the
+ * control removed a decision rather than a capability. A player who wants less
+ * presses Stop, which has always scored what was actually played.
+ *
+ * The figures are the player's, chosen as what one sitting at each of these is
+ * worth: sixteen bars of reading, four times through a scale, eight through an
+ * arpeggio — shorter, so more of them — and four whole tunes.
+ */
+export const DEFAULT_LENGTHS: Readonly<
+  Record<Exclude<ExerciseKind, 'imported'>, { bars: number; cycles: number; themeCount: number }>
+> = {
+  phrases: { bars: 16, cycles: 4, themeCount: 4 },
+  scales: { bars: 16, cycles: 4, themeCount: 4 },
+  arpeggios: { bars: 16, cycles: 8, themeCount: 4 },
+  themes: { bars: 16, cycles: 4, themeCount: 4 },
+};
+
+/**
+ * The length figures for a kind, including the ones it does not measure itself
+ * in — a pattern that will not fit the instrument falls back to free material,
+ * and has to have a bar count waiting for it when it does.
+ */
+export function defaultLengthFor(kind: ExerciseKind): {
+  bars: number;
+  cycles: number;
+  themeCount: number;
+} {
+  return kind === 'imported' ? DEFAULT_LENGTHS.phrases : DEFAULT_LENGTHS[kind];
+}
+
+/**
  * How far past a block boundary the music keeps open notes out of the way.
  *
  * Carrying on playing is how a player takes the offer of more music without
@@ -1142,55 +1184,24 @@ function generatePitches(
   /** Notes just past a block boundary, which should not be open. */
   needValve: ReadonlySet<number>,
 ): number[] {
-  // Scales and arpeggios never arrive here: their notes come from a contour
-  // settled before the rhythm was built, since the rhythm is shaped around it.
-  // One that would not fit the instrument is not a pattern at all and takes the
-  // free-material path below, like anything else.
-  switch (options.kind) {
-    case 'phrases':
-      return phrasePitches(rng, options, candidates, count, freshStarts, keyFor, needValve);
-    default:
-      return randomPitches(rng, options, candidates, count, freshStarts, keyFor, needValve);
-  }
-}
-
-/**
- * A random walk constrained by the difficulty's maximum interval.
- *
- * Walking rather than picking freely keeps the line playable — a sequence of
- * unrelated leaps is a different and much less useful exercise than one that
- * moves the way music does.
- */
-function randomPitches(
-  rng: Rng,
-  options: GenerateOptions,
-  candidates: Candidate[],
-  count: number,
-  freshStarts: ReadonlySet<number>,
-  keyFor: (noteIndex: number) => number,
-  needValve: ReadonlySet<number>,
-): number[] {
-  const pitches: number[] = [];
-  let previous = nearestCandidate(candidates, middleOf(candidates)).midi;
-  let previousMask = -1;
-
-  for (let i = 0; i < count; i++) {
-    const wantChromatic = rng.chance(options.difficulty.accidentalChance);
-    const next = chooseNext(
-      rng,
-      options,
-      candidates,
-      previous,
-      wantChromatic,
-      i === 0,
-      { previousMask, freshStart: freshStarts.has(i), needsValve: needValve.has(i) },
-      keyFor(i),
-    );
-    pitches.push(next.midi);
-    previous = next.midi;
-    previousMask = next.mask;
-  }
-  return pitches;
+  /*
+   * One way of writing free material, since v2.14.0.
+   *
+   * There were two. The other was a walk that leapt freely inside the
+   * difficulty's maximum interval, offered as its own mode — *Random notes* —
+   * and dropped on the player's verdict that it was not different enough from
+   * sight-reading to be worth a choice. With the mode gone the walk had one
+   * caller left: a scale or arpeggio whose shape will not fit the instrument's
+   * compass, which falls back to free material. Handing that player the mode
+   * that no longer exists made no sense, so the fallback is phrases too.
+   *
+   * What the walk was actually for is worth keeping in mind if unpredictable
+   * intervals are ever wanted again: it is a question of *how far a line may
+   * leap and how often*, which belongs to difficulty rather than to a mode of
+   * its own — and the player has asked for that to be reconsidered against what
+   * is plausible on a given instrument.
+   */
+  return phrasePitches(rng, options, candidates, count, freshStarts, keyFor, needValve);
 }
 
 /**

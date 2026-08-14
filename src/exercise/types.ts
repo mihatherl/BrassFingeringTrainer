@@ -186,7 +186,6 @@ export interface Exercise {
  * and the chooser lists only what can actually be chosen.
  */
 export type ExerciseKind =
-  | 'random'
   | 'scales'
   | 'arpeggios'
   | 'phrases'
@@ -194,7 +193,6 @@ export type ExerciseKind =
   | 'imported';
 
 export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blurb: string }> = [
-  { id: 'random', name: 'Random notes', blurb: 'Unpredictable intervals — pure fingering reflex.' },
   { id: 'scales', name: 'Scales', blurb: 'The major scale of the key, up and down. No accidentals.' },
   {
     id: 'arpeggios',

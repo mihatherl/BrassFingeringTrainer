@@ -71,7 +71,7 @@ function tiedExercise(): Exercise {
     totalBeats: 4,
     chosenBeats: 4,
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 
@@ -312,7 +312,7 @@ describe('the offer to carry on', () => {
       totalBeats: 24,
       chosenBeats,
       seed: 1,
-      kind: 'random',
+      kind: 'phrases',
     };
   }
 
@@ -699,7 +699,7 @@ describe('reaching the end of the paper', () => {
       totalBeats: 12,
       chosenBeats: 4,
       seed: 1,
-      kind: 'random',
+      kind: 'phrases',
     };
 
     // A player who says yes every time, until there is nothing left to say
@@ -775,7 +775,7 @@ describe('changing key mid-run', () => {
       totalBeats: 16,
       chosenBeats: 16,
       seed: 1,
-      kind: 'random',
+      kind: 'phrases',
     };
   }
 
@@ -918,7 +918,7 @@ function clicksFor(
     totalBeats: beatOfBar(metres, bars),
     chosenBeats: beatOfBar(metres, bars),
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 
   const s = new Session({
@@ -1075,7 +1075,7 @@ describe('pausing and rewinding', () => {
       totalBeats: 8,
       chosenBeats: 8,
       seed: 1,
-      kind: 'random',
+      kind: 'phrases',
     };
   }
 

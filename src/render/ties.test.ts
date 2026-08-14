@@ -96,7 +96,7 @@ function tiedExercise(): Exercise {
     totalBeats: 4,
     chosenBeats: 4,
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 

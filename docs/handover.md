@@ -176,6 +176,22 @@ things here are waiting on:
   verdicts in paged reading.~~ **Fixed in v2.12.1**: `revealByBar` waits only
   on the notes that can be judged.
 
+**The settings screen**, being reorganised in four steps agreed on 2026-08-15.
+Step 1 shipped as v2.14.0 — *Random notes*, Expert and the length settings are
+gone, and the paywall moved from lengths to playing on. Steps 2 to 4 are the
+accordion, *Drills* as one box with a selectable type, and named minor scales.
+`v2-design.md` item 11 carries the plan, and *Fewer things to choose* carries
+what step 1 cost. Three things ruled there are waiting on later work:
+
+- **Leaps want reconsidering per instrument, not just per difficulty.** It is now
+  the answer to two things: the interval reading that left with *Random notes*,
+  and the open-note margin past a block boundary, which stepwise material cannot
+  hold on its own. Measured at 0.229 against 0.236 with the steering in and out.
+- **The theme corpus needs recategorising**, its labels reading easier than the
+  generated material of the same name — the player's own observation.
+- **Melodic minor is ascending melodic, descending natural**, ruled before the
+  code that needs it exists.
+
 **The bar picker** — still the least settled part of My Music:
 
 - **The split bars are the untested edge.** Bars 16/17, 23/24, 33/34, 49/50 and

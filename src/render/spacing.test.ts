@@ -64,7 +64,7 @@ function exerciseOf(bars: Array<Array<Duration['value']>>, beatsPerBar = 4): Exe
     totalBeats: bars.length * beatsPerBar,
     chosenBeats: bars.length * beatsPerBar,
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 

@@ -227,9 +227,31 @@ release.
    local MusicXML file. Gated. See *My Music, and why it is not a material*.
 9. **A server**, only if step 8 shows people want a library rather than their
    own files.
-10. **The key on a dial, turned mid-run** — asked for by the player on
-    2026-08-14, alongside the tempo dial it sits next to. Not built. See *The
-    key on a dial* below, which carries the rulings and the measurement.
+10. ~~**The key on a dial, turned mid-run**~~ — built, v2.13.0. See *The key on
+    a dial*, which carries the rulings, the measurement and the one thing left
+    open.
+11. **The settings screen, in four steps** — agreed with the player on
+    2026-08-15, and each step is useless before the one above it.
+    1. ~~Subtractions and defaults~~ — built, v2.14.0. See *Fewer things to
+       choose*.
+    2. **The accordion**: one box per mode, expanding to show only the settings
+       that apply to it, and only one open at a time. Expanding a box *is*
+       choosing that mode — two states saying the same thing can disagree.
+       Pure UI; no model change.
+    3. **Drills**: Scales and Arpeggios become one box with a selectable drill
+       type, and the key choice moves down into it. The generator is already
+       built for this — `SCALE_PATTERNS` and `ARPEGGIO_PATTERNS` are lists of
+       `{ rootDegree, intervals }`, and the comment above them has said since it
+       was written that adding one is a matter of listing it and letting the
+       player pick.
+    4. **Named minor scales**: *A minor harmonic*, *A minor melodic*, chosen the
+       way a book prints them rather than as a key signature plus a mode. The
+       intervals are free; **the work is spelling**. `spellInKey` chooses
+       accidentals by the key signature's direction, and a minor key takes its
+       relative major's signature — so D harmonic minor is one flat and its
+       raised seventh would come out as D♭ rather than C♯. The pattern has to
+       carry which degree is raised, not just a semitone count. Melodic minor is
+       already ruled: ascending melodic, descending natural.
 
 **Before any of those, if the app is ever to be sold**: the gated settings
 screen, which currently accepts choices it then silently overrides. It is a
@@ -253,6 +275,100 @@ same format and nothing in the app changes.
 
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
+
+## Fewer things to choose — v2.14.0
+
+The first of four steps through the settings screen, agreed with the player on
+2026-08-15. This one is subtraction only; the accordion, *Drills* and the named
+minor scales follow, in that order, and each is useless before the one above it.
+
+### What went, and what it cost
+
+**Random notes.** The player's verdict: not different enough from sight-reading
+to be worth a choice. What actually differed was that its walk leapt freely
+inside the difficulty's maximum interval where sight-reading moves by step —
+angular interval reading rather than melodic reading. If it is ever missed, it
+comes back as **a difficulty trait rather than a mode**: how far a line may leap
+and how often is a dial, not a category. The player has separately asked for
+leaps to be reconsidered against *what is plausible for this instrument at this
+difficulty*, which is the same question and the place this belongs.
+
+Its walk had one caller left after the mode went — a pattern too wide for the
+instrument, which falls back to free material — and handing that player a mode
+that no longer exists made no sense, so the fallback is phrases too.
+
+**It cost something real, and it is written down rather than papered over.** The
+generator steers free material away from open notes just past a block boundary,
+because carrying on playing is how the offer of more music is taken and a valve
+going down is the only unambiguous thing a set of buttons can say. Measured with
+the preference in and out, sight-reading's open-note rate past a boundary is
+0.229 against 0.236 — **the steering is very nearly inert for stepwise
+material**, which has two or three notes to choose between at any moment and
+cannot do better. The hard guarantee — that no window is open from end to end —
+still holds everywhere. What has gone is the margin, and winning it back means
+letting a phrase leap further in those four beats: the leap question again.
+
+**Expert.** Dropped as impractical on phone hardware — relentless semiquavers
+against valve buttons. Stored settings migrate themselves, since `sanitise`
+already falls back for a difficulty it does not recognise.
+
+It orphaned eight written themes, every one of them failing on a leap of a tenth
+and on nothing else. The player's ruling was to file them as Hard, which forced
+a rule apart that should never have been one rule: **`difficulty.maxInterval`
+constrains a random walk, and an authored tune is not a random walk.** A
+generated line picking freely inside a wide interval is a sequence of unrelated
+jumps; a composer's tenth is placed, prepared and resolved. Themes are now
+checked against `THEME_MAX_LEAP` instead — still a ceiling, because it catches
+the thing worth catching, which is a typo in a degree landing two octaves out.
+
+The player's observation alongside it, worth keeping for later: **the corpus's
+difficulty labels are miscalibrated**, themes reading easier than the
+sight-reading of the same name. Recategorising them and writing more is its own
+piece of work.
+
+**Length.** Three fields — `bars`, `cycles` and `themeCount`, one per material —
+behind a single label, only ever one of them on screen. Dropped because *people's
+attention span will snap when presented with too many options*. Every material
+now opens on a figure the player chose as worth one sitting: sixteen bars of
+reading, four times through a scale, eight through an arpeggio (shorter, so more
+of them) and four whole tunes. See `DEFAULT_LENGTHS`.
+
+Removing it took away a decision rather than a capability, because the mechanism
+that replaces it was already there and is better: a valve going down past the
+committed end takes the offer without a hand leaving the instrument. A player who
+wants more plays on; one who wants less presses Stop, which has always scored
+what was actually played.
+
+### The paywall moved, and it now refuses by not offering
+
+Length was one of the levers the paid tier pulled, and dropping the setting
+dropped the lever. What replaced it is better aimed: **every tier gets the same
+material and the same default length; only a paid copy may carry on past the end
+of it.**
+
+Enforced by not generating the horizon at all — `horizonBarsFor` — rather than by
+declining the offer. With no paper past the committed end `Session.canContinue`
+is false, the question is never raised, and there is no moment at which the app
+has to say no. No green button that turns out to be a shop.
+
+And with that as the lever, **every material kind is free**: sight-reading,
+scales, arpeggios and themes. A mode shown but not usable teaches nobody what the
+app is for. `allMaterial` is kept as a mechanism rather than torn out — which
+material is free is a pricing question, and the answer has already moved once —
+but it currently gates nothing, and the limitation notice knows to stay quiet
+about a list that names everything.
+
+### Ruled for the steps that follow
+
+- **Melodic minor is drilled ascending melodic and descending natural**, which is
+  how the books print it. Settled on 2026-08-15, before the code that needs it
+  exists, because it is a question about music rather than about software.
+- **Leaps want reconsidering against the instrument**, not just the difficulty —
+  what is plausible on a tuba is not what is plausible on a cornet. It is now the
+  answer to two separate things: the interval reading that left with *Random
+  notes*, and the open-note margin past a block boundary.
+- **The theme corpus needs recategorising and extending**, its labels currently
+  reading easier than the generated material of the same name.
 
 ## The key on a dial — built, v2.13.0
 

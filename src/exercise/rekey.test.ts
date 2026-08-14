@@ -19,7 +19,7 @@ function build(
     fifths,
     keySet: over.keySet ?? [fifths],
     difficulty: difficultyById('medium'),
-    kind: over.kind ?? 'random',
+    kind: over.kind ?? 'phrases',
     bars: over.bars ?? 8,
     cycles: 2,
     themeCount: 2,
@@ -45,7 +45,6 @@ describe('canRekey', () => {
    * not the same shape of paper from one key to the next.
    */
   it('offers the dial to free material and nothing else', () => {
-    expect(canRekeyKind('random')).toBe(true);
     expect(canRekeyKind('phrases')).toBe(true);
     expect(canRekeyKind('scales')).toBe(false);
     expect(canRekeyKind('arpeggios')).toBe(false);

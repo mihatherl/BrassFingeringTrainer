@@ -47,7 +47,7 @@ import type { Exercise, ExerciseKind } from './types';
  * all.
  */
 export function canRekeyKind(kind: ExerciseKind): boolean {
-  return kind === 'random' || kind === 'phrases';
+  return kind === 'phrases';
 }
 
 /** What a splice did, for the callers that keep their own copies by index. */

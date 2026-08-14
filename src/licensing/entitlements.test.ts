@@ -3,7 +3,19 @@ import { DIFFICULTIES } from '../exercise/difficulty';
 import { EXERCISE_KINDS } from '../exercise/types';
 import { MAJOR_KEYS } from '../domain/keys';
 import { DEFAULT_SETTINGS, constrainToEntitlements } from '../storage/settings';
-import { FREE, FREE_TIER, FULL, entitlementsFor, isLimited } from './entitlements';
+import {
+  FREE,
+  FREE_TIER,
+  FULL,
+  entitlementsFor,
+  horizonBarsFor,
+  isLimited,
+  type Entitlements,
+} from './entitlements';
+import { instrumentById } from '../domain/instruments';
+import { difficultyById } from '../exercise/difficulty';
+import { generateExercise } from '../exercise/generate';
+import { metreFor } from '../domain/metre';
 
 describe('entitlements', () => {
   it('withholds nothing when unlocked', () => {
@@ -34,8 +46,51 @@ describe('the free tier', () => {
     // A trial that cannot drill a real scale in a real key teaches nobody
     // anything, and sells nothing either.
     expect(FREE_TIER.difficultyIds.length).toBeGreaterThan(1);
-    expect(FREE_TIER.kinds).toContain('scales');
-    expect(FREE_TIER.bars).toBeGreaterThanOrEqual(4);
+    // Every material the generator can make, since v2.14.0: a mode you are
+    // shown but cannot use says nothing useful about what the app is for.
+    for (const kind of EXERCISE_KINDS) expect(FREE_TIER.kinds).toContain(kind.id);
+  });
+});
+
+/**
+ * The lever that replaced *lengths* in v2.14.0. Both tiers are given the same
+ * exercise; only a paid one may carry on past the end of it.
+ */
+describe('playing on', () => {
+  it('gives a paid copy paper past the end, and a free one none', () => {
+    expect(horizonBarsFor(FULL, 200)).toBe(200);
+    expect(horizonBarsFor(FREE, 200)).toBeUndefined();
+  });
+
+  it('withholds it by not generating, so the offer is never raised', () => {
+    /*
+     * The end-to-end shape of the rule, at the seam where it matters. Without a
+     * horizon the paper ends where the run is committed to — which is exactly
+     * the condition `Session.canContinue` reads — so nothing has to refuse
+     * anything, and no green button appears that turns out to be a shop.
+     */
+    const build = (entitlements: Entitlements) =>
+      generateExercise({
+        instrument: instrumentById('eb-bass'),
+        clef: 'treble',
+        fifths: 0,
+        difficulty: difficultyById('easy'),
+        kind: 'phrases',
+        bars: 8,
+        cycles: 2,
+        themeCount: 2,
+        metre: metreFor(4, 4),
+        seed: 3,
+        horizonBars: horizonBarsFor(entitlements, 200),
+      });
+
+    const free = build(FREE);
+    expect(free.totalBeats, 'no paper past the committed end').toBe(free.chosenBeats);
+
+    const paid = build(FULL);
+    expect(paid.totalBeats, 'and a long way past it when paid for').toBeGreaterThan(
+      paid.chosenBeats,
+    );
   });
 });
 
@@ -43,8 +98,7 @@ describe('constraining settings', () => {
   const paidSettings = {
     ...DEFAULT_SETTINGS,
     fifths: 4,
-    bars: 24,
-    difficultyId: 'expert',
+    difficultyId: 'hard',
     kind: 'phrases' as const,
     readingMode: 'paged' as const,
     weakNoteDrilling: true,
@@ -58,7 +112,6 @@ describe('constraining settings', () => {
     const limited = constrainToEntitlements(paidSettings, FREE);
 
     expect(limited.fifths).toBe(FREE_TIER.fifths);
-    expect(limited.bars).toBe(FREE_TIER.bars);
     expect(FREE_TIER.difficultyIds).toContain(limited.difficultyId);
     expect(FREE_TIER.kinds).toContain(limited.kind);
     expect(limited.readingMode).toBe('scrolling');
@@ -80,10 +133,12 @@ describe('constraining settings', () => {
     expect(constrainToEntitlements(chosen, FREE)).toEqual({ ...chosen, weakNoteDrilling: false });
   });
 
-  it('does not lengthen an exercise that is already short', () => {
-    const short = { ...DEFAULT_SETTINGS, bars: 4 };
-    expect(constrainToEntitlements(short, FREE).bars).toBe(4);
-  });
+  /**
+   * Length is not a setting any more, so there is nothing here to pull back.
+   * What the free tier is short of is the *horizon* — see `Entitlements.playOn`
+   * — and that is withheld by not generating it, in `App.build`, rather than by
+   * constraining anything. Nothing to assert here; the absence is the point.
+   */
 
   it('leaves the silent option alone, which is not a paid feature', () => {
     // There is no playback entitlement and `FREE_TIER` no longer carries a
@@ -107,6 +162,5 @@ describe('constraining settings', () => {
     expect(DIFFICULTIES.some((d) => d.id === limited.difficultyId)).toBe(true);
     expect(EXERCISE_KINDS.some((k) => k.id === limited.kind)).toBe(true);
     expect(MAJOR_KEYS.some((k) => k.fifths === limited.fifths)).toBe(true);
-    expect(limited.bars).toBeGreaterThan(0);
   });
 });

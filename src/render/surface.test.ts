@@ -116,7 +116,7 @@ beforeAll(() => {
   };
 });
 
-const KINDS: ExerciseKind[] = ['random', 'scales', 'arpeggios', 'phrases'];
+const KINDS: ExerciseKind[] = ['scales', 'arpeggios', 'phrases'];
 
 function build(
   kind: ExerciseKind,
@@ -171,7 +171,7 @@ describe('scrolling renderer', () => {
      * the opening bar is still not numbered, as no part labels its own first.
      */
     const calls: RecordedCall[] = [];
-    const exercise = build('random', 'treble', -3, 24);
+    const exercise = build('phrases', 'treble', -3, 24);
     // Far enough in that a numbered bar is in the reading area: at 100 the beat
     // is 0.6s, and bar 6 — index 5 — starts at beat 20.
     const transport = new Transport(fakeAudioContext(19 * 0.6), 100);
@@ -199,7 +199,7 @@ describe('scrolling renderer', () => {
 
   it('prints the metronome mark where the tempo steps', () => {
     const calls: RecordedCall[] = [];
-    const exercise = build('random', 'treble', -3, 11);
+    const exercise = build('phrases', 'treble', -3, 11);
     // A step early enough to be inside the opening frame's view.
     exercise.tempo = [{ kind: 'tempo', atBeat: 4, bpm: 96 }];
 
@@ -233,7 +233,7 @@ describe('scrolling renderer', () => {
      * plain bar line at that beat and nothing more.
      */
     const calls: RecordedCall[] = [];
-    const exercise = build('random', 'treble', -3, 24, [-3, -1]);
+    const exercise = build('phrases', 'treble', -3, 24, [-3, -1]);
     expect(exercise.keys.map((k) => k.fromBeat)).toEqual([0, 16]);
 
     // Beat 13 at 100bpm, so the change three beats ahead is well in view and
@@ -298,7 +298,7 @@ describe('scrolling renderer', () => {
 
   it('greys the music past the white, whatever its verdicts would be', () => {
     const calls: RecordedCall[] = [];
-    const exercise = build('random', 'treble', -3, 11);
+    const exercise = build('phrases', 'treble', -3, 11);
 
     const renderer = new StaveRenderer({
       canvas: mockCanvas(calls),
@@ -323,7 +323,7 @@ describe('scrolling renderer', () => {
 
   it('prints rit. where a ramp begins', () => {
     const calls: RecordedCall[] = [];
-    const exercise = build('random', 'treble', -3, 11);
+    const exercise = build('phrases', 'treble', -3, 11);
     exercise.tempo = [{ kind: 'ramp', fromBeat: 4, toBeat: 8, toBpm: 60 }];
 
     const renderer = new StaveRenderer({
@@ -378,7 +378,7 @@ describe('scrolling renderer', () => {
         clef: 'treble',
         fifths: -3,
         difficulty: difficultyById('beginner'),
-        kind: 'random',
+        kind: 'phrases',
         bars: 8,
         cycles: 2,
         themeCount: 2,
@@ -459,8 +459,8 @@ describe('scrolling renderer', () => {
       instrument: instrumentById('eb-bass'),
       clef: 'treble',
       fifths: -3,
-      difficulty: difficultyById('expert'),
-      kind: 'random',
+      difficulty: difficultyById('hard'),
+      kind: 'phrases',
       bars: 8,
       cycles: 2,
       themeCount: 2,
@@ -505,7 +505,7 @@ describe('scrolling renderer', () => {
     // A note is placed by its centre, so a bar line drawn at the same position
     // runs straight through the notehead.
     const calls: RecordedCall[] = [];
-    const exercise = build('random', 'treble', -3, 12);
+    const exercise = build('phrases', 'treble', -3, 12);
 
     const renderer = new StaveRenderer({
       canvas: mockCanvas(calls, 1200, 300),
@@ -586,7 +586,7 @@ describe('scrolling renderer', () => {
       const reported: number[] = [];
       new StaveRenderer({
         canvas: mockCanvas([], 834, 600),
-        exercise: build('random', 'treble', -3, 5),
+        exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 110,
@@ -632,7 +632,7 @@ describe('scrolling renderer', () => {
   it('keeps the bar being played on screen at all times', () => {
     // The whole point of turning early and landing the current bar at the left:
     // you must never be asked to play a bar you cannot see.
-    const exercise = build('random', 'treble', -3, 33);
+    const exercise = build('phrases', 'treble', -3, 33);
     const secondsPerBeat = 60 / 100;
 
     const renderer = new StaveRenderer({
@@ -666,7 +666,7 @@ describe('scrolling renderer', () => {
     ]) {
       const renderer = new StaveRenderer({
         canvas: mockCanvas([], width, height),
-        exercise: build('random', 'treble', -3, 7),
+        exercise: build('phrases', 'treble', -3, 7),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 220, // fastest, which leaves the least room for a bar
@@ -683,7 +683,7 @@ describe('scrolling renderer', () => {
       const calls: RecordedCall[] = [];
       new StaveRenderer({
         canvas: mockCanvas(calls, 900, 320),
-        exercise: build('random', 'treble', -3, 5),
+        exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 110,
@@ -763,7 +763,7 @@ describe('scrolling renderer', () => {
       const calls: RecordedCall[] = [];
       new StaveRenderer({
         canvas: mockCanvas(calls, 900, 320),
-        exercise: build('random', 'treble', -3, 5),
+        exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 110,
@@ -803,7 +803,7 @@ describe('scrolling renderer', () => {
     function scrollingRenderer(calls: RecordedCall[] = []) {
       return new StaveRenderer({
         canvas: mockCanvas(calls, 900, 320),
-        exercise: build('random', 'treble', -3, 5),
+        exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 110,
@@ -857,7 +857,7 @@ describe('scrolling renderer', () => {
       const calls: RecordedCall[] = [];
       const renderer = new StaveRenderer({
         canvas: mockCanvas(calls, 900, 320),
-        exercise: build('random', 'treble', -3, 5),
+        exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 110,
@@ -881,7 +881,7 @@ describe('scrolling renderer', () => {
         clef: 'treble',
         fifths: -3,
         difficulty: difficultyById('beginner'),
-        kind: 'random',
+        kind: 'phrases',
         bars: 2,
         cycles: 2,
         themeCount: 2,
@@ -924,7 +924,7 @@ describe('scrolling renderer', () => {
         clef: 'treble',
         fifths: -3,
         difficulty: difficultyById('hard'),
-        kind: 'random',
+        kind: 'phrases',
         bars: 32,
         cycles: 2,
         themeCount: 2,
@@ -987,7 +987,7 @@ describe('scrolling renderer', () => {
         clef: 'treble',
         fifths: -3,
         difficulty: difficultyById(difficultyId),
-        kind: 'random',
+        kind: 'phrases',
         bars: 16,
         cycles: 2,
         themeCount: 2,
@@ -1037,7 +1037,7 @@ describe('scrolling renderer', () => {
       const height = 834;
       const renderer = new StaveRenderer({
         canvas: mockCanvas(calls, 1194, height),
-        exercise: build('random', 'treble', -3, 5),
+        exercise: build('phrases', 'treble', -3, 5),
         transport: new Transport(fakeAudioContext(0), 100),
         theme: LIGHT_THEME,
         scrollSpeed: 110,
@@ -1082,7 +1082,7 @@ describe('scrolling renderer', () => {
         clef: 'treble',
         fifths: -3,
         difficulty: difficultyById('easy'),
-        kind: 'random',
+        kind: 'phrases',
         bars: 16,
         cycles: 2,
         themeCount: 2,
@@ -1301,7 +1301,7 @@ describe('scrolling renderer', () => {
   });
 
   it('shows a countdown while the transport is still before the first beat', () => {
-    const exercise = build('random', 'treble', -3, 3);
+    const exercise = build('phrases', 'treble', -3, 3);
     const secondsPerBeat = 60 / 120;
 
     const drawAt = (beat: number) => {
@@ -1337,7 +1337,7 @@ describe('revealByBar', () => {
       clef: 'treble',
       fifths: -3,
       difficulty: difficultyById('beginner'),
-      kind: 'random',
+      kind: 'phrases',
       bars: 2,
       cycles: 2,
       themeCount: 2,
@@ -1452,7 +1452,7 @@ describe('revealTiesByBar', () => {
       totalBeats: 17,
       chosenBeats: 17,
       seed: 1,
-      kind: 'random',
+      kind: 'phrases',
     };
   }
 

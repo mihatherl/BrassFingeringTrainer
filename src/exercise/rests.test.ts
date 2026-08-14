@@ -49,7 +49,7 @@ function withRest(bars: number, beatsPerBar = 4): Exercise {
     totalBeats: after + 8,
     chosenBeats: after + 8,
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 

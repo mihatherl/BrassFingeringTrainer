@@ -119,13 +119,11 @@ describe('sanitising', () => {
       tempo: 10_000,
       scrollSpeed: -5,
       countInBars: 99,
-      bars: 0,
       conductorStyle: -5,
     });
     expect(settings.tempo).toBeLessThanOrEqual(220);
     expect(settings.scrollSpeed).toBeGreaterThanOrEqual(4);
     expect(settings.countInBars).toBeLessThanOrEqual(2);
-    expect(settings.bars).toBeGreaterThanOrEqual(1);
     // The style is fed straight to the phase warp. Above the range it is
     // harmless — the lag is capped — but below zero the warp inverts and the
     // tip travels backwards through the beat, so the floor is the one with

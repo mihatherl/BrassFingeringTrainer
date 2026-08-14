@@ -183,25 +183,6 @@ export const DIFFICULTIES: readonly Difficulty[] = [
       { duration: q('sixteenth'), weight: 4 },
     ],
   },
-  {
-    id: 'expert',
-    name: 'Expert',
-    blurb: 'Full range, relentless semiquavers, heavily chromatic.',
-    patterns: {
-      spanSemitones: 24,
-      label: '2 oct · runs',
-      blurb: 'Two octaves of relentless semiquavers, with rests and dotted rhythms.',
-    },
-    rangeSemitones: 48,
-    maxInterval: 16,
-    accidentalChance: 0.4,
-    restChance: 0.03,
-    tieChance: 0.35,
-    rhythms: [
-      { duration: q('eighth'), weight: 3 },
-      { duration: q('sixteenth'), weight: 8 },
-    ],
-  },
 ];
 
 export function difficultyById(id: string): Difficulty {

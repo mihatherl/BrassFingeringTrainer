@@ -17,7 +17,7 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
     clef: 'treble',
     fifths: -3, // Eb major
     difficulty: difficultyById('hard'),
-    kind: 'random',
+    kind: 'phrases',
     bars: 12,
     cycles: 2,
     themeCount: 2,
@@ -162,7 +162,7 @@ describe('generating ties', () => {
     // Ties arrive at Medium, and never in a scale: that drill is the shape and
     // the fingering, and a tie there is a reading problem laid on top of it.
     for (const difficulty of DIFFICULTIES) {
-      for (const kind of ['random', 'phrases', 'scales', 'arpeggios'] as const) {
+      for (const kind of ['phrases', 'scales', 'arpeggios'] as const) {
         const quiet = difficulty.tieChance === 0 || kind === 'scales' || kind === 'arpeggios';
         if (!quiet) continue;
 
@@ -195,7 +195,7 @@ describe('generating ties', () => {
     let checked = 0;
     for (let seed = 1; seed <= 40; seed++) {
       const exercise = generateExercise(
-        options({ difficulty: difficultyById('expert'), seed, fifths: 0 }),
+        options({ difficulty: difficultyById('hard'), seed, fifths: 0 }),
       );
       exercise.notes.forEach((n, index) => {
         if (!isTieContinuation(exercise.notes, index)) return;

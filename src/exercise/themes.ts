@@ -394,7 +394,7 @@ const HARDER: readonly Theme[] = [
   {
     id: 'ninth-leaps',
     name: 'Ninth leaps',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[4, 4]],
     bars: 8,
     /*
@@ -424,7 +424,7 @@ const HARDER: readonly Theme[] = [
   {
     id: 'chromatic-descent',
     name: 'Chromatic descent',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[4, 4]],
     bars: 8,
     /*
@@ -454,7 +454,7 @@ const HARDER: readonly Theme[] = [
   {
     id: 'toccata',
     name: 'Toccata',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[4, 4]],
     bars: 12,
     /*
@@ -787,7 +787,7 @@ const TWO_FOUR: readonly Theme[] = [
   {
     id: 'double-quick',
     name: 'Double quick',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[2, 4]],
     bars: 8,
     /* Two-four at speed: a tenth in bar two, and nowhere to breathe. */
@@ -915,7 +915,7 @@ const THREE_FOUR: readonly Theme[] = [
   {
     id: 'perpetual-three',
     name: 'Perpetual three',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[3, 4]],
     bars: 8,
     events: [
@@ -992,7 +992,7 @@ const TRIPLETS: readonly Theme[] = [
   {
     id: 'twos-and-threes',
     name: 'Twos and threes',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[4, 4]],
     bars: 8,
     /*
@@ -1094,7 +1094,7 @@ const MORE_TRIPLETS: readonly Theme[] = [
   {
     id: 'perpetual-triplets',
     name: 'Perpetual triplets',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[3, 4]],
     bars: 8,
     /*
@@ -1233,7 +1233,7 @@ const COMPOUND: readonly Theme[] = [
   {
     id: 'six-eight-flight',
     name: 'Six-eight in flight',
-    difficulty: 'expert',
+    difficulty: 'hard',
     metres: [[6, 8]],
     bars: 8,
     /*

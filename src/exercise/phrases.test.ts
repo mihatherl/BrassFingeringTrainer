@@ -164,7 +164,7 @@ describe('stitchThemes', () => {
   it('lands every key change on a bar line, which is the only place one may land', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const stitched = stitchThemes(
-        stitchOptions({ difficulty: 'expert', count: 6, keys: [-3, -1, 0], rng: createRng(seed) }),
+        stitchOptions({ difficulty: 'hard', count: 6, keys: [-3, -1, 0], rng: createRng(seed) }),
       );
       if (!stitched) continue;
       for (const key of stitched.keys) {
@@ -226,7 +226,7 @@ describe('themes through the generator', () => {
     // that opens on the fifth still has to be playable end to end.
     const instrument = instrumentById('eb-bass');
     const [lowest, highest] = writtenRange(instrument, 'treble');
-    for (const difficulty of ['beginner', 'easy', 'medium', 'hard', 'expert']) {
+    for (const difficulty of ['beginner', 'easy', 'medium', 'hard', 'hard']) {
       for (const fifths of [-5, -3, 0, 2, 4]) {
         const exercise = themed({ fifths, difficulty: difficultyById(difficulty), themeCount: 3 });
         for (const note of exercise.notes) {

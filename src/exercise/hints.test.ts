@@ -74,7 +74,7 @@ function exerciseOf(bars: Array<Array<[number, Duration['value']]>>): Exercise {
     totalBeats: bars.length * 4,
     chosenBeats: bars.length * 4,
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 

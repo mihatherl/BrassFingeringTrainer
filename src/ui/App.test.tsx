@@ -101,9 +101,9 @@ describe('the app', () => {
         .find((panel) => panel.querySelector('.panel__title')?.textContent === title)
         ?.querySelector('.panel__values')?.textContent;
 
-    // The defaults: Eb bass in treble, Eb major, random notes, Easy.
+    // The defaults: Eb bass in treble, Eb major, sight-reading, Easy.
     expect(valuesOf('Instrument')).toBe('Eb Bass (Tuba) · Treble');
-    expect(valuesOf('Exercise')).toBe('Eb major · Random notes · Easy');
+    expect(valuesOf('Exercise')).toBe('Eb major · Sight-reading · Easy');
     expect(valuesOf('Playing')).toBe('Scrolling line · Play the notes · metronome');
     // Advanced says nothing until something in it has been moved off its
     // default, rather than reciting the settings the app came with.
@@ -302,10 +302,12 @@ describe('a copy that withholds things', () => {
       'disabled',
       true,
     );
-    expect(screen.getByRole('button', { name: /Arpeggios/ })).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: 'Expert' })).toHaveProperty('disabled', true);
-    // And one of each that it does.
+    expect(screen.getByRole('button', { name: 'Hard' })).toHaveProperty('disabled', true);
+    // And one of each that it does. Material is no longer among the withheld:
+    // every kind the generator can make is free, and what the free tier is
+    // short of is the horizon past the end — see `Entitlements.playOn`.
     expect(screen.getByRole('button', { name: /Scales/ })).toHaveProperty('disabled', false);
+    expect(screen.getByRole('button', { name: /Arpeggios/ })).toHaveProperty('disabled', false);
     expect(screen.getByRole('button', { name: 'Easy' })).toHaveProperty('disabled', false);
   });
 

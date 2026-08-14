@@ -12,6 +12,7 @@ import type { ReadingMode } from '../render/surface';
 import type { PlaybackMode } from '../engine/session';
 import { FREE_TIER, type Entitlements } from '../licensing/entitlements';
 import { DIFFICULTIES } from '../exercise/difficulty';
+import { EXERCISE_KINDS } from '../exercise/types';
 import { MAJOR_KEYS } from '../domain/keys';
 import { TEMPO_RANGE } from '../domain/tempo';
 import { CONDUCTOR_STYLE_RANGE } from '../render/conductor';
@@ -64,19 +65,17 @@ export interface Settings {
   variableTempo: boolean;
   difficultyId: string;
   kind: ExerciseKind;
-  /** Themes played end to end, for the Themes kind. Ignored by everything else. */
-  themeCount: number;
-  /** How long free material runs. Scales and arpeggios use `cycles` instead. */
-  bars: number;
-  /**
-   * How many times a scale or arpeggio is played through, up and back down.
+  /*
+   * How long a run is, is no longer here.
    *
-   * Patterns are measured in their own unit rather than in bars: a cycle is
-   * the thing being practised, and how many bars it fills is a consequence of
-   * how many notes it has. Asking for bars is what used to leave a scale
-   * stopping half way up.
+   * It was three fields — `bars`, `cycles` and `themeCount`, one per material —
+   * behind a single label, and only ever one of them on screen. Dropped on the
+   * player's call in v2.14.0: every material now opens on a default worth one
+   * sitting, and a player who wants more simply plays on into the grey. See
+   * `DEFAULT_LENGTHS` in `exercise/generate.ts` for the figures and the
+   * reasoning, and `Entitlements.playOn` for what it is now that it is not a
+   * setting.
    */
-  cycles: number;
   /**
    * Which end of the instrument scales and arpeggios are practised in, where
    * the compass leaves a choice. Ignored by everything else.
@@ -220,10 +219,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tempo: 80,
   variableTempo: false,
   difficultyId: 'easy',
-  kind: 'random',
-  themeCount: 2,
-  bars: 8,
-  cycles: 4,
+  kind: 'phrases',
   register: 'middle',
   // Left to the difficulty, which is what the app has always done.
   range: null,
@@ -262,32 +258,12 @@ function fingeringModeOf(settings: Settings & { fingeringHints?: boolean }): Fin
 
 const STORAGE_KEY = 'brass-trainer:settings';
 
-export const BARS_OPTIONS = [4, 8, 12, 16, 24] as const;
-/**
- * Times through a scale or arpeggio.
- *
- * Smaller numbers than the bar counts beside them, and deliberately: one cycle
- * of a two-octave scale is already eight bars, so four times through is a
- * substantial exercise rather than a short one.
- */
-export const CYCLE_OPTIONS = [1, 2, 4, 8] as const;
-
 export const REGISTERS: ReadonlyArray<{ id: PatternRegister; label: string }> = [
   { id: 'low', label: 'Low' },
   { id: 'middle', label: 'Middle' },
   { id: 'high', label: 'High' },
 ];
 
-/**
- * How many themes a Themes exercise plays, end to end.
- *
- * Its own field rather than borrowing `cycles`, which means times through one
- * shape. A theme is not played twice over; the next one is a different tune,
- * and calling both "cycles" is how a numerator ends up mistaken for a bar
- * length. See `metre.ts` for the version of that mistake this project has
- * already made once.
- */
-export const THEME_OPTIONS = [1, 2, 3, 4, 6] as const;
 
 /**
  * Most keys one exercise may move through.
@@ -402,13 +378,16 @@ export function sanitise(settings: Settings): Settings {
     // Coerced to a real boolean: a settings file written by an older version
     // has nothing here, and the merge above must land on "off".
     variableTempo: settings.variableTempo === true,
-    bars: clamp(settings.bars, 1, 64),
-    cycles: clamp(settings.cycles, 1, 16),
+    // Validated rather than merged through, so a settings file naming a kind
+    // this version no longer has — *Random notes*, dropped in v2.14.0 — opens
+    // on the default instead of on a mode the chooser cannot show.
+    kind: EXERCISE_KINDS.some((k) => k.id === settings.kind)
+      ? settings.kind
+      : DEFAULT_SETTINGS.kind,
     register: REGISTERS.some((r) => r.id === settings.register)
       ? settings.register
       : DEFAULT_SETTINGS.register,
     range: sanitiseRange(settings.range, instrument, clef),
-    themeCount: clamp(settings.themeCount, 1, 8),
     countInBars: clamp(settings.countInBars, 0, 2),
     scrollSpeed: clamp(settings.scrollSpeed, SCROLL_SPEED_RANGE.min, SCROLL_SPEED_RANGE.max),
     readingMode: READING_MODES.some((m) => m.id === settings.readingMode)
@@ -451,7 +430,13 @@ export function constrainToEntitlements(
     limited.fifths = FREE_TIER.fifths;
     limited.keySet = [FREE_TIER.fifths];
   }
-  if (!entitlements.allLengths) limited.bars = Math.min(limited.bars, FREE_TIER.bars);
+  /*
+   * Nothing to clamp for `playOn`.
+   *
+   * It is not a setting and cannot be over-asked for: the horizon is simply not
+   * generated without it, so the paper ends where the run does and the offer is
+   * never made. See `App.build`.
+   */
   if (!entitlements.allDifficulties && !FREE_TIER.difficultyIds.includes(limited.difficultyId)) {
     limited.difficultyId = FREE_TIER.difficultyIds[0];
   }

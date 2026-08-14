@@ -114,7 +114,7 @@ function exerciseOf(firstBar = 0): Exercise {
     totalBeats: from + 4,
     chosenBeats: from + 4,
     seed: 1,
-    kind: 'random',
+    kind: 'phrases',
   };
 }
 
