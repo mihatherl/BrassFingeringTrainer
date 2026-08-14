@@ -1,196 +1,173 @@
-# Handover — the session of 2026-08-13
+# Handover — the session of 2026-08-13, into the 14th
 
 Written for whoever picks this up next, cold. It records what was built, what
-was decided and why, and — carried over from the last one because it earned its
-place — **where I was wrong**, since the errors in this session came in a family
-and the family is worth recognising on sight.
+was decided and why, and — carried over again because it keeps earning its
+place — **where I was wrong**, since the faults came in two families and both
+are worth recognising on sight.
 
 The durable rulings live in `v2-design.md`; the feature plans are
-`tempo-map-plan.md`, `endless-play-plan.md` and `musicxml-import-plan.md`, all
-kept current as they were built. **Read this for the shape, those for the
-reasons.**
+`tempo-map-plan.md`, `endless-play-plan.md` and `musicxml-import-plan.md`.
+**Read this for the shape, those for the reasons.**
 
-The app went from **v2.1.1 to v2.6.0** — nine releases, all deployed. It began
-as a consolidation and turned into three features and a long tail of
-corrections.
+The app went from **v2.6.0 to v2.12.0** — eleven releases, all deployed. It
+began as a refinement of one settings control and turned into a rebuild of the
+play screen around the thing this app is named after.
 
 ## What was built, in order
 
-**The consolidation that started it** — no version bumps; none of it is
-user-visible:
+**The range control** — finishing what the previous session started:
 
 | | |
 |---|---|
-| — | **A real `.mxl` in the test suite.** `TestPiece.mxl`, a MuseScore export, read from disk through unzip, parse, unfold, read, assemble. The only test that would notice a fault living *between* two stages. |
-| — | **`storage/library.ts` tested directly** — the `movement-title` path every OMR import takes, and all six branches of `requestPersistence`. |
-| — | **Nine dead exports deleted**, lint added to CI, two finished plan docs marked as shipped. |
+| v2.7.0 | **The range is turned, not picked from a list.** Two dropdowns of thirty-six notes became two dials, a stave step of the key to a detent, each detent clicking and tapping the hand. The ends of the compass stay reachable whatever the key — an Eb bass bottoms out on a note in no flat key at all. |
+| v2.7.1 | **The dials moved either side of the stave**, halving the control's height. That freed the notes from lining up with them, so the clef and key signature are *measured* and the notes placed after them — which is what keeps seven flats and two bounds inside half the width. |
 
-**The importer:**
-
-| | |
-|---|---|
-| v2.2.0 | **Every bar checked against the metre.** Pure arithmetic; the most valuable unbuilt thing in the last handover. Reported first among the warnings, because it is the only one that makes an import untrustworthy rather than incomplete. |
-| v2.3.0 | **A bar longer than its time signature read as the bar it is** — five beats in a four-four piece becomes a one-bar 5/4, which `metres` could always express. |
-
-**The conductor**, in the same release:
+**The fingering callout:**
 
 | | |
 |---|---|
-| v2.3.0 | It **follows the metre** now, instead of being handed bar 1's for the whole piece. Two faults fell out: `placeInPattern` was getting the absolute beat where it counts from the bar line, and an unbeatable metre unmounted the panel, which stopped the only loop watching the beat. And the **metronome covers the bars the conductor cannot beat**, since "the metronome carries on" was only true if the player had it on. |
+| v2.8.0 | **A fingering is a callout.** Valve numbers stacked in a capsule on a tapered tail pointing at its note; open is written `0`. Stacked because the room a hint needs is horizontal — `1-2-3` as text is three characters wide in the one direction a stave has none to spare, and hints were being dropped for want of it. The bar numbers moved out from under them. |
 
-**The screen:**
-
-| | |
-|---|---|
-| v2.4.0 | **The settings screen quietened.** One key control instead of two, an Advanced section for the abstract knobs, the reading-mode cards cut from 95 words to about 20, and the tempo lifted out of the panels to sit with Start. |
-
-**My Music — choosing what to practise:**
+**Two faults in the engraving, both found by the player in a real hymn:**
 
 | | |
 |---|---|
-| v2.5.0 | **Choose bars off the page and practise those.** The importer learned to read a *passage*; the score view lets you pick one. |
-| v2.5.1 | Rectangles off their bars; the wrong bars practised; the page shivering on every tap. |
-| v2.5.2 | Bar numbers taken from the printed part; a tap beside a run grows it. |
-| v2.5.3 | Drawn bars translated to measures before they are read. |
-| v2.5.4 | The joining bar of rests counted as part of the block, so the grey stops creeping. |
+| v2.8.1 | **A tie is marked a bar at a time.** A G held over four bars turned green in all four the moment it was started: the far end of a tie wears the verdict of the note it is tied from, and that verdict lands at the attack. |
+| v2.8.2 | **A level beam clears its highest note.** Its height was measured from the note *furthest* from it, so a beamed octave left the nearest note with no stem and the beam ran into the notehead. |
 
-**The range:**
+**The play screen, rebuilt around the fingerings:**
 
 | | |
 |---|---|
-| v2.6.0 | **The player says which notes free material is drawn from.** The band always existed and was centred on the compass; now it can be asked for, and an asked-for range is taken literally. |
-| v2.7.0 | **And says it by turning a dial.** Two dropdowns became two dials under the two notes, turned with the finger, a stave step of the key to a detent, each one clicking as it passes. |
-| v2.7.1 | **The dials moved to either side of the stave**, halving the height of the control. The settings screen is being kept short, and a row that stands between a player and Start has to earn it. |
-
-**The fingerings:**
-
-| | |
-|---|---|
-| v2.8.0 | **A fingering is a callout now** — valve numbers stacked in a capsule on a tapered tail pointing at its note. Stacked because the room a hint needs is horizontal, and the bar numbers moved out from under them. |
-
-**The marking:**
-
-| | |
-|---|---|
-| v2.8.1 | **A tie is marked a bar at a time.** A G held over four bars used to turn green in all four the moment it was started — the far end of a tie wears the verdict of the note it is tied from, and that verdict lands at the attack. Reported from a hymn. |
-| v2.8.2 | **A level beam clears its highest note.** Its height was measured from the note furthest from it, so a beamed octave left the nearest note with no stem and the beam ran into the notehead. Reported from bar 41 of the same hymn. |
-
-**The play screen:**
-
-| | |
-|---|---|
-| v2.9.0 | **The notes list is gone; mistakes are answered on the note, and the tempo is under the player's hand.** A wrong note prints its fingering over itself and over every later note of that pitch, immediately, with no cap on how many. The space the list held is now a tempo control that moves the clock mid-run. |
-| v2.12.0 | **A note in a run gets the hint it has earned.** The timing rule was measuring the note's length, not reading time — the strike line is near the left of the screen, so a hint is legible for seconds before its note arrives. It now applies to *every note* mode alone; *where I struggle* prints wherever one fits. |
-| v2.11.0 | **The hint rules, worked through with the player.** Trouble is filed under the written note and does not travel to other octaves or to notes sharing a fingering — until the microphone lands, the app cannot tell a wrong fingering from a mispitch, so what it teaches is note recognition. Two right in a row retire a prompt; a miss takes two to earn one; history needs four attempts. And the switch became three modes: every note, where I struggle, never. |
-| v2.10.1 | **A rewind plays at the tempo on the dial**, and the dial turns twice as far for a swipe. The player's tempo changes were living in the same list as the score's own, so going back replayed a passage at the speed it had the first time while the dial said otherwise — and the scoring, which follows the clock, appeared to race ahead of the playing. |
-| v2.10.0 | **Pause, and take it from a bar or five back.** A pause freezes the clock rather than the scheduler; starting again counts in one real bar. A rewind goes to the top of a bar and un-judges everything after it, so the passage can be played again. The tempo dial grew, took the reading onto its face, and shows a big callout only while it turns. |
-| v2.9.1 | **That control is a dial, with the reading above it.** A slider had to fit forty to two hundred and twenty into the width beside the stave; the dial gives the same travel to every beat a minute and takes a few spins to cross. The number is large and above, because the thumb covers the dial. `useDial` now carries the gesture for both dials in the app. |
+| v2.9.0 | **The notes list is gone; mistakes are answered on the note.** The player's verdict on the list — *you can never pay enough attention to it to see what the fingering was supposed to be* — is the whole case. A wrong note now prints its fingering over itself and over every later note of that pitch, immediately, with no cap. The space became a tempo control that moves the clock mid-run. |
+| v2.9.1 | **That control is a dial.** A slider had to fit 40–220 into the width beside the stave; a dial gives the same travel to every beat a minute. `useDial` carries the gesture for both dials in the app. |
+| v2.10.0 | **Pause, and take it from a bar or five back.** A pause freezes the clock rather than the scheduler. Starting again counts in one *real* bar — the transport starts a bar early with the scheduler pointed past it, so the clicks are that bar's true metrical positions. A rewind un-judges everything after it. |
+| v2.10.1 | **A rewind plays at the tempo on the dial**, and the dial turns twice as far for a swipe. |
+| v2.11.0 | **The hint rules, worked through with the player** — the section below. |
+| v2.12.0 | **A note in a run gets the hint it has earned.** The timing rule was measuring the note's length and calling it reading time. |
 
 ## The decisions worth not re-litigating
 
-**A selection is a walk, not a slice.** The importer has always read a list of
-measure indices, and the unfolder has always produced one. So *played*,
-*printed* and *passage* are three lists through the same apparatus — no
-`Exercise` is ever cut up, and eight chosen bars come out beamed, bracketed and
-spelled by the same `assembleExercise` that does the whole part.
+**Trouble is filed under the written note, and travels nowhere.** The session's
+largest ruling, and the one to start from if the hints are ever reopened. With
+valve buttons and no microphone the app sees which combination went down and
+nothing else: it cannot tell a player who chose the *wrong fingering* from one
+who chose the right fingering and *mispitched*, so it must not pretend to teach
+either. What it can honestly see is whether a note on the page was recognised.
+So trouble attaches to the written note as it appears on the stave for this
+instrument and clef — not to the valve combination, and not to the same letter
+in another octave. The player's own case: *I don't know what high B looks like,
+but I have no trouble with the B above middle C.* **Revisit when the microphone
+lands**, which the player expects to be soon; a wrong fingering and a mispitch
+are different faults with different answers.
 
-**A passage takes each span once, whatever signs are inside it.** The player
-pointed at bars on the page, so eight selected is eight played. Selecting the
-same run twice is how to ask for it twice.
+**A prompt retires, and comes back.** Two of that note played right and it
+stops. This does not overturn "a hint that came and went would be worse than
+none": it goes away for a reason the player can feel.
 
-**The gap between selections is a bar of rests in the metre being landed in.**
-It is preparation, not an ending; the count that helps is the one about to be
-needed. It also belongs *inside* the block for Continue — it is the bar you
-count through to come in again, not a pause between two things.
+**Wrong valves and a missed note are not the same evidence.** Wrong valves are a
+fingering reached for and missed, and prompt at once. Nothing held at all is as
+likely to mean lost, behind, or resting a lip — two of those before it prompts.
 
-**Bar numbers come off the printed part.** Where a file has them they win, over
-the app's own counting. The whole worth of a bar number is that it means the
-same to the player, the app and whoever is saying "from bar thirty-three", and
-a part with a pickup makes counting and printing disagree for its whole length.
+**Three modes, because the app is used in three frames of mind.** Reading
+something new with the answers in front of you; practising with a prompt where
+the trouble is; playing it for real.
 
-**Infer a long bar, report a short one.** Measured, not reasoned: every one of
-the eleven malformed bars in the OMR file to hand is *short*, and five are pairs
-summing to one bar — bars the scanner split. A short bar is something missing
-and the app cannot know what; a long bar has music that has to go somewhere.
+**A live tempo change extends the map and never re-anchors it.** The beat↔time
+map is anchored at one origin, and `setTempo` was once a method that threw for
+that reason. `changeTempo` appends a step at the next whole beat past the
+scheduling horizon — beyond everything already committed to the audio thread,
+and a target a dragging finger keeps landing on, so changes replace rather than
+stack. `rebaseTempo` is the exception and is safe *only* because its one caller
+re-anchors immediately afterwards.
 
-**A range asked for is taken literally; unset, the middle is favoured.** All of
-it, none of it favoured — someone asking for the bottom of the horn has said
-something specific. Difficulty then governs the leaps, accidentals and rhythm
-but not where the notes sit. Free material only: a pattern asks `register`
-instead, and a theme finds its own octave. Written up in `v2-design.md`.
+**A pause freezes the clock, not the scheduler.** The audio context's time is
+the sound card's and never stops.
 
-**An odd metre still gets no conductor.** The player confirmed the existing
-ruling — a five is not a four with a beat wedged in — and the metronome now
-covers those bars instead.
+**A figure sizes itself to its ink, furniture included.** `headerExtent` and
+`fingeringHintY` publish the numbers the drawing uses; nothing measures a canvas
+by a second opinion.
 
 ## Where I was wrong
 
-**Every substantive bug this session was one quantity measured in one unit and
-consumed as another.** Four of them shipped in the bar picker alone. If
-something in that feature looks off, look here first:
+**Family one: a jump backwards is a state reset, and I kept finding another
+piece of state that was not in it.** Three faults, one shape:
 
-| measured as | consumed as | what it cost |
-|---|---|---|
-| bar as drawn | measure in the file | practised music six bars early |
-| positional index | printed bar number | the app a bar ahead of the paper |
-| one pass's music | the loop's period | the grey creeping back a bar a cycle |
-| note-column x | bar-line x | taps landing in the bar before |
+| what was not reset | what it cost |
+|---|---|
+| the transport itself (`start` no-ops while running) | a rewind made *while playing* did nothing at all — the score gave up its bars and the music carried on |
+| the screen's copy of the verdicts | `onRewind` existed in the session and was never wired into `PlayScreen`, so the colours stayed |
+| the player's own tempo steps | a passage replayed at the speed it had the first time while the dial said otherwise |
 
-**A test can share the bug's blind spot.** Twice. The bar-map test fixture had
-`source === index` at the near end, so a translation that did nothing was
-indistinguishable from one that worked — written into the very test meant to
-catch it. And the first `barRects` tests checked internal consistency (bars
-abutting, entries in order) rather than agreement with the drawing, so they
-passed with the setback removed. **Mutation testing found both; neither was
-visible by reading.**
+If anything about pause, rewind or restart looks wrong, **ask what else is
+still holding the old pass's state**. `Session.restartAt` and `unplay` are where
+the answer belongs, and `offering` is still not in them — see below.
 
-**I sized a canvas for the notes and forgot the furniture.** The range stave
-was measured for its two noteheads, their ledger lines and their fingerings, and
-came out with a treble clef's tail cut off square along the bottom edge — and,
-at the other end, the fingering over a note sitting quietly *inside* the stave,
-where nothing looked like it needed room at all: a hint clears an imaginary
-stem, so a note just below the middle line reaches higher than one above it.
-Both were invisible to a suite that measures notes against each other and
-visible in the first screenshot. The fix is the rule this codebase already had:
-`headerExtent` and `fingeringHintY` publish the numbers the drawing uses, and
-the figure sizes itself from those rather than from a second opinion.
+**Family two: measuring the wrong quantity.** Last session's was "measured in
+one unit, consumed as another"; this one is subtler and worse, because the
+arithmetic is right and the *question* is wrong:
 
-**I proposed a rule without counting.** "Whole number of beats, and few of
-them" as the test for whether a bar is music or corruption — then counted the
-corrupt file and found every one of its malformed bars is a whole number of
-crotchets. It would have inferred all eleven and hidden the fault it was built
-to report.
+- The beam's height was measured from the note furthest from it, which spends
+  the whole stem on the note that needs it least.
+- The hint's timing rule measured how long a note *lasts* and called it reading
+  time — but the strike line sits near the left of the display, so a hint is on
+  screen for seconds before its note arrives. The rule withheld hints from fast
+  passages for a reason that was never true.
+- The range stave was measured for its notes and not its furniture, and cropped
+  a treble clef's tail.
 
-**I recommended overriding a ruling I had not read.** The conductor's
-"a five is not a four with a beat wedged in" is in `patternFor`, with a test
-pinning it. I offered the opposite as a recommendation and the player took it.
+**The player found every one of the bugs that shipped, and one I could not
+reproduce by reasoning.** The tempo-after-rewind fault took a measurement in a
+browser to see: notes judged per second, 3.8 at 200bpm, 0.5 wound down to 40,
+3.2 after a rewind. Two hours of reading the code had produced four wrong
+theories.
 
-**The handover's own "27 of 84 bars" was wrong.** Counted twice by
-methods with no code in common: 87 measures, 13 not holding three beats, 11
-once the pickup and its completing bar are set aside.
+**I believed a null result from my own harness.** A screenshot script pressed
+60px above the dial's centre — outside it — and reported that three spins moved
+the tempo not at all. The dial was fine. *Check the harness before believing
+what it says about the code.*
 
 ## What is left
 
-**The bar picker** — the newest thing here and the least settled:
+**The microphone**, which the player expects to pick up next, and which several
+things here are waiting on:
+
+- The hint ruling above is explicitly provisional until it lands.
+- `docs/v2-design.md` has the fermata parked on it too — a fermata means "hold
+  until released", and only the microphone can release the player.
+
+**Pause and rewind**, the newest thing here:
+
+- **`offering` is not reset by a rewind.** Rewind from inside the offer window
+  back to the start and the button stays green, the reference tone stays at
+  half volume, and the offer can never be made again. Generated exercises only;
+  an imported part is committed to its whole length.
+- **A stray metronome click can land after a pause**, since the scheduling
+  horizon is already on the audio thread. The sounding note is cut; a click
+  cannot be.
+- **A rewind during the count-in** works but is untested against a piece whose
+  first bar is a pickup.
+
+**The fingering hints:**
+
+- **The reach-back was designed and not built.** For a passage too dense for a
+  capsule to fit, the idea was to hang it over an earlier note with the tail
+  reaching to the one it names. It was dropped because a tail crossing a beam
+  into a cluster of semiquavers is a worse answer than silence — but if a
+  player asks for it, `hints.ts` should decide the anchor and the renderers
+  draw a slanted tail.
+- **"Every note" at Expert is a dense row of capsules.** Legible, but busy;
+  worth the player's eye before it is called finished.
+- **A bar containing a note the instrument cannot play never reveals its
+  verdicts in paged reading.** `revealByBar` waits for every note in the bar,
+  and an unplayable note is never judged. Pre-existing and reachable from
+  imported parts.
+
+**The bar picker** — still the least settled part of My Music:
 
 - **The split bars are the untested edge.** Bars 16/17, 23/24, 33/34, 49/50 and
-  66/67 of the hymn are where the scanner cut one printed bar in two. Selecting
-  a run that starts or ends on one exercises the half of `measuresFor` that
-  takes both measures, and no real-file test covers it.
-- **`times` is fixed at build.** A selection is laid out `passesFor(bars)` times
-  and Continue walks through them. Past that there is no more to offer, and the
-  run simply ends.
-- **Nothing keeps a selection.** Choosing bars is per-visit; the library stores
-  the file and the part, not a passage.
-
-**The range**, newest of all:
-
-- **Imported music has no range control**, and arguably wants one least — the
-  part says what the notes are. But a passage above what the player can reach is
-  exactly the case the out-of-range warning already reports, and a range would
-  be a different answer to it.
-- **Themes ignore it**, which is right for now and worth revisiting if a player
-  asks to drill a tune in a register other than the one it lands in.
+  66/67 of the hymn are where the scanner cut one printed bar in two.
+- **`times` is fixed at build**, and nothing keeps a selection between visits.
 
 **The importer, in rough order of value:**
 
@@ -199,60 +176,45 @@ once the pickup and its completing bar are set aside.
 - **`<transpose>` is ignored by design and never tested.** A real brass band
   part will carry one.
 - **The part chooser has not met a real multi-part score.**
-- **The long-rest skip is not offered.** The ruling stands — over ten seconds at
-  the designated tempo, ask, and come back in at the bar before.
+- **The long-rest skip is not offered.** Over ten seconds at the designated
+  tempo, ask, and come back in at the bar before.
 
-**The conductor:**
-
-- The compound lag/lift verdict is still unanswered. "Compound needs nothing" is
-  a legitimate answer and should be recorded as one if it is the one.
-- `BEAT_IN_FEWER_ABOVE_BPM = 168` and `SUBDIVIDE_BELOW_BPM = 76` are guesses
-  awaiting a play-test. One constant each.
-- Five, seven, nine and twelve patterns are unbuilt — and now reachable, since
-  an imported bar can be inferred into 5/4 or 7/8.
+**The conductor:** the compound lag/lift verdict is still unanswered;
+`BEAT_IN_FEWER_ABOVE_BPM = 168` and `SUBDIVIDE_BELOW_BPM = 76` are guesses
+awaiting a play-test; five, seven, nine and twelve patterns are unbuilt.
 
 **Elsewhere:** variable tempo is still sparse across the grey for free material
-and patterns. And **Advanced is where a beginner will never look, including when
-they should**: the timing tolerance is the likeliest setting to make a player
-think the app is wrong about them, and nothing on the main screen says it
-exists.
+and patterns, and it now interacts with the dial — a planned step overrides
+what the player set, which is documented but has never been played.
 
 ## How this session worked, which is worth repeating
 
-**The player found every picker bug, and each report was precise enough to
-trace.** "Bars 82 and 83 give me the last note of 77, all of 78 and the first
-beat of 79" is a bug report with the arithmetic already in it. The right first
-move each time was to reproduce the exact case against the real file rather than
-to reason about the code — and each time the reproduction named the fault in one
-line.
+**Drive the thing and measure it.** Every fault that mattered was found by
+running the app under Playwright and either looking at the picture or counting
+something: notes judged per second for the tempo bug, the ink extents of every
+glyph for the cropping, three thumb-spins for the dial. Reading the code found
+none of them.
 
-**Mutation testing is the only thing that caught the tests that could not fail.**
-Run it on the test you just wrote, not only on the code. Twice this session a
-new test passed against the mutation it was written to catch.
+**Look at the picture, then look at the extremes.** The callout over the Stop
+button, the beam through a notehead, the wall of capsules at Expert — all
+screenshots, none of them visible to a test that measures notes against each
+other.
 
-**Measure before choosing a constant, and count before proposing a rule.** The
-score view's stave size came from measuring the fixture at five scales (29
-systems and 4324 pixels at the reading size, eleven and about a screen and a
-half at the scanning one). The inference rule came from counting a corrupt
-file's bars, which killed the rule I had already proposed.
+**Mutation-test the test you just wrote.** Twice again this session a new test
+was checked by breaking the code it was written to guard, and twice it earned
+its keep. The range-stave crop test and the beam floor both fail on the old
+arithmetic.
 
-**Look at the picture.** Two faults in the picker were visible only in a
-screenshot and invisible to every test: the score was drawn at reading size when
-it needed scanning size, and the line naming what you had chosen was rendering
-behind the sticky strip.
+**Ask what the rule is actually measuring.** Two of the three bugs in family two
+were arithmetic that worked perfectly on the wrong quantity. "Is this the
+question I meant to ask?" would have caught both.
 
-**Say what the app decided, where the page does not.** An inferred 5/4 bar is
-reported, because the app has decided something the printed part does not
-state — and if it decided wrongly, that sentence is what lets the player see it.
-
-**Look for the feature that is already built.** The range control was most of a
-day's work expected and an afternoon's actual, because `candidatePitches` had
-always computed a band — the difficulty's width, centred on the compass. Nothing
-had to be invented; a computed thing had to become an asked-for one, with the
-old behaviour kept as the unasked default. Worth a look before designing
-anything here: this app tends to have the machinery and be missing the question.
+**Workshop the central feature with the player before touching it.** Presenting
+the whole hint rule set as it stood, with the tensions named and a
+recommendation on each, produced a better answer than any of my proposals — the
+microphone ruling in particular, which no amount of code-reading would have
+reached.
 
 **Conventions in force:** push without asking once the gate is green (tests,
-build, lint), tag every version on its last commit, and keep pure corrections in
-their own release so patch numbers mean something — v2.5.1 through v2.5.4 are
-this session's examples.
+build, lint), tag every version on its last commit, keep pure corrections in
+their own release, and confirm the deploy afterwards rather than assuming it.
