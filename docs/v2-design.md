@@ -1369,6 +1369,45 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## Two things a rewind and a bar were waiting on for ever — v2.12.1
+
+Both were written down as inherited faults at the end of the last session and
+neither had been played into. Corrections only, in their own release.
+
+**A rewind takes the standing offer back with it.** The offer to carry on is
+made once per committed end and remembers that it has been made — which is what
+kept it standing after a rewind out of the window it belonged to. The button
+stayed green, the reference tone stayed at half volume, and since the flag was
+never cleared the question could not be asked a second time: a run rewound from
+its last four beats could never be extended again. The withdrawal now lives in
+one place and both endings go through it, the accepted one included.
+
+What a rewind does *not* take back is the player's answer. `playUntil` keeps
+whatever was bought, because asking for more music is a decision about how long
+the run is rather than a verdict on a bar, and a rewind disowns verdicts only.
+This is the fourth member of the family the last session named — *a jump
+backwards is a state reset, and there is always one more piece of state in it* —
+and `unplay` is the right home for the next one too.
+
+**A bar waits only on the notes that can be judged.** A note outside the
+instrument's range is shown and sounded but never judged, deliberately: it asked
+nothing the player could have answered. But paged reading withholds a bar's
+verdicts until every note in it has one, and it counted the unjudgeable note
+among them — so one note above the top of a tuba held its bar grey for the rest
+of the run, and the player got no reading at all of a bar they had played every
+reachable note of. Imported parts only; a cornet part handed to a bass can be
+full of them.
+
+**And the count-in was rewound into, which had never been tested.** Nothing
+disables the transport buttons before the music starts, so it is reachable.
+It behaves: the rewind lands at beat 0, counts a bar in afresh, and judges
+nothing until the music actually arrives. There is no pickup case hiding behind
+it either — an imported part that begins part-way through a bar is padded up to
+the bar line by the importer, so an exercise's beat 0 is always a bar line.
+`Session.canRewind` was written to grey those buttons out and was never wired to
+anything; left as it is, since restarting the count-in is a reasonable thing for
+"back one bar" to do at the top of a piece.
+
 ## What a fingering hint answers, and for how long — v2.11.0
 
 Worked through with the player on 2026-08-14, going over the whole rule set,

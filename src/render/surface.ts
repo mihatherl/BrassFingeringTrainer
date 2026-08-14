@@ -35,7 +35,7 @@ import { barAt, barCount, beatOfBar, metreAt } from '../domain/metre';
 import { durationBeats } from '../domain/rhythm';
 import type { Transport } from '../engine/clock';
 import type { Verdict } from '../engine/judge';
-import type { Exercise } from '../exercise/types';
+import { isUnplayable, type Exercise } from '../exercise/types';
 import {
   accidentalRoom,
   dotRoom,
@@ -264,20 +264,29 @@ export function verdictColour(verdict: Verdict | undefined, theme: StaveTheme): 
  * to finish still answers a coarser question, which bar just went right or
  * wrong, without answering the one the player is meant to work out unaided:
  * where they are inside it.
+ *
+ * A bar waits only on the notes that can be judged. A note the instrument
+ * cannot play never is — see `isUnplayable` — so counting it among what the bar
+ * is waiting for held the whole bar grey for the rest of the run, and the
+ * player got no reading at all of a bar they had played every reachable note
+ * of. Imported parts only, and worth the guard there: a cornet part handed to a
+ * bass can be full of them.
  */
 export function revealByBar(
   exercise: Exercise,
   verdictFor: (noteIndex: number) => Verdict | undefined,
 ): (noteIndex: number) => Verdict | undefined {
   const barOf = (index: number) => barAt(exercise.metres, exercise.notes[index].startBeat);
+  const stillWaiting = (index: number) =>
+    !isUnplayable(exercise.notes[index]) && verdictFor(index) === undefined;
 
   return (noteIndex) => {
     const bar = barOf(noteIndex);
     for (let i = noteIndex; i >= 0 && barOf(i) === bar; i--) {
-      if (verdictFor(i) === undefined) return undefined;
+      if (stillWaiting(i)) return undefined;
     }
     for (let i = noteIndex + 1; i < exercise.notes.length && barOf(i) === bar; i++) {
-      if (verdictFor(i) === undefined) return undefined;
+      if (stillWaiting(i)) return undefined;
     }
     return verdictFor(noteIndex);
   };

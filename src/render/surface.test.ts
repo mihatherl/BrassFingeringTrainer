@@ -1381,6 +1381,39 @@ describe('revealByBar', () => {
 
     for (let i = 0; i < firstBarCount; i++) expect(reveal(i), `note ${i}`).toBe('missed');
   });
+
+  /**
+   * The imported-part case: a note above what the instrument can reach is never
+   * judged, so a bar that waited for one waited for ever and showed the player
+   * nothing about the notes they *could* play in it.
+   */
+  it('does not wait for a note the instrument cannot play', () => {
+    const exercise = twoBarExercise();
+    const { barBeats } = metreAt(exercise.metres, 0);
+    const barOf = (index: number) => Math.floor(exercise.notes[index].startBeat / barBeats);
+    const firstBarCount = exercise.notes.filter((_, index) => barOf(index) === 0).length;
+    expect(firstBarCount).toBeGreaterThan(1);
+
+    // The last note of the first bar put out of the instrument's reach, which
+    // is exactly what an empty `acceptedMasks` means — see `isUnplayable`.
+    const unreachable = firstBarCount - 1;
+    exercise.notes[unreachable] = { ...exercise.notes[unreachable], acceptedMasks: [] };
+
+    const verdicts = new Array<Verdict | undefined>(exercise.notes.length).fill(undefined);
+    const reveal = revealByBar(exercise, (index) => verdicts[index]);
+
+    // Everything judgeable in the bar is judged, and the unplayable note never
+    // will be. The bar reveals on the strength of the rest.
+    for (let i = 0; i < unreachable; i++) verdicts[i] = 'correct';
+    for (let i = 0; i < unreachable; i++) expect(reveal(i), `note ${i}`).toBe('correct');
+
+    // The note itself still has no verdict to show — it was not judged, and the
+    // rule decides when a verdict appears, never what it is.
+    expect(reveal(unreachable)).toBeUndefined();
+
+    // And the next bar is no closer to revealing for any of it.
+    expect(reveal(firstBarCount)).toBeUndefined();
+  });
 });
 
 describe('revealTiesByBar', () => {

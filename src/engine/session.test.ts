@@ -525,6 +525,95 @@ describe('the offer to carry on', () => {
     session.stop();
   });
 
+  /**
+   * A rewind out of the offer window, which used to leave the offer standing
+   * for ever: the button stayed green, the tone stayed at half volume, and
+   * because the flag was never cleared the question could not be asked again.
+   */
+  it('withdraws the offer when a rewind takes the run out from under it', () => {
+    const offers: boolean[] = [];
+    const volumes: number[] = [];
+    const session = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'reference',
+      brassVoice: { ...voice, setVolume: (v: number) => volumes.push(v) },
+      onOffer: (offering) => offers.push(offering),
+    });
+
+    session.start();
+    run(0, 5);
+    expect(offers, 'the question is standing').toEqual([true]);
+    expect(volumes[volumes.length - 1]).toBe(0.5);
+
+    // Back to the top, from inside the window the offer was made in.
+    session.rewind(2);
+    expect(offers, 'taken back with the pass it belonged to').toEqual([true, false]);
+    expect(volumes[volumes.length - 1], 'the tone comes back up with it').toBe(1);
+    expect(session.endBeat, 'and the length asked for is left alone').toBe(8);
+
+    // Played back down to the same place and asked again — which only happens
+    // if the flag was cleared and not merely the button.
+    run(5, 12);
+    expect(offers).toEqual([true, false, true]);
+    session.stop();
+  });
+
+  /**
+   * A rewind pressed during the count-in, which is reachable — nothing disables
+   * the buttons before the music starts — and had never been played through.
+   *
+   * There is no pickup case hiding behind it: an imported part that begins
+   * part-way through a bar is padded up to the bar line by the importer, so an
+   * exercise's beat 0 is always a bar line and the count-in is always whole
+   * bars of one. See the pickup handling in `import/part.ts`.
+   */
+  it('re-counts from the top when rewound during the count-in', () => {
+    const judged: number[] = [];
+    const session = new Session({
+      context,
+      exercise: horizonExercise(),
+      tempo: 60,
+      // Two bars of two-four: four beats of counting before the first note.
+      countInBars: 2,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onJudgement: (j) => judged.push(j.noteIndex),
+    });
+
+    session.start();
+    // Two beats in, still counting: nothing has been asked of the player yet.
+    run(0, 2);
+    expect(judged, 'the count-in judges nothing').toEqual([]);
+
+    session.rewind(1);
+    // A rewind counts in one real bar wherever it lands — a bar of two-four
+    // here — so the music starts again two beats later and not before.
+    run(2, 3.5);
+    expect(judged, 'nor does the bar a rewind counts in').toEqual([]);
+
+    run(3.5, 12);
+    expect(judged.slice(0, 4), 'and then from the top, in order').toEqual([0, 1, 2, 3]);
+    session.stop();
+  });
+
+  /** The same, paused: a rewind while held moves where the run picks up from. */
+  it('withdraws the offer on a rewind made while paused', () => {
+    const { session, offers } = watched(horizonExercise());
+    session.start();
+    run(0, 5);
+    expect(offers).toEqual([true]);
+
+    session.pause();
+    session.rewind(1);
+    expect(offers, 'the offer belongs to the moment, not the run').toEqual([true, false]);
+    session.stop();
+  });
+
   it('stops on the spot when asked, reporting what was played', () => {
     let summary: SessionSummary | null = null;
     const s = new Session({

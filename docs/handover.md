@@ -138,15 +138,17 @@ things here are waiting on:
 
 **Pause and rewind**, the newest thing here:
 
-- **`offering` is not reset by a rewind.** Rewind from inside the offer window
-  back to the start and the button stays green, the reference tone stays at
-  half volume, and the offer can never be made again. Generated exercises only;
-  an imported part is committed to its whole length.
+- ~~`offering` is not reset by a rewind.~~ **Fixed in v2.12.1**, along with the
+  count-in question below. `unplay` withdraws the offer; the run's committed
+  length survives, since that was the player's answer and not a verdict.
 - **A stray metronome click can land after a pause**, since the scheduling
   horizon is already on the audio thread. The sounding note is cut; a click
-  cannot be.
-- **A rewind during the count-in** works but is untested against a piece whose
-  first bar is a pickup.
+  cannot be. Not fixable from this side.
+- ~~A rewind during the count-in is untested against a pickup.~~ **Answered in
+  v2.12.1**: a pickup is padded to a bar line by the importer, so no exercise
+  has a short first bar and there is no pickup case. Rewinding into the
+  count-in restarts it, and is now tested. `Session.canRewind` is dead code —
+  written to grey the buttons out at the top of a piece, never wired up.
 
 **The fingering hints:**
 
@@ -158,10 +160,9 @@ things here are waiting on:
   draw a slanted tail.
 - **"Every note" at Expert is a dense row of capsules.** Legible, but busy;
   worth the player's eye before it is called finished.
-- **A bar containing a note the instrument cannot play never reveals its
-  verdicts in paged reading.** `revealByBar` waits for every note in the bar,
-  and an unplayable note is never judged. Pre-existing and reachable from
-  imported parts.
+- ~~A bar containing a note the instrument cannot play never reveals its
+  verdicts in paged reading.~~ **Fixed in v2.12.1**: `revealByBar` waits only
+  on the notes that can be judged.
 
 **The bar picker** — still the least settled part of My Music:
 

@@ -222,14 +222,6 @@ export class Session {
   }
 
   /**
-   * Takes up the offer: another block of music, the same length as the one
-   * the player chose, clamped to what was generated.
-   *
-   * Safe to call at any time and more than once — a second press inside one
-   * offer window buys one block, not two, because the offer is withdrawn as
-   * soon as it is accepted.
-   */
-  /**
    * Ends the run here and reports what was played.
    *
    * What the Stop button does. Everything judged so far counts; the notes
@@ -240,6 +232,14 @@ export class Session {
     this.finish();
   }
 
+  /**
+   * Takes up the offer: another block of music, the same length as the one
+   * the player chose, clamped to what was generated.
+   *
+   * Safe to call at any time and more than once — a second press inside one
+   * offer window buys one block, not two, because the offer is withdrawn as
+   * soon as it is accepted.
+   */
   continuePlaying(): void {
     if (!this.offering || !this.canContinue) return;
     const { exercise } = this.options;
@@ -247,9 +247,7 @@ export class Session {
       exercise.totalBeats,
       this.playUntil + Math.max(exercise.chosenBeats, 1),
     );
-    this.offering = false;
-    this.synth.setVolume(1);
-    this.options.onOffer?.(false);
+    this.withdrawTheOffer();
   }
 
   timeForNote(index: number): number {
@@ -369,8 +367,8 @@ export class Session {
     this.transport.stop();
     this.synth.stop();
 
+    // `unplay` puts the tone back to full volume with the offer it withdraws.
     this.unplay(beat);
-    this.synth.setVolume(this.offering ? OFFER_VOLUME : 1);
     this.input.clearHistory();
 
     /*
@@ -398,6 +396,11 @@ export class Session {
    * so its verdict goes with it: leaving it would mean a bar could be scored
    * twice, and — since a rewind is what a player does when a passage is not
    * working — scored on the attempt they went back to disown.
+   *
+   * A standing offer goes with them, for the same reason: it was made about a
+   * moment the run is no longer in. Withdrawn unconditionally rather than only
+   * when the player lands behind the window, because `makeTheOffer` is checked
+   * every resolve and will simply put it straight back if they did not.
    */
   private unplay(beat: number): void {
     const { notes } = this.options.exercise;
@@ -412,6 +415,7 @@ export class Session {
       if (this.judgements[i].noteIndex >= first) this.judgements.splice(i, 1);
     }
 
+    this.withdrawTheOffer();
     this.options.onRewind?.(first);
   }
 
@@ -626,5 +630,26 @@ export class Session {
     this.offering = true;
     this.synth.setVolume(OFFER_VOLUME);
     this.options.onOffer?.(true);
+  }
+
+  /**
+   * Takes the standing offer back, leaving the question askable again.
+   *
+   * Both ways an offer ends come through here: accepted, or overtaken by a
+   * rewind out of the window it was made in. The three things it undoes are the
+   * three `makeTheOffer` does — the flag that keeps it to one asking, the
+   * reference tone dropped under it, and the button that turned green — and
+   * missing any one of them is what left a rewound run with a green Continue
+   * button, a half-volume tone, and no way to be offered anything ever again.
+   *
+   * What it does *not* undo is the player's answer. `playUntil` keeps whatever
+   * was bought: asking for more music is a decision about how long the run is,
+   * not a verdict on a bar, and a rewind disowns verdicts only.
+   */
+  private withdrawTheOffer(): void {
+    if (!this.offering) return;
+    this.offering = false;
+    this.synth.setVolume(1);
+    this.options.onOffer?.(false);
   }
 }
