@@ -321,17 +321,50 @@ in the order they will bite:
   design and deserves an assertion rather than a comment.
 - **`noticed` is sized once, in the constructor.** It has to be resized with the
   note list, and the hints re-measured, exactly as `retime` does for tempo.
-- **A narrow range in a distant key may have nothing in it.**
-  `generateExercise` throws *No playable notes in range for this instrument and
-  difficulty* when the range holds no usable scale tone. The stored range is
-  absolute written pitch, so it does not move with the key — but which of its
-  notes belong to the key does. A dial that can be turned into a throw is not
-  finished; either the detents skip such keys or the generator is asked first.
-- **The key tour.** If the material is touring keys, the tour's remaining
-  changes are the score's instruction and the dial is the player's — the same
-  split `changeTempo` draws. The player's rule says the dial wins from the
-  moment it is touched, which means dropping the tour's later changes. Worth
-  confirming with them before building, since it silently ends a tour.
+- **A key tour ends where the player names their own key.** Ruled on
+  2026-08-14. The tour's remaining changes are the score's instruction and the
+  dial is the player's — the same split `changeTempo` draws between a written
+  step and a turned one — and the dial wins from the moment it is touched. A
+  tour is a sequence, and re-entering one partway to a key the player did not
+  choose would be the app arguing with the dial.
+
+**A narrow range in a distant key needs no handling at all**, which was worth
+checking rather than assuming — the first draft of this section called it a
+hazard and it is not one:
+
+- **The candidate pool is chromatic and key-agnostic.** `candidatePitches`
+  walks every semitone of the range and keeps whatever the instrument can play;
+  it never looks at `fifths`. So *No playable notes in range* cannot be provoked
+  by a key at all. It fires only when the range itself holds no playable note,
+  which is a settings-screen condition that `sanitiseRange` already guards.
+- **The key is a preference, and it already degrades to accidentals.**
+  `chooseNext` filters the reachable notes for diatonic-or-chromatic as the
+  difficulty's `accidentalChance` asks, then falls straight back to the whole
+  reachable set when that filter empties — the same `prefer` discipline used for
+  the fingering rules, on the standing rule that *a duller exercise is better
+  than none*. A narrow range in a distant key therefore yields notes accidental
+  to the key, which is what the player proposed and what the code has always
+  done.
+
+What the range *does* still bear on is patterns, and it is the one thing here
+left to settle. A scale needs a root with two octaves of headroom inside the
+range, and which roots qualify changes with the key — so a dial turned far
+enough could leave a scale exercise unable to form its shape, at which point
+`patterned` goes false and the material falls back to free notes mid-run. That
+is a visible change of material rather than of key. It may also be the right
+answer, a scale in a new key being a different scale; it wants the player's eye
+before the dial is offered on pattern material.
+
+### Which material the dial applies to
+
+Free material — random notes and sight-reading — is the clear case, and the one
+the player had in mind. The others are not all the same:
+
+- **Themes ignore the range entirely** (they return before `candidatePitches` is
+  reached) but are stored as scale degrees and are *already* key-agnostic, so a
+  key change is the cheapest of all of them here.
+- **Patterns use the range** to decide which roots a shape fits from, which is
+  the fallback question above.
 
 ### Left for playing
 
