@@ -87,6 +87,82 @@ describe('the visual clock', () => {
     expect(t.visualBeat()).toBeCloseTo((1.0 + 0.1) / 0.5, 6);
   });
 
+  /**
+   * The sawtooth, and why it matters far away from here.
+   *
+   * Extrapolation runs at wall-clock rate from the last audio reading. If a
+   * frame lands further past that reading than the audio clock's next quantum
+   * takes it, the extrapolated beat is *ahead* of where the audio clock lands
+   * when it finally ticks — and re-anchoring to it steps the reported beat
+   * backwards by the overshoot. Only a few milliseconds, and invisible in
+   * anything that reads a position and draws it.
+   *
+   * It is not invisible in anything that keeps *state* off this number. The
+   * paged reader turns the page when the current bar reaches the bottom line
+   * and turns it back when the current bar is above the top one, so a beat that
+   * steps back across a bar line one frame after a page turn takes the page
+   * with it — reported by the player as the music flipping up towards the start
+   * before coming back. A bar line is exactly where a page turn happens, so the
+   * one moment the page is vulnerable is the one moment the beat is next to a
+   * boundary.
+   */
+  it('never steps backwards when the audio clock catches up in a lump', () => {
+    /*
+     * Measured in a browser before it was modelled here: the reported beat
+     * stepped backwards several times a minute, by up to 0.03 of a beat.
+     *
+     * `currentTime` does not advance smoothly. It can sit still for longer than
+     * a render quantum and then move by one quantum rather than by the wall time
+     * that has passed — the context updating in bursts, a busy main thread, a
+     * frame dropped between the tick and our noticing it. Extrapolation mean-
+     * while runs at wall-clock rate from the last reading, so it is *ahead*, and
+     * re-anchoring to the audio clock's own figure steps the beat back.
+     *
+     * A few milliseconds, and invisible in anything that reads a position and
+     * draws it. Not invisible in anything keeping *state* off this number: the
+     * paged reader turns the page forward when the current bar reaches the end
+     * of the page and back when it is behind the start, so a beat that steps
+     * back across a bar line one frame after a page turn takes the page with it.
+     * Reported by the player as the music flipping up towards the start before
+     * coming back, and a page turn happens on a bar line, which is exactly where
+     * a step of this size can cross one.
+     */
+    const t = transport();
+    const seen: number[] = [];
+
+    // A frame every 16ms; the audio clock stalls for three of them and then
+    // moves by a single 25ms quantum.
+    for (let frame = 0; frame <= 12; frame++) {
+      perfTime = frame * 16;
+      audioTime = perfTime < 64 ? 0 : Math.floor((perfTime - 64) / 25) * 0.025 + 0.025;
+      seen.push(t.visualBeat());
+    }
+
+    const back = seen.filter((beat, i) => i > 0 && beat < seen[i - 1]);
+    expect(back, `stepped backwards ${back.length} times: ${seen.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * The other half of the high-water mark, and the more dangerous one: it must
+   * not stand in the way of the display moving back when the *player* moves it.
+   * A mark left in place through a rewind would pin the notation at the far end
+   * of what had been played and never let go — a worse fault than the stutter it
+   * was put there to stop.
+   */
+  it('lets go of its high-water mark when the run is moved backwards', () => {
+    const t = transport();
+    audioTime = 4.0;
+    perfTime = 200;
+    expect(t.visualBeat()).toBeCloseTo(8, 6);
+
+    t.pause();
+    // Paused, the held position is the truth however far the display had run on.
+    expect(t.visualBeat()).toBeCloseTo(8, 6);
+
+    t.seekTo(2);
+    expect(t.visualBeat(), 'a rewind while paused moves the display with it').toBeCloseTo(2, 6);
+  });
+
   it('never goes backwards if the wall clock misbehaves', () => {
     const t = transport();
     audioTime = 1.0;

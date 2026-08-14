@@ -95,6 +95,12 @@ export class Transport {
   /** NaN so the first comparison always misses and anchors afresh. */
   private anchorAudioTime = Number.NaN;
   private anchorPerfTime = 0;
+  /**
+   * The furthest the smoothed position has reached, which it never goes back
+   * behind on its own. Dropped only where the transport genuinely moves the
+   * position backwards; see `visualBeat`.
+   */
+  private visualFloor = -Infinity;
 
   /**
    * Where the clock is standing still, or null while it is running.
@@ -165,12 +171,18 @@ export class Transport {
     const beat = this.currentBeat();
     this.stop();
     this.frozenBeat = beat;
+    // Held slightly behind wherever the display had extrapolated to, and the
+    // held position is the true one.
+    this.visualFloor = -Infinity;
   }
 
   /** Moves the frozen position, for a rewind made while paused. */
   seekTo(beat: number): void {
     if (this.frozenBeat === null) return;
     this.frozenBeat = beat;
+    // A rewind made while paused, which is the display moving backwards on
+    // purpose — the one thing the high-water mark must not stand in the way of.
+    this.visualFloor = -Infinity;
   }
 
   /**
@@ -221,19 +233,50 @@ export class Transport {
    * extrapolating forward is closer to the truth rather than further from it.
    *
    * Judging deliberately does not use this. Only the eye needs interpolation.
+   *
+   * **And it only ever goes forward.** `currentTime` does not advance smoothly:
+   * it can sit still for longer than a quantum and then move by one quantum
+   * rather than by the wall time that has passed. Extrapolation runs at wall
+   * rate meanwhile, so it ends up ahead, and re-anchoring to the audio clock's
+   * own figure steps the reported beat *backwards* — measured in a browser at
+   * several times a minute, by up to three hundredths of a beat.
+   *
+   * Too small to see as motion, and not too small to matter: anything keeping
+   * state off this number sees a position that has gone back. The paged reader
+   * turns the page back when the bar being played is behind the page's start,
+   * so a step back across a bar line in the frame after a page turn takes the
+   * page with it — the music flipping up towards the start and then returning,
+   * which is how the player reported it. A page turn happens on a bar line,
+   * which is exactly where a step this small can cross one.
+   *
+   * So the interpolated position is held at its high-water mark rather than
+   * allowed to retreat: it stalls for the few milliseconds the audio clock takes
+   * to catch up, and moves again after. Stalling is what this already does when
+   * the clock stops altogether, and it is the honest failure — the music has not
+   * gone backwards, so the display must not say it has. The mark is dropped
+   * wherever position genuinely moves backwards, which is the transport's own
+   * doing and never the clock's: starting, pausing and seeking, below.
    */
   visualBeat(): number {
     const audioTime = this.context.currentTime;
     const perfNow = performance.now() / 1000;
 
+    let beat: number;
     if (audioTime !== this.anchorAudioTime) {
       this.anchorAudioTime = audioTime;
       this.anchorPerfTime = perfNow;
-      return this.beatForTime(audioTime);
+      beat = this.beatForTime(audioTime);
+    } else {
+      const elapsed = Math.min(
+        Math.max(perfNow - this.anchorPerfTime, 0),
+        MAX_EXTRAPOLATION_SECONDS,
+      );
+      beat = this.beatForTime(audioTime + elapsed);
     }
 
-    const elapsed = Math.min(Math.max(perfNow - this.anchorPerfTime, 0), MAX_EXTRAPOLATION_SECONDS);
-    return this.beatForTime(audioTime + elapsed);
+    if (beat < this.visualFloor) return this.visualFloor;
+    this.visualFloor = beat;
+    return beat;
   }
 
   /**
@@ -247,6 +290,9 @@ export class Transport {
     // Starting is what un-freezes it: the origin below is re-anchored, so the
     // beat it was standing at means nothing from here on.
     this.frozenBeat = null;
+    // The position is about to be re-anchored, so how far the display had got
+    // under the old origin says nothing about where it may go under this one.
+    this.visualFloor = -Infinity;
     this.onWindow = onWindow;
     // A small offset gives the first scheduling pass room to run before the
     // origin passes, so the very first note is never late.

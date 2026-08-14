@@ -1521,6 +1521,53 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## The page that flipped back towards the start — v2.13.1
+
+Reported by the player against paged reading: *occasionally the bars on the
+screen flip up and down, before returning to where I am playing.* Occasional,
+and not tied to anything they did — no rewind, no change of tempo.
+
+**The smoothed clock could tick backwards, and the page kept state off it.**
+`visualBeat` anchors to `AudioContext.currentTime` and fills the gaps between
+its ticks from the wall clock, which is what stops the notation moving in
+staircase steps on a phone. But `currentTime` does not advance smoothly: it can
+sit still for longer than a render quantum and then move by one quantum rather
+than by the wall time that has passed. Extrapolation meanwhile runs at wall
+rate, so it ends up *ahead*, and re-anchoring to the audio clock's own figure
+steps the reported beat back.
+
+Measured in a browser before it was modelled: **four backwards steps in twenty
+seconds, up to three hundredths of a beat.** Far too small to see as motion, and
+that is exactly why it survived — nothing that merely reads a position and draws
+it can tell. The paged reader does not merely read it. It turns the page forward
+when the bar being played reaches the end of the page and back when that bar is
+behind the page's start, so a step back across a bar line in the frame after a
+turn takes the page with it. A turn happens *on* a bar line, which is the one
+place a step that small can cross one — the page was only ever vulnerable at the
+exact moment it had just moved.
+
+The fix is a high-water mark: the interpolated position is held rather than
+allowed to retreat, so it stalls for the few milliseconds the audio clock takes
+to catch up and moves again after. Stalling is what it already did when the
+clock stopped altogether, and it is the honest failure — the music has not gone
+backwards, so the display must not say it has.
+
+**The dangerous half is letting go of the mark**, and it wants more care than
+the mark itself. A mark left in place through a rewind would pin the notation at
+the far end of what had been played and never release it, which is a worse fault
+than the stutter. It is dropped wherever the transport genuinely moves the
+position backwards — `start`, `pause` and `seekTo` — which is the transport's own
+doing and never the clock's. Both halves are pinned by tests, and both tests were
+checked by breaking the code they guard.
+
+**Two wrong theories first, and both were killed by measurement rather than by
+reading.** That the beat map was non-monotonic across the tempo steps a stitched
+theme takes at its joins — checked over the whole compiled map of a real themes
+exercise, and it is monotonic to the last decimal. And a first model of the audio
+clock in a test that reproduced nothing, because it had `currentTime` lagging
+wall time evenly, which never overshoots. Only sampling a real browser frame by
+frame showed the step, and only then could the test be written to fail.
+
 ## Two things a rewind and a bar were waiting on for ever — v2.12.1
 
 Both were written down as inherited faults at the end of the last session and
