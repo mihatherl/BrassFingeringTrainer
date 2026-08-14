@@ -206,3 +206,31 @@ describe('a chosen range', () => {
     expect(sanitise({ ...DEFAULT_SETTINGS, range: 'wide' as never }).range).toBeNull();
   });
 });
+
+describe('the fingering setting, which used to be a switch', () => {
+  /*
+   * It was a boolean — "show fingerings for notes I get wrong" — and became
+   * three modes, because a fingering trainer is used in three frames of mind:
+   * reading something new with the answers in front of you, practising with a
+   * prompt where the trouble is, and playing it for real. Anyone updating the
+   * app has one of the two old answers stored, and neither may be lost.
+   */
+  it('reads an old switch as the mode it meant', () => {
+    const on = sanitise({ ...DEFAULT_SETTINGS, fingerings: undefined, fingeringHints: true } as never);
+    const off = sanitise({ ...DEFAULT_SETTINGS, fingerings: undefined, fingeringHints: false } as never);
+
+    expect(on.fingerings).toBe('trouble');
+    expect(off.fingerings).toBe('never');
+  });
+
+  it('keeps a mode that is already one of the three', () => {
+    expect(sanitise({ ...DEFAULT_SETTINGS, fingerings: 'always' }).fingerings).toBe('always');
+    expect(sanitise({ ...DEFAULT_SETTINGS, fingerings: 'never' }).fingerings).toBe('never');
+  });
+
+  it('falls back to prompting where the trouble is', () => {
+    // Nonsense in storage, or a settings file from before either existed.
+    const odd = sanitise({ ...DEFAULT_SETTINGS, fingerings: 'sometimes' } as never);
+    expect(odd.fingerings).toBe(DEFAULT_SETTINGS.fingerings);
+  });
+});

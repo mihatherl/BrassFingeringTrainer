@@ -19,6 +19,7 @@ import {
   REGISTERS,
   THEME_OPTIONS,
   DEFAULT_SETTINGS,
+  FINGERING_MODES,
   MAX_KEYS_IN_PLAY,
   constrainToEntitlements,
   sanitise,
@@ -618,14 +619,22 @@ export function SettingsScreen({
           </div>
         </div>
 
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={settings.fingeringHints}
-            onChange={(event) => update('fingeringHints', event.target.checked)}
-          />
-          <span>Show fingerings for notes I get wrong</span>
-        </label>
+        <div className="field">
+          <span className="field__label">Fingerings</span>
+          <div className="cards">
+            {FINGERING_MODES.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                className={`card ${settings.fingerings === choice.id ? 'is-selected' : ''}`}
+                onClick={() => update('fingerings', choice.id)}
+              >
+                <strong>{choice.name}</strong>
+                {choice.blurb && <span className="muted">{choice.blurb}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       </Panel>
 
       {/*

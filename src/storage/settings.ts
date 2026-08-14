@@ -15,6 +15,7 @@ import { DIFFICULTIES } from '../exercise/difficulty';
 import { MAJOR_KEYS } from '../domain/keys';
 import { TEMPO_RANGE } from '../domain/tempo';
 import { CONDUCTOR_STYLE_RANGE } from '../render/conductor';
+import type { FingeringMode } from '../exercise/hints';
 import type { ExerciseKind } from '../exercise/types';
 import type { PatternRegister } from '../exercise/generate';
 
@@ -129,10 +130,14 @@ export interface Settings {
   timingTolerance: number;
   weakNoteDrilling: boolean;
   /**
-   * Whether to print the fingering above notes the player keeps getting wrong.
-   * A prompt where the trouble is, not a fingering chart that happens to scroll.
+   * How much fingering is printed over the notes.
+   *
+   * Three answers rather than a switch, because a fingering trainer is used in
+   * three quite different frames of mind: reading something new with every
+   * fingering in front of you, practising with a prompt only where the trouble
+   * is, and playing it for real. `hints.ts` holds what "trouble" means.
    */
-  fingeringHints: boolean;
+  fingerings: FingeringMode;
   /**
    * How fast the music travels, in pixels per second.
    *
@@ -172,6 +177,20 @@ interface Choice<T> {
 export const PLAYBACK_MODES: ReadonlyArray<Choice<PlaybackMode>> = [
   { id: 'reference', name: 'Play the notes' },
   { id: 'off', name: 'Silent' },
+];
+
+export const FINGERING_MODES: ReadonlyArray<Choice<FingeringMode>> = [
+  {
+    id: 'always',
+    name: 'Every note',
+    blurb: 'Reading something new, with the answers in front of you.',
+  },
+  {
+    id: 'trouble',
+    name: 'Where I struggle',
+    blurb: 'A prompt on the notes that go wrong, and on those that went wrong before.',
+  },
+  { id: 'never', name: 'Never', blurb: 'Just the music.' },
 ];
 
 export const READING_MODES: ReadonlyArray<Choice<ReadingMode>> = [
@@ -219,10 +238,27 @@ export const DEFAULT_SETTINGS: Settings = {
   playbackMode: 'reference',
   timingTolerance: 1.5,
   weakNoteDrilling: true,
-  fingeringHints: true,
+  fingerings: 'trouble',
   scrollSpeed: 110,
   readingMode: 'scrolling',
 };
+
+/**
+ * What the three-way setting was before it was three-way.
+ *
+ * A stored `fingeringHints: true` is somebody who wanted prompting where the
+ * trouble was, which is what "Where I struggle" now means; `false` is Never.
+ * Read here rather than migrated on load, because `sanitise` already runs over
+ * everything that comes out of storage and a second place to know this would be
+ * a second place for it to go stale.
+ */
+function fingeringModeOf(settings: Settings & { fingeringHints?: boolean }): FingeringMode {
+  if (FINGERING_MODES.some((m) => m.id === settings.fingerings)) return settings.fingerings;
+  if (typeof settings.fingeringHints === 'boolean') {
+    return settings.fingeringHints ? 'trouble' : 'never';
+  }
+  return DEFAULT_SETTINGS.fingerings;
+}
 
 const STORAGE_KEY = 'brass-trainer:settings';
 
@@ -378,6 +414,7 @@ export function sanitise(settings: Settings): Settings {
     readingMode: READING_MODES.some((m) => m.id === settings.readingMode)
       ? settings.readingMode
       : DEFAULT_SETTINGS.readingMode,
+    fingerings: fingeringModeOf(settings),
     playbackMode: PLAYBACK_MODES.some((m) => m.id === settings.playbackMode)
       ? settings.playbackMode
       : DEFAULT_SETTINGS.playbackMode,

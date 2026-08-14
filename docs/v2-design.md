@@ -1369,6 +1369,58 @@ stave. Extents come from `headerExtent` and `fingeringHintY`, which are the
 numbers the drawing itself uses — the same "laid out rather than drawn" rule
 `layoutKeySignature` was written under.
 
+## What a fingering hint answers, and for how long — v2.11.0
+
+Worked through with the player on 2026-08-14, going over the whole rule set,
+since this is the fingering trainer and the hints are the thing it teaches
+with.
+
+**The trouble is filed under the written note, and it does not travel.** This
+is the ruling everything else hangs off, and it is a consequence of not having
+the microphone yet. With valve buttons alone the app sees which combination
+went down and nothing more: it cannot tell a player who chose the *wrong
+fingering* from one who chose the right fingering and *mispitched*. So it must
+not pretend to teach either, and what it can honestly see is whether a note on
+the page was recognised and answered. Trouble therefore attaches to the written
+note as it appears on the stave for this instrument and clef — not to the valve
+combination, which would be a claim about fingering, and not to the letter in
+other octaves. The player's own case: *I don't know what high B looks like, but
+I have no trouble with the B above middle C.* Two different reading problems;
+only one of them wants prompting.
+
+**Revisit when the microphone lands.** A wrong fingering and a right fingering
+mispitched are different faults with different answers, and only then can they
+be told apart.
+
+**Two of that note played right and the prompting stops.** The page quietens as
+the player improves, which is feedback in itself. It does not overturn the old
+"a hint that came and went would be worse than none" — this one goes away for a
+reason they can feel, and comes back if the note does.
+
+**Wrong valves prompt at once; a miss takes two.** They are not the same
+evidence. Wrong valves are a fingering reached for and missed. Nothing held at
+all is as likely to mean the player was lost, behind, or resting a lip, and
+answering that with a fingering is noise.
+
+**History needs four attempts, not two.** The stats gate is deliberately
+stricter than the generator's weak-note drilling, which still judges on two:
+drilling is invisible and being eager about it costs nothing, while a hint is
+an intervention printed on the page. One mistake in two attempts is not
+evidence, and the run itself now catches the immediate case on the first
+mistake.
+
+**Three modes, not a switch.** *Every note* is reading something new with the
+answers in front of you; *where I struggle* is the rule above; *never* is
+playing it for real. A fingering trainer is used in all three frames of mind,
+and the old boolean could only say two of them. A stored `true` reads as
+*where I struggle* and `false` as *never*, in `sanitise`, so nobody's setting
+is lost.
+
+Still true, and unchanged: nothing is printed over the far end of a tie or in
+the air a tempo mark owns, a hint needs time to be read before it can be
+printed, the note that just went wrong is exempt from that because it is being
+answered rather than read, and there is no cap on how many a page may carry.
+
 ## A rewind plays at the tempo on the dial — v2.10.1
 
 Found by the player taking a hymn back five bars at a time: the passage came

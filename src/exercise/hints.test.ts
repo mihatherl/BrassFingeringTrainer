@@ -4,7 +4,7 @@ import { maskOf } from '../domain/fingering';
 import { spellInKey } from '../domain/keys';
 import type { Duration } from '../domain/rhythm';
 import type { NoteStats } from '../storage/stats';
-import { fingeringHints, type Hints } from './hints';
+import { fingeringHints, type FingeringMode, type Hints } from './hints';
 import type { Exercise, NoteEvent } from './types';
 
 /**
@@ -106,6 +106,7 @@ describe('choosing which notes to hint', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     const hints = fingeringHints({
       exercise,
+      mode: 'trouble',
       stats: statsOf({ 67: STRUGGLING }),
       secondsBetween: at(SLOW),
     });
@@ -119,6 +120,7 @@ describe('choosing which notes to hint', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     const hints = fingeringHints({
       exercise,
+      mode: 'trouble',
       stats: statsOf({ 67: FLUENT, 69: FLUENT }),
       secondsBetween: at(SLOW),
     });
@@ -126,22 +128,40 @@ describe('choosing which notes to hint', () => {
     expect(printed(hints, exercise)).toEqual([]);
   });
 
-  it('waits for evidence before calling a note weak', () => {
-    // One miss is an accident. Hinting on it would put digits over half the
-    // page for anyone's first run.
+  it('waits for real evidence before opening a run with one', () => {
+    /*
+     * Four attempts, where the generator's weak-note drilling asks only two.
+     * Drilling is invisible and being eager about it costs nothing; a hint is
+     * printed on the page, and one mistake in two attempts is not yet evidence.
+     * The run itself is what catches the immediate case now, on the first
+     * mistake — see the mistakes below.
+     */
     const exercise = exerciseOf([FOUR_CROTCHETS]);
-    const hints = fingeringHints({
+    const thin = fingeringHints({
       exercise,
-      stats: statsOf({ 67: [1, 0] }),
+      mode: 'trouble',
+      stats: statsOf({ 67: [3, 0] }),
       secondsBetween: at(SLOW),
     });
+    expect(printed(thin, exercise)).toEqual([]);
 
-    expect(printed(hints, exercise)).toEqual([]);
+    const enough = fingeringHints({
+      exercise,
+      mode: 'trouble',
+      stats: statsOf({ 67: [4, 1] }),
+      secondsBetween: at(SLOW),
+    });
+    expect(printed(enough, exercise)).toEqual([0]);
   });
 
   it('says nothing about a note that has never been played', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS]);
-    const hints = fingeringHints({ exercise, stats: new Map(), secondsBetween: at(SLOW) });
+    const hints = fingeringHints({
+      exercise,
+      stats: new Map(),
+      mode: 'trouble',
+      secondsBetween: at(SLOW),
+    });
     expect(printed(hints, exercise)).toEqual([]);
   });
 
@@ -155,6 +175,7 @@ describe('choosing which notes to hint', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS, FOUR_CROTCHETS]);
     const hints = fingeringHints({
       exercise,
+      mode: 'trouble',
       stats: statsOf({ 67: STRUGGLING, 69: STRUGGLING, 71: STRUGGLING, 72: STRUGGLING }),
       secondsBetween: at(SLOW),
     });
@@ -170,6 +191,7 @@ describe('leaving time to read one', () => {
     const exercise = exerciseOf([new Array(8).fill([67, 'eighth'] as [number, Duration['value']])]);
     const hints = fingeringHints({
       exercise,
+      mode: 'trouble',
       stats: statsOf({ 67: STRUGGLING }),
       secondsBetween: at(SLOW),
     });
@@ -183,8 +205,11 @@ describe('leaving time to read one', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     const stats = statsOf({ 67: STRUGGLING });
 
-    expect(printed(fingeringHints({ exercise, stats, secondsBetween: at(SLOW) }), exercise)).toEqual([0]);
-    expect(printed(fingeringHints({ exercise, stats, secondsBetween: at(FAST) }), exercise)).toEqual([]);
+    const atSpeed = (secondsPerBeat: number) =>
+      fingeringHints({ exercise, stats, mode: 'trouble', secondsBetween: at(secondsPerBeat) });
+
+    expect(printed(atSpeed(SLOW), exercise)).toEqual([0]);
+    expect(printed(atSpeed(FAST), exercise)).toEqual([]);
   });
 
   it('measures the room to the next note, not the note itself', () => {
@@ -207,6 +232,7 @@ describe('leaving time to read one', () => {
 
     const hints = fingeringHints({
       exercise: crowded,
+      mode: 'trouble',
       stats: statsOf({ 67: STRUGGLING }),
       secondsBetween: at(SLOW),
     });
@@ -222,6 +248,7 @@ describe('leaving time to read one', () => {
     let secondsPerBeat = FAST;
     const hints = fingeringHints({
       exercise,
+      mode: 'trouble',
       stats: statsOf({ 67: STRUGGLING }),
       secondsBetween: (from, to) => (to - from) * secondsPerBeat,
     });
@@ -239,10 +266,10 @@ describe('answering a mistake as it happens', () => {
 
   it('answers the note that went wrong, where it stands', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS]);
-    const hints = fingeringHints({ exercise, stats: noHistory(), secondsBetween: at(SLOW) });
+    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'trouble', secondsBetween: at(SLOW) });
 
     expect(hints.for(1)).toBeUndefined();
-    hints.wentWrong(1);
+    hints.judged(1, 'wrong');
     expect(hints.for(1)).toBe('1-2');
   });
 
@@ -255,9 +282,9 @@ describe('answering a mistake as it happens', () => {
      * list of recent notes was doing badly.
      */
     const exercise = exerciseOf([new Array(8).fill([67, 'eighth'] as [number, Duration['value']])]);
-    const hints = fingeringHints({ exercise, stats: noHistory(), secondsBetween: at(SLOW) });
+    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'trouble', secondsBetween: at(SLOW) });
 
-    hints.wentWrong(3);
+    hints.judged(3, 'wrong');
     expect(hints.for(3)).toBe('1-2');
     // And only that one: the rest of the run is still unreadable at this speed.
     expect(printed(hints, exercise)).toEqual([3]);
@@ -269,9 +296,9 @@ describe('answering a mistake as it happens', () => {
       [[67, 'quarter'], [69, 'quarter'], [67, 'quarter'], [72, 'quarter']],
       [[67, 'quarter'], [69, 'quarter'], [71, 'quarter'], [67, 'quarter']],
     ]);
-    const hints = fingeringHints({ exercise, stats: noHistory(), secondsBetween: at(SLOW) });
+    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'trouble', secondsBetween: at(SLOW) });
 
-    hints.wentWrong(2);
+    hints.judged(2, 'wrong');
 
     // Not the G before it — that one went by, and a hint appearing over music
     // already read is noise on the paged screen, where it stays on the page.
@@ -282,9 +309,9 @@ describe('answering a mistake as it happens', () => {
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     exercise.notes[0].tiedToNext = true;
     exercise.notes[1].writtenMidi = exercise.notes[0].writtenMidi;
-    const hints = fingeringHints({ exercise, stats: noHistory(), secondsBetween: at(SLOW) });
+    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'trouble', secondsBetween: at(SLOW) });
 
-    hints.wentWrong(0);
+    hints.judged(0, 'wrong');
 
     // The head is answered; the continuation asked nothing of the player and a
     // fingering over it would be an instruction to move during a tied note.
@@ -297,9 +324,144 @@ describe('answering a mistake as it happens', () => {
     // mark is the one the player cannot do without.
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     exercise.tempo = [{ kind: 'tempo', atBeat: 2, bpm: 96 }];
-    const hints = fingeringHints({ exercise, stats: noHistory(), secondsBetween: at(SLOW) });
+    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'trouble', secondsBetween: at(SLOW) });
 
-    hints.wentWrong(2);
+    hints.judged(2, 'wrong');
     expect(hints.for(2)).toBeUndefined();
+  });
+});
+
+describe('what a mistake is worth, and for how long', () => {
+  const noHistory = () => new Map<number, { attempts: number; correct: number }>();
+
+  /** Eight of the same note, so one pitch can be watched across a run. */
+  function eightOfOne(): Exercise {
+    return exerciseOf([
+      [[67, 'quarter'], [67, 'quarter'], [67, 'quarter'], [67, 'quarter']],
+      [[67, 'quarter'], [67, 'quarter'], [67, 'quarter'], [67, 'quarter']],
+    ]);
+  }
+
+  function hintsFor(exercise: Exercise, mode: FingeringMode = 'trouble'): Hints {
+    return fingeringHints({ exercise, stats: noHistory(), mode, secondsBetween: at(SLOW) });
+  }
+
+  it('stops prompting after two of that note played right', () => {
+    /*
+     * The page quietens as the player improves, which is feedback in itself.
+     * It does not violate the old "a hint that came and went would be worse
+     * than none": this one goes away for a reason they can feel.
+     */
+    const exercise = eightOfOne();
+    const hints = hintsFor(exercise);
+
+    hints.judged(0, 'wrong');
+    expect(printed(hints, exercise)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+
+    hints.judged(1, 'correct');
+    expect(printed(hints, exercise), 'one right is not yet fluency').toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7,
+    ]);
+
+    hints.judged(2, 'correct');
+    // Only the note that actually went wrong keeps its answer; it is a record
+    // of something that happened rather than a standing prompt.
+    expect(printed(hints, exercise)).toEqual([0]);
+  });
+
+  it('picks the prompting up again if it goes wrong after that', () => {
+    const exercise = eightOfOne();
+    const hints = hintsFor(exercise);
+
+    hints.judged(0, 'wrong');
+    hints.judged(1, 'correct');
+    hints.judged(2, 'correct');
+    hints.judged(5, 'wrong');
+
+    // From the fresh mistake, not from the old one: what is behind the player
+    // is not worth lighting up.
+    expect(printed(hints, exercise)).toEqual([0, 5, 6, 7]);
+  });
+
+  it('takes two misses before treating a pitch as trouble', () => {
+    /*
+     * Wrong valves are a fingering reached for and missed. Nothing held at all
+     * is as likely to mean the player was lost, or behind, or resting a lip —
+     * so it takes two before the page starts answering it.
+     */
+    const exercise = eightOfOne();
+    const hints = hintsFor(exercise);
+
+    hints.judged(0, 'missed');
+    expect(printed(hints, exercise)).toEqual([]);
+
+    hints.judged(1, 'missed');
+    expect(printed(hints, exercise)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('does not let a miss count towards fluency', () => {
+    const exercise = eightOfOne();
+    const hints = hintsFor(exercise);
+
+    hints.judged(0, 'wrong');
+    hints.judged(1, 'correct');
+    hints.judged(2, 'missed');
+    hints.judged(3, 'correct');
+
+    // Right, missed, right is not two in a row, so the prompting stands.
+    expect(printed(hints, exercise)).toContain(7);
+  });
+});
+
+describe('the three modes', () => {
+  const noHistory = () => new Map<number, { attempts: number; correct: number }>();
+
+  it('prints every fingering when asked to, trouble or not', () => {
+    // Reading something new, with the answers in front of you.
+    const exercise = exerciseOf([FOUR_CROTCHETS]);
+    const hints = fingeringHints({
+      exercise,
+      stats: noHistory(),
+      mode: 'always',
+      secondsBetween: at(SLOW),
+    });
+
+    expect(printed(hints, exercise)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('still leaves a run alone in that mode, and the far end of a tie', () => {
+    /*
+     * "Every note" is not "every note whatever the consequence": a hint nobody
+     * can read is noise wherever it came from, and a tie asks nothing.
+     *
+     * The first note here is tied to the second, and that is the one hint on
+     * the page — the tie buys its head every beat it is held for, which is the
+     * reading time none of the loose quavers has.
+     */
+    const exercise = exerciseOf([new Array(8).fill([67, 'eighth'] as [number, Duration['value']])]);
+    exercise.notes[0].tiedToNext = true;
+    const hints = fingeringHints({
+      exercise,
+      stats: noHistory(),
+      mode: 'always',
+      secondsBetween: at(SLOW),
+    });
+
+    expect(printed(hints, exercise)).toEqual([0]);
+  });
+
+  it('prints nothing at all when asked for nothing, whatever happens', () => {
+    const exercise = exerciseOf([FOUR_CROTCHETS]);
+    const hints = fingeringHints({
+      exercise,
+      stats: statsOf({ 67: STRUGGLING, 69: STRUGGLING }),
+      mode: 'never',
+      secondsBetween: at(SLOW),
+    });
+
+    hints.judged(0, 'wrong');
+    hints.judged(1, 'missed');
+    hints.judged(2, 'missed');
+    expect(printed(hints, exercise)).toEqual([]);
   });
 });

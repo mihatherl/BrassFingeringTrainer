@@ -180,13 +180,14 @@ export function PlayScreen({
         report();
 
         /*
-         * A mistake is answered on the note, immediately: the fingering appears
-         * over the note that went wrong and over every later note of that
-         * pitch. This is the whole reason the hints stopped being settled once
+         * Every verdict, not only the bad ones: a mistake is answered on the
+         * note immediately, and two right in a row take the prompting away
+         * again. This is the whole reason the hints stopped being settled once
          * from stored history — an answer that arrives next session is not
-         * teaching anybody anything.
+         * teaching anybody anything, and a prompt that never stops is not
+         * either.
          */
-        if (judgement.verdict !== 'correct') hintsRef.current?.wentWrong(judgement.noteIndex);
+        hintsRef.current?.judged(judgement.noteIndex, judgement.verdict);
       },
       /*
        * A rewind takes its bars back out of the score.
@@ -230,13 +231,12 @@ export function PlayScreen({
      * has is answered by the transport, which is the one thing that knows —
      * rather than by dividing the tempo here and hoping the two agree.
      */
-    hintsRef.current = settings.fingeringHints
-      ? fingeringHints({
-          exercise,
-          stats: loadStats(exercise.instrumentId, exercise.clef),
-          secondsBetween: (from, to) => session.transport.secondsBetween(from, to),
-        })
-      : null;
+    hintsRef.current = fingeringHints({
+      exercise,
+      stats: loadStats(exercise.instrumentId, exercise.clef),
+      mode: settings.fingerings,
+      secondsBetween: (from, to) => session.transport.secondsBetween(from, to),
+    });
 
     const renderer = new StaveRenderer({
       canvas,
