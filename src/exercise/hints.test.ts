@@ -184,10 +184,16 @@ describe('choosing which notes to hint', () => {
   });
 });
 
-describe('leaving time to read one', () => {
-  it('skips a note inside a run', () => {
-    // Eight quavers to the bar at 80: a hint arrives and is gone in under the
-    // time it takes to read it and move, so the player is already committed.
+describe('how much room a hint needs', () => {
+  it('gives a note in a run the hint it has earned', () => {
+    /*
+     * There used to be a rule that a note with less than a fifth of a second
+     * before the next one was past helping, and it withheld hints from fast
+     * passages — where a struggling player is most likely to be lost. It was
+     * also measuring the wrong thing: the strike line sits near the left of the
+     * display, so a hint is on screen and readable for seconds before its note
+     * is played. Whether it *fits* is a question for the drawing.
+     */
     const exercise = exerciseOf([new Array(8).fill([67, 'eighth'] as [number, Duration['value']])]);
     const hints = fingeringHints({
       exercise,
@@ -196,19 +202,21 @@ describe('leaving time to read one', () => {
       secondsBetween: at(SLOW),
     });
 
-    expect(printed(hints, exercise)).toEqual([]);
+    expect(printed(hints, exercise)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
   });
 
-  it('judges by the clock rather than the note value', () => {
+  it('judges by the clock rather than the note value, printing everything', () => {
     // The same crotchet: worth hinting at 80, useless at 200. A crotchet at
     // 200bpm is shorter than a quaver at 60.
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     const stats = statsOf({ 67: STRUGGLING });
 
     const atSpeed = (secondsPerBeat: number) =>
-      fingeringHints({ exercise, stats, mode: 'trouble', secondsBetween: at(secondsPerBeat) });
+      fingeringHints({ exercise, stats, mode: 'always', secondsBetween: at(secondsPerBeat) });
 
-    expect(printed(atSpeed(SLOW), exercise)).toEqual([0]);
+    // Every note at 80; nothing at all at 200, where a page of digits over
+    // music nothing is wrong with would help nobody.
+    expect(printed(atSpeed(SLOW), exercise)).toEqual([0, 1, 2, 3]);
     expect(printed(atSpeed(FAST), exercise)).toEqual([]);
   });
 
@@ -232,7 +240,7 @@ describe('leaving time to read one', () => {
 
     const hints = fingeringHints({
       exercise: crowded,
-      mode: 'trouble',
+      mode: 'always',
       stats: statsOf({ 67: STRUGGLING }),
       secondsBetween: at(SLOW),
     });
@@ -241,14 +249,14 @@ describe('leaving time to read one', () => {
   });
 
   it('measures again when the player changes the tempo', () => {
-    // The slider on the play screen is a tempo the hints have to follow: a note
-    // with no time to read at 200 has plenty at 80, and slowing down is exactly
-    // what a player does when they want the help.
+    // The dial on the play screen is a tempo the hints have to follow: a note
+    // with no room at 200 has plenty at 80, and slowing down is exactly what a
+    // player does when they want the help.
     const exercise = exerciseOf([FOUR_CROTCHETS]);
     let secondsPerBeat = FAST;
     const hints = fingeringHints({
       exercise,
-      mode: 'trouble',
+      mode: 'always',
       stats: statsOf({ 67: STRUGGLING }),
       secondsBetween: (from, to) => (to - from) * secondsPerBeat,
     });
@@ -273,20 +281,18 @@ describe('answering a mistake as it happens', () => {
     expect(hints.for(1)).toBe('1-2');
   });
 
-  it('answers it even where there was no time to read one', () => {
+  it('answers a note in a run even where nothing else is being printed', () => {
     /*
-     * The exemption that makes this instructional rather than decorative. The
-     * reading rule asks whether a hint arrives in time to be *used*; this note
-     * is behind the player and nothing is going to be played to it. What it is
-     * doing is telling them what they should have held — which is the job the
-     * list of recent notes was doing badly.
+     * The exemption that makes this instructional rather than decorative, and
+     * the one place it still shows: *every note* leaves a fast run alone, but a
+     * note that has just gone wrong is not being read for — it is being told
+     * what it should have been.
      */
     const exercise = exerciseOf([new Array(8).fill([67, 'eighth'] as [number, Duration['value']])]);
-    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'trouble', secondsBetween: at(SLOW) });
+    const hints = fingeringHints({ exercise, stats: noHistory(), mode: 'always', secondsBetween: at(SLOW) });
 
+    expect(printed(hints, exercise)).toEqual([]);
     hints.judged(3, 'wrong');
-    expect(hints.for(3)).toBe('1-2');
-    // And only that one: the rest of the run is still unreadable at this speed.
     expect(printed(hints, exercise)).toEqual([3]);
   });
 

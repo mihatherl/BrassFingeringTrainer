@@ -40,20 +40,27 @@
  * note is nothing held at all, which is as likely to mean the player was lost,
  * or behind, or resting a lip — so it takes two before it prompts.
  *
- * **There must be time to use it.** Reading a hint, deciding, and moving takes
- * roughly a fifth of a second before anything else happens, so a note that has
- * come and gone in that time cannot be helped by one. That is a question about
- * seconds rather than note values: a crotchet at 200bpm is shorter than a
- * quaver at 60. Hence the tempo, and hence `retime`, since the player can
- * change it mid-run. The note that just went wrong is exempt: it is behind
- * them, nothing is being read in time for it, and what it is doing is telling
- * them what they should have held.
+ * **A note in a run still gets its hint, if it has earned one.** There used to
+ * be a rule that a note with less than a fifth of a second before the next one
+ * was past helping, and it withheld hints from fast passages — which is where a
+ * struggling player is most likely to be lost. The rule was also measuring the
+ * wrong thing. It measured how long the *note* lasts, but the strike line sits
+ * near the left of the display and the paged screen shows the whole page: a
+ * hint is on screen, and readable, for seconds before its note is played. What
+ * a run really costs is the ability to *act* on one mid-flight, and a hint you
+ * could not act on this time is still the answer to a mistake you just made and
+ * still there on the way round again.
+ *
+ * So in *where I struggle*, a hint prints wherever it physically fits, and
+ * whether it fits is decided later when the layout is known; see
+ * `drawFingeringHint`. In *every note* the timing rule stays, since that mode
+ * is printing over music nothing is wrong with and a run of semiquavers under a
+ * wall of digits helps nobody — hence `retime`, since the player can change the
+ * tempo mid-run.
  *
  * **There is no cap on how many.** There was one — at most one a bar — and the
  * player asked for it gone: fingerings are what this app teaches, and a run
- * that has earned eight of them should be given eight. What limits them is
- * whether there is time to read one and whether it physically fits, which is
- * decided later when the layout is known; see `drawFingeringHint`.
+ * that has earned eight of them should be given eight.
  */
 
 import { formatMask } from '../domain/fingering';
@@ -62,11 +69,11 @@ import { isTieContinuation, nextSoundedIndex, tiedBeats } from './ties';
 import type { Exercise } from './types';
 
 /**
- * Least time a note may have before a hint over it is no use.
+ * Least time a note may have before *every note* mode leaves it alone.
  *
  * A fifth of a second is roughly what reading a note and moving to it costs,
- * which is also the figure the timing tolerance is built around; a hint has to
- * be readable *before* that. Half a second leaves something in hand.
+ * which is also the figure the timing tolerance is built around; half a second
+ * leaves something in hand. Only that mode consults it — see above.
  */
 const MIN_SECONDS_TO_READ = 0.45;
 
@@ -170,7 +177,7 @@ export function fingeringHints(options: HintOptions): Hints {
     (note, index) => !isTieContinuation(notes, index) && !marked.has(note.startBeat),
   );
 
-  /** Of those, the ones with time to be read before they have to be played. */
+  /** Of those, the ones long enough for *every note* mode to bother with. */
   let readable = printable.slice();
 
   const retime = () => {
@@ -213,13 +220,11 @@ export function fingeringHints(options: HintOptions): Hints {
 
   return {
     for(noteIndex) {
-      if (!printable[noteIndex]) return undefined;
-      // The one thing that outranks having time to read it: the note that just
-      // went wrong is not being read for, it is being answered.
+      if (mode === 'never' || !printable[noteIndex]) return undefined;
+      // Answered outranks everything: this note is not being read for, it is
+      // being told what it should have been.
       if (answered.has(noteIndex)) return fingering(noteIndex);
-      if (mode === 'never') return undefined;
-      if (!readable[noteIndex]) return undefined;
-      if (mode === 'always') return fingering(noteIndex);
+      if (mode === 'always') return readable[noteIndex] ? fingering(noteIndex) : undefined;
 
       const known = trouble.get(notes[noteIndex].writtenMidi);
       if (!known?.prompting || noteIndex < known.from) return undefined;

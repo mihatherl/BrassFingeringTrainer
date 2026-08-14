@@ -1417,9 +1417,40 @@ and the old boolean could only say two of them. A stored `true` reads as
 is lost.
 
 Still true, and unchanged: nothing is printed over the far end of a tie or in
-the air a tempo mark owns, a hint needs time to be read before it can be
-printed, the note that just went wrong is exempt from that because it is being
-answered rather than read, and there is no cap on how many a page may carry.
+the air a tempo mark owns, and there is no cap on how many a page may carry.
+
+### The timing rule was measuring the wrong thing — v2.12.0
+
+The last of the six, and it turned into a correction rather than the feature it
+looked like. The complaint was that **fast passages get no hints at all** —
+withheld precisely where a struggling player is most likely to be lost — and
+the proposal was to move the hint back to a note with room, the fingering being
+something that has to be in the hand before a run starts.
+
+Looking at what the rule actually measured settled it differently. It compared
+the gap to the next note against a fifth of a second, on the grounds that a
+hint arriving later than that cannot be read in time. But **the strike line
+sits near the left of the display**: notes scroll in from the right and are on
+screen, hint and all, for seconds before they are played, and the paged screen
+shows the whole page at once. Reading time was never the scarce thing. What a
+run really costs is the ability to *act* on a hint mid-flight — and a hint you
+could not act on this time is still the answer to the mistake you just made,
+and still there on the way round again.
+
+So the rule now belongs to one mode only:
+
+- **Where I struggle** prints wherever a hint physically fits. Whether it fits
+  is a question for the drawing, which already refuses one wider than the gap
+  to the next note — two adjacent capsules may touch but cannot overlap.
+- **Every note** keeps the timing rule, because that mode prints over music
+  nothing is wrong with, and a run of semiquavers under a wall of digits helps
+  nobody.
+
+The reach-back was not built. With the timing rule gone from the mode that
+wanted it, the case it addressed is a passage dense enough that the capsule
+will not fit at all — and a callout hanging over an earlier note with its tail
+crossing a beam to land in a cluster of semiquavers is a worse answer to that
+than silence.
 
 ## A rewind plays at the tempo on the dial — v2.10.1
 
