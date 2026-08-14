@@ -8,6 +8,7 @@
  */
 
 import { isUnplayable, type Exercise } from '../exercise/types';
+import { barLineAtOrAfter, rekeyFrom, type Rekeyed } from '../exercise/rekey';
 import { isTieContinuation, tiedBeats } from '../exercise/ties';
 import { BrassSynth } from '../audio/synth';
 import type { Voice } from '../audio/sampler';
@@ -90,6 +91,15 @@ export interface SessionOptions {
    * answered, only that `continuePlaying` is called before the music ends.
    */
   onOffer?: (offering: boolean) => void;
+  /**
+   * Raised when the player has changed key mid-run, with what the splice did.
+   *
+   * Everything holding a copy of the paper by note index has to let go of it
+   * from `fromNoteIndex` on — the colours on the screen, the hints — for the
+   * same reason `onRewind` exists. The difference is that a rewind puts notes
+   * back to unplayed and this replaces them outright.
+   */
+  onKeyChange?: (change: Rekeyed) => void;
 }
 
 /**
@@ -144,6 +154,20 @@ const OFFER_VOLUME = 0.5;
  * `VALVED_BEATS` in `generate.ts`.
  */
 const GRACE_BEATS = 4;
+
+/**
+ * How much warning a player gets of a key change they asked for, in bars.
+ *
+ * A key signature has to be read before the bar it governs is played, and one
+ * bar is the least that leaves time to take it in while playing the bar before.
+ * The change then lands on the *next* bar line past that, so the warning is
+ * between one and two bars depending on where in a bar the dial was let go.
+ *
+ * It is a floor on top of the scheduling horizon rather than instead of it:
+ * the horizon is what makes the change *possible* — nothing already handed to
+ * the audio thread can be rewritten — and this is what makes it *readable*.
+ */
+const KEY_CHANGE_LEAD_BARS = 1;
 
 
 export class Session {
@@ -344,6 +368,68 @@ export class Session {
       return;
     }
     this.restartAt(beat);
+  }
+
+  /**
+   * The bar line a key change asked for now would land on.
+   *
+   * Past the scheduling horizon so nothing already sounding can be rewritten,
+   * then a bar of reading room, then up to the next bar line. Public so the
+   * screen can show the player where the change is going to happen before they
+   * let go of the dial.
+   *
+   * During the count-in this is beat 0 — the whole exercise. Turning the dial
+   * before playing a note changes the key of the lot, which is what a player
+   * doing it at that moment means by it.
+   */
+  get keyChangeBeat(): number {
+    const { exercise } = this.options;
+    const here = this.transport.pausedAt ?? this.transport.currentBeat();
+    const ahead = Math.max(here, this.transport.committedBeat);
+    const { barBeats } = metreAt(exercise.metres, Math.max(0, ahead));
+    return barLineAtOrAfter(exercise, ahead + KEY_CHANGE_LEAD_BARS * barBeats);
+  }
+
+  /**
+   * Rewrites the paper from `keyChangeBeat` on, in the key of `fresh`.
+   *
+   * `fresh` is a whole exercise the generator would have made from the same
+   * settings in the new key; only its tail is taken. Nothing is generated here
+   * — the session knows when a change may land and nothing about how music is
+   * written.
+   *
+   * **Why the note indices below the splice are safe.** The splice point is
+   * derived from the transport's own committed beat in the line above, so every
+   * note at or past it is one the audio thread has never been told about and the
+   * player has certainly not been judged on. `judgements`, `noticed` and the
+   * screen's verdicts are all indexed into `notes`, and every entry any of them
+   * holds names a note below the splice. Nothing has to be re-indexed; only the
+   * space above the splice is new, and it is new in every sense.
+   *
+   * Returns null and changes nothing where the key is already what was asked
+   * for, where the change would land past the end of the paper, or where the
+   * material is not the kind that can be re-keyed at all — see `canRekey`.
+   */
+  changeKey(fresh: Exercise): Rekeyed | null {
+    if (this.finished) return null;
+
+    const spliced = rekeyFrom(this.options.exercise, fresh, this.keyChangeBeat);
+    if (!spliced) return null;
+
+    /*
+     * The confirmations, resized with the paper.
+     *
+     * A note is only confirmed once, and the array saying so is as long as the
+     * note list — which has just changed length, since a bar of quavers in one
+     * key may be a bar of crotchets in another. The tail is unconfirmed by
+     * definition: it is music nobody has seen yet.
+     */
+    const { notes } = this.options.exercise;
+    this.noticed.length = notes.length;
+    for (let i = spliced.fromNoteIndex; i < this.noticed.length; i++) this.noticed[i] = false;
+
+    this.options.onKeyChange?.(spliced);
+    return spliced;
   }
 
   /**

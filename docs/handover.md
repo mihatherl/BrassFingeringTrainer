@@ -141,8 +141,15 @@ things here are waiting on:
 - ~~`offering` is not reset by a rewind.~~ **Fixed in v2.12.1**, along with the
   count-in question below. `unplay` withdraws the offer; the run's committed
   length survives, since that was the player's answer and not a verdict.
-- **The key belongs on a dial too** — asked for on 2026-08-14 and written up in
-  `v2-design.md` as *The key on a dial*, item 10 of the direction. Not built.
+- ~~The key belongs on a dial too.~~ **Built in v2.13.0** — see *The key on a
+  dial* in `v2-design.md`. One thing is left open by it, and it is the first
+  thing to look at if the notation looks wrong at a change of key: **a key
+  signature change on a scrolling line still collides with the music at some
+  joins.** Room is now reserved where none was, which is a strict improvement
+  and fixes the plain cases, but not every one. Pre-existing — a key tour
+  collides identically with the dial untouched — and paged reading is unaffected.
+  Finishing it wants measured glyph extents on a fixed seed, the way the range
+  stave's crop was settled, rather than screenshots of random exercises.
 - **A stray metronome click can land after a pause**, since the scheduling
   horizon is already on the audio thread. The sounding note is cut; a click
   cannot be. Not fixable from this side.

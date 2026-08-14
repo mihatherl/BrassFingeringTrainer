@@ -254,7 +254,7 @@ same format and nothing in the app changes.
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
 
-## The key on a dial — not built
+## The key on a dial — built, v2.13.0
 
 Asked for by the player on 2026-08-14: the key signature on a dial beside the
 stave, turned mid-run the way the tempo is. The third dial in the app and the
@@ -365,6 +365,36 @@ the player had in mind. The others are not all the same:
   key change is the cheapest of all of them here.
 - **Patterns use the range** to decide which roots a shape fits from, which is
   the fallback question above.
+
+### What building it turned up
+
+**A key change had never had room made for it on a scrolling line.** Found by
+driving the app, not by reading the code. Scrolling music is spaced by how fast
+it should travel — a beat is always the same distance — so the double bar and the
+new signature were drawn straight over the first bar of the key they announced.
+The engraved mode has had an answer since it was written (`signatureRoomAt` feeds
+`engraveSpacing`); the scrolling map simply had nowhere to put one.
+
+**It is pre-existing and was reachable before this feature.** Confirmed by
+running a key tour with the dial untouched, which collides identically. The dial
+did not cause it; it made it happen every time instead of only in a tour.
+
+`xAt` now adds the apparatus's width as a step at each change. What that costs is
+one jump, and it lands behind the player: the origin takes the step at the same
+instant the music does, so notes ahead of the strike line never move and the bar
+just played slides left by the width of the signature. Music behind the strike
+line is music already read — the one part of the display that can afford to move,
+and cheaper than easing the step in over the preceding beat, which is the surge
+uniform spacing exists to prevent.
+
+**It is better and it is not finished.** Driving it again shows the apparatus
+clear of the notes at some changes and still tight or overlapping at others,
+depending on what the generator put either side of the join — an accidental on the
+downbeat note is one known contributor and has room of its own now, but it is not
+the only one. Diagnosing the rest wants what the range-stave crop got: measured
+glyph extents on a fixed seed, rather than screenshots of randomly seeded runs.
+**The paged reading mode is unaffected throughout** — it engraves properly and
+always did.
 
 ### Left for playing
 

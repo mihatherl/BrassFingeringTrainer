@@ -2,16 +2,20 @@
  * Turning a dial with a finger: the gesture, without any opinion about what is
  * being turned or how it looks.
  *
- * Two controls in this app are dials — the range picker's notes and the play
- * screen's tempo — and they share nothing but this. What they do share is the
- * whole of the feel, which is worth having in one place: a finger travelling a
- * fixed distance to each detent, a click and a tap of the hand as each one
- * passes, resistance rather than silence at the ends, and a keyboard and a
- * mouse wheel for anyone not using a finger at all.
+ * Three controls in this app are dials — the range picker's notes, the play
+ * screen's tempo and its key — and they share nothing but this. What they do
+ * share is the whole of the feel, which is worth having in one place: a finger
+ * travelling a fixed distance to each detent, a click and a tap of the hand as
+ * each one passes, resistance rather than silence at the ends, and a keyboard
+ * and a mouse wheel for anyone not using a finger at all.
  *
  * What the caller supplies is `resolve`: where so many detents from a starting
  * value lands, already clamped to whatever the caller's own limits are. Steps
  * of a scale, whole numbers of beats per minute — this never needs to know.
+ *
+ * A caller may also ask to be told when the finger comes *off*, separately from
+ * every detent it crossed on the way. See `onCommit`, which exists because a
+ * key change rewrites the music and a tempo change does not.
  */
 
 import {
@@ -36,6 +40,20 @@ export interface DialOptions<T extends number> {
   /** Where `delta` detents from `from` lands, clamped to the caller's limits. */
   resolve: (from: T, delta: number) => T;
   onChange: (next: T) => void;
+  /**
+   * Called with the value the dial was let go on, where the caller wants the
+   * turning and the acting kept apart.
+   *
+   * `onChange` still fires at every detent, so the face and the callout follow
+   * the finger as they always did; this fires once, at the end. For a dial whose
+   * change is cheap — the tempo — it is not wanted and not passed. For one whose
+   * change rewrites the music, it is the difference between reading the key the
+   * player chose and reading every key they passed through on the way to it.
+   *
+   * Keyboard and wheel have no release to wait for, so they commit as they go.
+   * A page key is one press and commits once, which is the same bargain.
+   */
+  onCommit?: (value: T) => void;
   /** Travel to a detent, in CSS pixels. */
   stepPx: number;
   /** Detents a page key moves; page keys do nothing without it. */
@@ -61,7 +79,7 @@ export interface Dial {
 }
 
 export function useDial<T extends number>(options: DialOptions<T>): Dial {
-  const { value, resolve, onChange, stepPx, pageStep, ends } = options;
+  const { value, resolve, onChange, onCommit, stepPx, pageStep, ends } = options;
 
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<{ pointerId: number; y: number; from: T } | null>(null);
@@ -84,14 +102,22 @@ export function useDial<T extends number>(options: DialOptions<T>): Dial {
     asked.current = value;
   }
 
-  const settle = (next: T) => {
-    if (next === value || next === asked.current) return;
+  const settle = (next: T): boolean => {
+    if (next === value || next === asked.current) return false;
     asked.current = next;
     onChange(next);
     detentClick();
+    return true;
   };
 
-  const move = (delta: number) => settle(resolve(value, delta));
+  /*
+   * A keypress or a wheel notch is its own gesture, over as soon as it happens,
+   * so it settles and commits together. Only a finger has a middle.
+   */
+  const move = (delta: number) => {
+    const next = resolve(value, delta);
+    if (settle(next)) onCommit?.(next);
+  };
 
   /*
    * A wheel listener of its own, because React's is passive and a passive
@@ -161,18 +187,29 @@ export function useDial<T extends number>(options: DialOptions<T>): Dial {
       },
 
       onPointerUp(event) {
-        if (drag.current?.pointerId !== event.pointerId) return;
+        const held = drag.current;
+        if (held?.pointerId !== event.pointerId) return;
         event.currentTarget.releasePointerCapture?.(event.pointerId);
         drag.current = null;
         setTurning(false);
         setOffset(0);
+        // Against where the finger went down, not against the last detent it
+        // crossed: a turn that wandered away and came back has chosen the key it
+        // started in, and rewriting the music to the key it is already in would
+        // be work nobody asked for.
+        if (asked.current !== held.from) onCommit?.(asked.current);
       },
 
       onPointerCancel(event) {
-        if (drag.current?.pointerId !== event.pointerId) return;
+        const held = drag.current;
+        if (held?.pointerId !== event.pointerId) return;
         drag.current = null;
         setTurning(false);
         setOffset(0);
+        // Committed like a release rather than dropped. The detents have clicked
+        // and the face has moved, so the player has already been told the dial is
+        // where it is; leaving the music behind that would be the worse lie.
+        if (asked.current !== held.from) onCommit?.(asked.current);
       },
 
       onKeyDown(event) {
@@ -186,7 +223,8 @@ export function useDial<T extends number>(options: DialOptions<T>): Dial {
 
         if (ends && (event.key === 'Home' || event.key === 'End')) {
           event.preventDefault();
-          settle(event.key === 'Home' ? ends.min : ends.max);
+          const end = event.key === 'Home' ? ends.min : ends.max;
+          if (settle(end)) onCommit?.(end);
           return;
         }
         const delta = steps[event.key];

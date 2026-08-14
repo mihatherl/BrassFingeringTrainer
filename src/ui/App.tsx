@@ -5,6 +5,7 @@ import { metreFor } from '../domain/metre';
 import { generateExercise, HORIZON_BARS } from '../exercise/generate';
 import { exerciseFromTheme } from '../exercise/theme';
 import { themeById } from '../exercise/themes';
+import { canRekeyKind } from '../exercise/rekey';
 import { randomSeed } from '../exercise/rng';
 import type { Exercise } from '../exercise/types';
 import type { SessionSummary } from '../engine/judge';
@@ -56,9 +57,30 @@ export function App() {
     void refreshEntitlements();
   }, []);
 
+  /**
+   * The exercise the settings describe, from a seed — and optionally in a key
+   * other than the one they name.
+   *
+   * The override is what the play screen's key dial is built on: the same
+   * settings, the same length, a different key. It goes here rather than in the
+   * dial because writing music is the generator's business and what the
+   * generator wants is the settings, which this owns and the play screen only
+   * has a copy of.
+   */
   const build = useCallback(
-    (seed: number): Exercise => {
-      const settings = constrainToEntitlements(chosen, entitlements);
+    (seed: number, fifths?: number): Exercise => {
+      /*
+       * The set as well as the key, and this is where a key tour ends.
+       *
+       * `fifths` is derived from `keySet[0]` everywhere else in the app, so
+       * setting one without the other would leave the generator touring the old
+       * set from the new key. Ruled by the player on 2026-08-14: naming your own
+       * key ends the tour, because a tour is a sequence and re-entering one
+       * partway into a key nobody chose would be the app arguing with the dial.
+       */
+      const chosenSettings =
+        fifths === undefined ? chosen : { ...chosen, fifths, keySet: [fifths] };
+      const settings = constrainToEntitlements(chosenSettings, entitlements);
       const instrument = instrumentById(settings.instrumentId);
       // Weak-note weighting reads the same stats the results screen shows, so
       // what the app says needs work is exactly what it then serves up.
@@ -158,6 +180,34 @@ export function App() {
           /* A tempo settled on while playing is the tempo to open with next
              time — written back once the run is over, never during it. */
           onTempoSettled={(tempo) => updateSettings({ ...chosen, tempo })}
+          /*
+           * The key dial, where the music can be rewritten to answer it.
+           *
+           * Three conditions, and each of them is a hard one rather than a
+           * preference. `canRekeyKind` is about the material: a scale's length
+           * falls out of how many cycles fit and a stitched theme's out of which
+           * tunes were chosen, so in those a change of key is a change of the
+           * length of the paper. Imported music has no generator behind it at
+           * all — `build` makes an exercise from the settings and a seed, which
+           * is the whole story for generated material and none of it for a part
+           * that came out of a file. And keys are an entitlement.
+           *
+           * A fresh seed each time, deliberately: a new key played to the same
+           * random walk would be the same exercise transposed, which is not
+           * what a player turning to a new key is asking to practise.
+           */
+          inKey={
+            entitlements.allKeys && canRekeyKind(exercise.kind)
+              ? (fifths) => build(randomSeed(), fifths)
+              : undefined
+          }
+          /*
+           * And the key they settled in, the same way — as the set, not just the
+           * opening key. `sanitise` derives `fifths` from `keySet[0]` when
+           * settings are next loaded, so writing one without the other would
+           * quietly hand the dialled key back on the next launch.
+           */
+          onKeySettled={(fifths) => updateSettings({ ...chosen, fifths, keySet: [fifths] })}
         />
       );
     }
@@ -204,7 +254,7 @@ export function App() {
         onImport={() => setScreen('import')}
       />
     );
-  }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings, playImported]);
+  }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings, playImported, build]);
 
   return <div className="app">{content}</div>;
 }

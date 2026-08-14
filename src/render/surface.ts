@@ -374,7 +374,8 @@ export interface StaveRendererOptions {
 export class StaveRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   /** Shortest note in this exercise, which sets how tight the spacing may go. */
-  private readonly shortestNoteBeats: number;
+  /** Re-measured when the paper is rewritten in another key; see `rekeyed`. */
+  private shortestNoteBeats = 1;
   private frame: number | null = null;
   private metrics: StaveMetrics;
   private headerWidth = 0;
@@ -388,6 +389,13 @@ export class StaveRenderer {
    * Null while scrolling, which is spaced by speed instead.
    */
   private spacing: Spacing | null = null;
+  /**
+   * Where the key changes and how much room each one takes, in beat order.
+   *
+   * Scrolling mode only — the engraver reserves its own; see
+   * `signatureRoomBefore`.
+   */
+  private signatureRoom: Array<{ beat: number; room: number }> = [];
   /** Systems drawn one above another. One unless the page is tall enough. */
   private systemsShown = 1;
   private systemHeight = 0;
@@ -440,16 +448,38 @@ export class StaveRenderer {
         ? revealByBar(options.exercise, throughTies)
         : throughTies;
 
-    this.shortestNoteBeats = options.exercise.notes.reduce(
-      (shortest, note) => Math.min(shortest, durationBeats(note.duration)),
-      1,
-    );
+    this.measureNotes();
     this.metrics = staveMetrics(options.exercise.clef, 0, 10);
     this.resize();
   }
 
   setTheme(theme: StaveTheme): void {
     this.options = { ...this.options, theme };
+  }
+
+  /**
+   * Re-engraves the paper, after part of it has been rewritten in another key.
+   *
+   * The exercise is the same object — it is spliced in place, so nothing here
+   * has to be handed a new one — but everything measured *from* it is now stale:
+   * the shortest note decides how tight the scrolling spacing may be, and the
+   * paged layout is engraved note by note. Both are settled once and have to be
+   * settled again.
+   *
+   * The verdict wrappers built in the constructor need no such treatment. They
+   * close over the exercise rather than over its contents, and ask their
+   * questions per note per frame.
+   */
+  rekeyed(): void {
+    this.measureNotes();
+    this.resize();
+  }
+
+  private measureNotes(): void {
+    this.shortestNoteBeats = this.options.exercise.notes.reduce(
+      (shortest, note) => Math.min(shortest, durationBeats(note.duration)),
+      1,
+    );
   }
 
   /**
@@ -643,6 +673,7 @@ export class StaveRenderer {
     }
 
     this.spacing = null;
+    this.planSignatureRoom();
 
     // A narrow screen cannot honour the speed without leaving almost no warning
     // of what is coming, so tighten just enough to keep a bar or so in view.
@@ -756,7 +787,67 @@ export class StaveRenderer {
 
   /** Distance into the music at the left edge, in pixels. */
   private xAt(beat: number): number {
-    return this.spacing ? this.spacing.xOf(beat) : beat * this.pixelsPerBeat;
+    if (this.spacing) return this.spacing.xOf(beat);
+    return beat * this.pixelsPerBeat + this.signatureRoomBefore(beat);
+  }
+
+  /**
+   * Room made for the key signatures the music has changed into by this beat.
+   *
+   * Scrolling music is spaced by how fast it should travel, so a beat is always
+   * the same distance — which left a change of key nowhere to go, and it was
+   * drawn straight over the first bar of the key it announced. Reported from a
+   * key tour and reachable from the key dial every time it is used.
+   *
+   * The engraved mode has had an answer to this all along (`signatureRoomAt`
+   * feeds `engraveSpacing`); this is the same reservation made where the map is
+   * a straight line, as a step added to every beat past the change.
+   *
+   * **What it costs is one jump, behind the player.** The origin is `xAt` of the
+   * current beat, so it takes the step at the same instant the music does: notes
+   * ahead of the strike line never move, and the bar just played slides left by
+   * the width of the signature as the change goes under the line. Music behind
+   * the strike line is music already read, which is the one part of the display
+   * that can afford to move — and the alternative, easing the step in over the
+   * beat before, is the surge that uniform spacing exists to prevent.
+   */
+  private signatureRoomBefore(beat: number): number {
+    let room = 0;
+    for (const change of this.signatureRoom) {
+      if (change.beat > beat + 1e-9) break;
+      room += change.room;
+    }
+    return room;
+  }
+
+  /**
+   * Measures each change of signature once, since `xAt` is asked per note per
+   * frame and the answer only moves when the paper or the metrics do.
+   */
+  private planSignatureRoom(): void {
+    const { exercise } = this.options;
+    const changes = signatureChangesIn(exercise, 0, Infinity);
+    this.signatureRoom = [...changes.entries()]
+      .map(([beat, change]) => ({
+        beat,
+        /*
+         * The apparatus, plus whatever the downbeat note carries in front of
+         * itself. An accidental is drawn to the left of its notehead and gets no
+         * room of its own on a scrolling line — there is a whole beat of blank
+         * stave there and nothing to collide with. Except here, where the thing
+         * immediately to its left is the new key signature.
+         */
+        room:
+          signatureChangeRoom(this.metrics, change) +
+          BAR_LINE_SETBACK * this.metrics.staveSpace +
+          Math.max(
+            0,
+            ...exercise.notes
+              .filter((note) => Math.abs(note.startBeat - beat) < 1e-9 && note.showAccidental)
+              .map((note) => accidentalRoom(this.metrics, note.pitch)),
+          ),
+      }))
+      .sort((a, b) => a.beat - b.beat);
   }
 
   /** Where the current page begins horizontally, ignoring any slide. */

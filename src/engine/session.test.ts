@@ -744,6 +744,154 @@ describe('reaching the end of the paper', () => {
 });
 
 /**
+ * Changing key mid-run.
+ *
+ * The engine's half of the key dial: where a change may land, and what a splice
+ * is allowed to disturb. What the music becomes is `exercise/rekey.ts`; this is
+ * only about the clock and the run's own state, and the one thing it is really
+ * guarding is that a change lands somewhere the player has not been yet.
+ */
+describe('changing key mid-run', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    audioTime = 0;
+    played = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Sixteen crotchets in four bars of 4/4, one key throughout. */
+  function paper(fifths: number): Exercise {
+    return {
+      notes: Array.from({ length: 16 }, (_, i) => note(i, 1)),
+      rests: [],
+      instrumentId: 'eb-bass',
+      clef: 'treble',
+      keys: [{ fromBeat: 0, fifths }],
+      metres: [{ fromBeat: 0, metre: metreFor(4, 4) }],
+      tempo: [],
+      totalBeats: 16,
+      chosenBeats: 16,
+      seed: 1,
+      kind: 'random',
+    };
+  }
+
+  function run(from: number, to: number): void {
+    for (let elapsed = from; elapsed <= to; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+  }
+
+  /**
+   * A session and the paper it is playing, which the caller keeps hold of.
+   *
+   * The exercise is spliced *in place*, so the object handed in is the object
+   * that changes — which is the whole arrangement the renderer and the play
+   * screen rely on, and worth testing through rather than around.
+   */
+  function playing(over: { countInBars?: number; onKeyChange?: () => void } = {}) {
+    const exercise = paper(0);
+    const session = new Session({
+      context,
+      exercise,
+      tempo: 60,
+      countInBars: over.countInBars ?? 0,
+      metronomeEnabled: false,
+      playbackMode: 'off',
+      brassVoice: voice,
+      onKeyChange: over.onKeyChange,
+    });
+    return { session, exercise };
+  }
+
+  it('lands on a bar line the player has not reached', () => {
+    const { session } = playing();
+    session.start();
+    run(0, 5);
+
+    // Five beats in — bar two — with a bar of reading room and then the next
+    // bar line. Never behind the playhead, and never mid-bar.
+    const beat = session.keyChangeBeat;
+    expect(beat % 4, 'a bar line').toBe(0);
+    expect(beat, 'and one the player has not played yet').toBeGreaterThan(5);
+    session.stop();
+  });
+
+  /**
+   * The whole exercise, when the dial is turned before a note is played. A
+   * player doing it during the count-in means the lot, and the arithmetic
+   * agrees without a special case: bar zero is a bar line like any other.
+   */
+  it('takes the whole exercise when turned during the count-in', () => {
+    const { session, exercise } = playing({ countInBars: 2 });
+    session.start();
+    expect(session.keyChangeBeat).toBe(0);
+
+    const done = session.changeKey(paper(3));
+    expect(done?.fromNoteIndex, 'from the very first note').toBe(0);
+    expect(exercise.keys, 'and the opening key itself is rewritten').toEqual([
+      { fromBeat: 0, fifths: 3 },
+    ]);
+    session.stop();
+  });
+
+  it('rewrites the paper without disturbing what has been judged', () => {
+    let changed = 0;
+    const { session, exercise } = playing({ onKeyChange: () => changed++ });
+
+    session.input.pointerDown(1, 1);
+    session.input.pointerDown(2, 2);
+    session.start();
+    run(0, 5);
+
+    const judged = session.judgements.map((j) => ({ ...j }));
+    expect(judged.length, 'some bars are behind us').toBeGreaterThan(0);
+
+    const done = session.changeKey(paper(4));
+    expect(done, 'the key changed').not.toBeNull();
+    expect(changed, 'and said so once').toBe(1);
+
+    // Every judgement still names the note it named. The splice point is
+    // derived from the transport's committed beat, so nothing judged can be
+    // at or past it — this is the invariant, checked rather than asserted.
+    expect(session.judgements).toEqual(judged);
+    for (const judgement of judged) {
+      expect(judgement.noteIndex).toBeLessThan(done!.fromNoteIndex);
+    }
+    expect(exercise.notes.length, 'the paper is still the same length').toBe(16);
+    session.stop();
+  });
+
+  it('refuses once the run is over', () => {
+    const { session } = playing();
+    session.start();
+    run(0, 1);
+    session.finishNow();
+    expect(session.changeKey(paper(3))).toBeNull();
+  });
+
+  /**
+   * Nothing already handed to the audio thread may be rewritten, which is what
+   * the scheduling horizon is for. Checked by asking where a change would land
+   * against what the transport has committed.
+   */
+  it('never lands on music already committed to the audio thread', () => {
+    const { session } = playing();
+    session.start();
+    for (let elapsed = 0; elapsed <= 8; elapsed += 0.05) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(50);
+      expect(session.keyChangeBeat).toBeGreaterThan(session.transport.committedBeat);
+    }
+    session.stop();
+  });
+});
+
+/**
  * Every click a session schedules, as beats from the start of the music.
  *
  * The metronome schedules against the audio clock, so the times are read back

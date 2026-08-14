@@ -517,6 +517,133 @@ body {
 }
 
 /*
+ * The key, beside the tempo and narrower than it.
+ *
+ * Narrower on purpose. Both are reached mid-run, but not at the same rate: the
+ * tempo is nudged constantly and wants the biggest target in the band, while
+ * the key is chosen occasionally and deliberately. It also costs more to get
+ * wrong — a stray detent here rewrites the music — so it is the one control in
+ * the band that is deliberately not under the thumb by accident.
+ */
+.key-dial {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  height: var(--aside-size);
+}
+
+/*
+ * The same cylinder as the tempo wheel, with the ridges spaced to its own
+ * detent. Wider ridges because the detent is wider: at the tempo dial's
+ * spacing a step round the circle would spin the face past a dozen of them and
+ * read as a slip rather than a step.
+ */
+.key-dial__wheel {
+  --ridge: 11px;
+  width: 4.5rem;
+  height: min(var(--aside-size), 5.5rem);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 22%),
+      transparent 20%,
+      transparent 80%,
+      rgb(0 0 0 / 22%)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--dial-ridge) 0 1.5px,
+      var(--surface-raised) 1.5px var(--ridge)
+    );
+  background-position:
+    0 0,
+    0 var(--phase);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.key-dial__wheel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.key-dial__wheel.is-turning {
+  cursor: grabbing;
+  border-color: var(--accent);
+}
+
+.key-dial__face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-raised) 80%, transparent);
+  line-height: 1.1;
+}
+
+.key-dial__face strong {
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+}
+
+.key-dial__count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/*
+ * The callout says the key *and* the bar it starts at.
+ *
+ * The bar is the half a player cannot work out for themselves. A key signature
+ * is no use arriving after the phrase that needed it, so the one question worth
+ * answering while the dial is still turning is whether the change is coming
+ * soon enough to matter — see `keyChangeBeat` in `engine/session.ts`.
+ *
+ * **Beside the dial, not above it.** Above is where the tempo dial is: on every
+ * layout wider than a phone the band is a column with the tempo at the top of
+ * it, so a callout raised over this one would cover the tempo while the key was
+ * being chosen. To the side is the one direction that is empty in both layouts,
+ * and it is the side the hand is not on — the dial is at the right-hand edge of
+ * the screen and the finger comes to it from below and outside.
+ */
+.key-dial__callout {
+  position: absolute;
+  right: calc(100% + 0.4rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  justify-items: center;
+  padding: 0.15rem 0.7rem;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  line-height: 1.1;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.key-dial__callout strong {
+  font-size: clamp(1.6rem, 5vh, 2.4rem);
+  font-weight: 700;
+}
+
+.key-dial__from {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+/*
  * Three valves are played by one hand, so the cluster keeps a fixed size and
  * centres itself rather than stretching. Letting it fill the width puts the
  * buttons a hand-span apart on a tablet or a phone held sideways, which is

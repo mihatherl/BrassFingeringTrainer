@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
 import { Sampler, type Voice } from '../audio/sampler';
 import { barAt, metreFor } from '../domain/metre';
+import { keyAt } from '../domain/keys';
 import { instrumentById } from '../domain/instruments';
 import type { Transport } from '../engine/clock';
 import { Session } from '../engine/session';
@@ -30,7 +31,9 @@ import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
 import type { Settings } from '../storage/settings';
 import { patternFor } from '../render/conductor';
+import { barLabel } from '../render/system';
 import { ConductorPanel } from './ConductorPanel';
+import { KeyDial } from './KeyDial';
 import { PressButton } from './PressButton';
 import { TempoDial } from './TempoDial';
 import { ValvePad } from './ValvePad';
@@ -49,6 +52,20 @@ interface PlayScreenProps {
    * last playing at, which is the one they want next time.
    */
   onTempoSettled?: (bpm: number) => void;
+  /**
+   * The same exercise this run is playing, generated in another key.
+   *
+   * The whole of what the key dial needs from outside, and the reason it is a
+   * function rather than a key: writing music is the generator's business, and
+   * what the generator wants is the settings — which this screen has a copy of
+   * but is not the owner of. The caller builds it from the real ones.
+   *
+   * Absent means no dial: imported music cannot be regenerated at all, and the
+   * free tier is entitled to one key.
+   */
+  inKey?: (fifths: number) => Exercise;
+  /** The key the player settled on, reported when the run ends, as with tempo. */
+  onKeySettled?: (fifths: number) => void;
 }
 
 export function PlayScreen({
@@ -57,6 +74,8 @@ export function PlayScreen({
   onFinish,
   onExit,
   onTempoSettled,
+  inKey,
+  onKeySettled,
 }: PlayScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
@@ -64,6 +83,7 @@ export function PlayScreen({
   const rendererRef = useRef<StaveRenderer | null>(null);
   const verdictsRef = useRef<Array<Verdict | undefined>>([]);
   const hintsRef = useRef<Hints | null>(null);
+  const headsRef = useRef<number[]>([]);
 
   const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -78,6 +98,18 @@ export function PlayScreen({
    * exercise again. This is the run's own tempo, reported back once at the end.
    */
   const [tempo, setTempo] = useState(settings.tempo);
+  /**
+   * The key the dial is pointing at, which is not the same as the key of the
+   * music while a finger is on it.
+   *
+   * The dial's own state: it moves at every detent so the face and the callout
+   * follow the finger, and the music is rewritten only when the finger comes
+   * off. Opens on the key the exercise opens in — the settings key, honoured
+   * until the dial is touched.
+   */
+  const [dialKey, setDialKey] = useState(() => keyAt(exercise.keys, 0));
+  /** Which bar a change would land in, read off the session while turning. */
+  const [changeBar, setChangeBar] = useState<string | null>(null);
   /*
    * State rather than a ref, unlike the session and renderer beside it.
    * Those are only ever reached from callbacks; the conductor is a child that
@@ -101,6 +133,10 @@ export function PlayScreen({
   tempoRef.current = tempo;
   const settledRef = useRef(onTempoSettled);
   settledRef.current = onTempoSettled;
+  const keySettledRef = useRef(onKeySettled);
+  keySettledRef.current = onKeySettled;
+  const dialKeyRef = useRef(dialKey);
+  dialKeyRef.current = dialKey;
 
   useEffect(() => {
     if (!started) return;
@@ -111,11 +147,23 @@ export function PlayScreen({
     setPaused(false);
     setCommittedBeats(exercise.chosenBeats);
     verdictsRef.current = new Array(exercise.notes.length).fill(undefined);
-    // Which note actually sounds each written one, so the renderer can look a
-    // verdict up through a tie. Fixed by the exercise, so settled once here
-    // rather than walked on every note of every frame.
-    const heads = soundingHeads(exercise.notes);
+    /*
+     * Which note actually sounds each written one, so the renderer can look a
+     * verdict up through a tie. Walked once rather than on every note of every
+     * frame — and in a ref rather than a const, because a key change rewrites
+     * the note list and its ties with it.
+     */
+    headsRef.current = soundingHeads(exercise.notes);
     setTempo(settings.tempo);
+    /*
+     * The key this run opens in, kept for the whole run.
+     *
+     * Read now rather than at the end, because a key change lands at beat 0
+     * when it is asked for during the count-in — which rewrites the opening key
+     * itself, and would leave nothing to compare the dial against.
+     */
+    const openedIn = keyAt(exercise.keys, 0);
+    setDialKey(openedIn);
 
     /*
      * The counter and the live percentage, recomputed from the verdicts.
@@ -205,8 +253,11 @@ export function PlayScreen({
         report();
       },
       onFinish: (summary) => {
-        // The speed they ended up playing at is the one they want next time.
+        // The speed they ended up playing at is the one they want next time, and
+        // the key they ended up in for the same reason: the dial is what the
+        // player has said about this practice, and saying it once is enough.
         if (tempoRef.current !== settings.tempo) settledRef.current?.(tempoRef.current);
+        if (dialKeyRef.current !== openedIn) keySettledRef.current?.(dialKeyRef.current);
         finishRef.current(summary);
       },
       /*
@@ -217,6 +268,29 @@ export function PlayScreen({
       onOffer: (open) => {
         setOffering(open);
         setCommittedBeats(session.endBeat);
+      },
+      /*
+       * The paper past the change has been rewritten, so everything this screen
+       * keeps *about* the paper by note index has to be rewritten with it.
+       *
+       * The exercise object is the same one — it was spliced in place, which is
+       * exactly why each of these has to be told rather than simply re-read.
+       * Below `fromNoteIndex` nothing has moved and nothing here is touched:
+       * that is the invariant the splice point is chosen to guarantee, and the
+       * reason a run can change key without losing what the player has played.
+       */
+      onKeyChange: ({ fromNoteIndex }) => {
+        const verdicts = verdictsRef.current;
+        verdicts.length = exercise.notes.length;
+        for (let index = fromNoteIndex; index < verdicts.length; index++) {
+          verdicts[index] = undefined;
+        }
+        headsRef.current = soundingHeads(exercise.notes);
+        // Which notes may carry a hint at all is read off the note list; what the
+        // run has learned is filed under the written pitch and survives untouched.
+        hintsRef.current?.reread();
+        rendererRef.current?.rekeyed();
+        report();
       },
     });
     sessionRef.current = session;
@@ -247,7 +321,7 @@ export function PlayScreen({
       readingMode: settings.readingMode,
       // Through the tie: its far end is never judged, so it wears the verdict of
       // the note it is tied from rather than staying unmarked beside it.
-      verdictFor: (index) => verdictsRef.current[heads[index]],
+      verdictFor: (index) => verdictsRef.current[headsRef.current[index]],
       hintFor: (index) => hintsRef.current?.for(index),
       // White as far as the run is committed, and grey beyond — read per
       // frame, so accepting the offer turns the next block white at once.
@@ -470,6 +544,34 @@ export function PlayScreen({
     const session = sessionRef.current;
     session?.rewind(bars);
   };
+
+  /*
+   * Turning the key dial: the face moves now, the music moves on release.
+   *
+   * Every detent updates the shown key and asks the session where a change made
+   * at this moment would land, so the callout can say which bar. Asking per
+   * detent rather than once at the start because the playhead is moving while
+   * the finger is: a slow turn through five keys can cross the bar the first
+   * detent would have landed in.
+   */
+  const turnKey = (fifths: number) => {
+    setDialKey(fifths);
+    const session = sessionRef.current;
+    setChangeBar(session ? barLabel(exercise, barAt(exercise.metres, session.keyChangeBeat)) : null);
+  };
+
+  const commitKey = (fifths: number) => {
+    const session = sessionRef.current;
+    if (!session || !inKey) return;
+    /*
+     * The music is rewritten from a bar line ahead of the playhead, or not at
+     * all — `changeKey` refuses a change that would land past the end of the
+     * paper, and the dial is left showing the key the player chose either way.
+     * Putting the face back would be arguing with them about a choice that was
+     * theirs, over an outcome they cannot see.
+     */
+    session.changeKey(inKey(fifths));
+  };
   // Against what this run has committed to rather than what was first asked
   // for: taking the offer moves the target, and a target is the point of one.
   const targetNotes = exercise.notes.filter((n) => n.startBeat < committedBeats - 1e-9).length;
@@ -536,6 +638,17 @@ export function PlayScreen({
             hintsRef.current?.retime();
           }}
         />
+        {/* Only where the music can be rewritten: not for an imported part,
+            which has no generator behind it, and not on the free tier, which is
+            entitled to one key. */}
+        {inKey && (
+          <KeyDial
+            fifths={dialKey}
+            onChange={turnKey}
+            onCommit={commitKey}
+            fromBar={changeBar}
+          />
+        )}
         {settings.conductorEnabled && transport && (
           <ConductorPanel
             transport={transport}

@@ -135,6 +135,21 @@ export interface Hints {
   judged(noteIndex: number, verdict: HintVerdict): void;
   /** Re-measures what there is time to read, after the tempo has changed. */
   retime(): void;
+  /**
+   * Re-reads the paper, after part of it has been rewritten in another key.
+   *
+   * Which notes a hint may be printed over at all is settled once from the note
+   * list, and a key change replaces every note past the change — so that
+   * settling has to be done again or the tail's ties and tempo marks would be
+   * read off the notes that used to be there.
+   *
+   * What is *not* re-read is what the run has learned. Trouble is filed under
+   * the written note rather than the note's position, so a player who cannot
+   * read high B still cannot read it after the key moves; and the note index
+   * each pitch's trouble started at is always behind the change, since the
+   * change lands ahead of the playhead.
+   */
+  reread(): void;
 }
 
 /** What the run has learned about one written pitch. */
@@ -172,7 +187,7 @@ export function fingeringHints(options: HintOptions): Hints {
   }
 
   /** Notes a hint may be printed over at all, whatever the reason for one. */
-  const printable = notes.map(
+  let printable = notes.map(
     // Nothing to finger at the far end of a tie, so nothing to prompt.
     (note, index) => !isTieContinuation(notes, index) && !marked.has(note.startBeat),
   );
@@ -194,6 +209,13 @@ export function fingeringHints(options: HintOptions): Hints {
     });
   };
   retime();
+
+  const reread = () => {
+    printable = notes.map(
+      (note, index) => !isTieContinuation(notes, index) && !marked.has(note.startBeat),
+    );
+    retime();
+  };
 
   /** What is known about each pitch: history first, then the run's own lesson. */
   const trouble = new Map<number, Trouble>();
@@ -256,5 +278,6 @@ export function fingeringHints(options: HintOptions): Hints {
     },
 
     retime,
+    reread,
   };
 }

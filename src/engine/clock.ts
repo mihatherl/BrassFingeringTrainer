@@ -264,6 +264,18 @@ export class Transport {
   }
 
   /**
+   * The last beat handed to the audio thread.
+   *
+   * Nothing at or before it can be altered — it is already scheduled at
+   * absolute times — so it is the line anything changing the music mid-run has
+   * to work beyond. `changeTempo` uses it directly below; a key change rounds
+   * up from it to a bar line.
+   */
+  get committedBeat(): number {
+    return this.scheduledUntilBeat;
+  }
+
+  /**
    * Changes the tempo from here on — the player's hand on the speed, mid-run.
    *
    * Placed at the **next whole beat at or after the scheduling horizon**, which
