@@ -332,16 +332,17 @@ dominant 7th and minor arpeggios.*
 Two faults with one symptom, found by the player's ear on 2026-08-15 and 16:
 the tuba sounds late against the beat.
 
-**The recordings bloom** — v2.16.1. The FluidR3 tuba samples have no leading
-silence, but their attacks take 15–60ms to reach half level and up to 195ms
-to reach 90%, slowest in exactly the register an Eb bass part sounds in; the
-metronome's click has no bloom at all. So the sampler now does what a player
-does: it starts the attack early and lands the note on the beat. Each
-recording's speak time — the moment its envelope reaches half of its peak —
-is measured once at decode, and every note is scheduled that much ahead,
-scaled by the playback rate. Where there is no room to start early the missed
-stretch of attack is skipped rather than the note arriving late. Rendered
-offline, notes scheduled at beat 1.000 speak at 0.997–1.002.
+**The recordings bloom** — v2.16.1, **withdrawn in v2.18.1**. The FluidR3
+tuba samples have no leading silence, but their attacks take 15–60ms to reach
+half level and up to 195ms to reach 90%, slowest in the register an Eb bass
+part sounds in. v2.16.1 started each note early by its measured speak time so
+that half level landed on the beat. It was the wrong fix for the reported
+lag: the lag was the headset (below), and once that was calibrated the early
+start was heard on the phone's own speaker as the tuba speaking *before* the
+note. The player's ear ruled it out and it was taken back out whole — a
+sample now starts on the beat and blooms as recorded, which is what a tuba
+does. Kept here rather than deleted because the measurement was real and
+the next person to hear a lag should reach for the headset screen first.
 
 **The output is late** — v2.17.0. The audio context's time is when a sample is
 handed to the output, not when it reaches an ear, and a Bluetooth headset sits

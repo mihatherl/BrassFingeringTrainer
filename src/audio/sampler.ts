@@ -25,73 +25,6 @@ const ATTACK = 0.006;
 const RELEASE = 0.12;
 
 /**
- * The most a note may be started early to land its spoken onset on the beat.
- *
- * Every measured onset in the shipped sets is 60ms or less; the cap exists so
- * that a pathological recording — mostly silence, say — cannot pull a note a
- * large fraction of a beat ahead of its neighbours.
- */
-const MAX_ATTACK_LEAD = 0.1;
-
-/**
- * Where a recording starts to *speak*: seconds from the start of the buffer to
- * the first moment its envelope reaches half of its eventual peak.
- *
- * The tuba recordings have no leading silence, but their attacks bloom — the
- * low samples take 15–60ms to reach half level and up to 195ms to reach 90%,
- * where the trumpet's speak inside 20ms. Scheduled at their nominal time they
- * are *heard* well after the metronome's click, which has no bloom at all; a
- * player reported the low voice arriving a fair lag behind the beat, and the
- * player was right. Half of peak is used as the moment of speech because a
- * slow low attack is perceived to land roughly where its envelope has
- * substantially risen, not where the first molecule of sound is.
- *
- * Measured over 5ms windows, which is finer than anything this feeds.
- */
-export function perceptualOnset(samples: Float32Array, sampleRate: number): number {
-  const window = Math.max(1, Math.round(sampleRate * 0.005));
-  const peaks: number[] = [];
-  for (let start = 0; start + window <= samples.length; start += window) {
-    let peak = 0;
-    for (let i = start; i < start + window; i++) peak = Math.max(peak, Math.abs(samples[i]));
-    peaks.push(peak);
-  }
-  const loudest = peaks.reduce((a, b) => Math.max(a, b), 0);
-  if (loudest === 0) return 0;
-  const index = peaks.findIndex((p) => p >= loudest / 2);
-  return (index * window) / sampleRate;
-}
-
-/**
- * When to actually start a source, and how far into its buffer, so that the
- * recording's spoken onset lands on the musical start.
- *
- * This is what a player does: a tuba does not speak the instant the air moves,
- * so the attack begins ahead of the beat and the note arrives on it. The lead
- * is the onset in *output* seconds — a sample slowed below its own pitch has
- * its attack stretched with it, so the lead grows by the same ratio.
- *
- * When there is no room to start early — the very first note after the gate,
- * or a rewind landing close ahead of a note — the missed stretch of attack is
- * skipped by starting that far into the buffer instead, which keeps the moment
- * of speech on the beat at the cost of a clipped bloom. Late is the one answer
- * this never gives.
- */
-export function speakingStart(
-  onset: number,
-  playbackRate: number,
-  startTime: number,
-  now: number,
-): { when: number; offset: number } {
-  const lead = Math.min(onset, MAX_ATTACK_LEAD) / playbackRate;
-  const when = startTime - lead;
-  if (when >= now) return { when, offset: 0 };
-  // `offset` is a position in the buffer, so it is converted back from output
-  // seconds to buffer seconds by the rate.
-  return { when: now, offset: (now - when) * playbackRate };
-}
-
-/**
  * Where a looped sustain starts within the sample, in seconds.
  *
  * Past the recorded attack, which is over inside a tenth of a second — measured
@@ -158,15 +91,8 @@ export function sustainLoop(
   return { from, to: from + periods * period };
 }
 
-/** A decoded recording, with the one thing scheduling needs to know about it. */
-interface LoadedSample {
-  buffer: AudioBuffer;
-  /** Seconds into the buffer at which the recording speaks; see `perceptualOnset`. */
-  onset: number;
-}
-
 /** Decoded sample sets, kept for the life of the page so a replay is instant. */
-const cache = new Map<SampleSet, Promise<Map<number, LoadedSample>>>();
+const cache = new Map<SampleSet, Promise<Map<number, AudioBuffer>>>();
 
 /** The sampled note used to reach a pitch: whichever lies closest. */
 export function nearestSample(pitches: readonly number[], midi: number): number {
@@ -188,38 +114,33 @@ function sampleUrl(set: SampleSet, midi: number): string {
 async function loadBuffers(
   context: AudioContext,
   set: SampleSet,
-): Promise<Map<number, LoadedSample>> {
+): Promise<Map<number, AudioBuffer>> {
   const midis = SAMPLE_MANIFEST[set];
-  const samples = await Promise.all(
-    midis.map(async (midi): Promise<LoadedSample> => {
+  const buffers = await Promise.all(
+    midis.map(async (midi) => {
       const response = await fetch(sampleUrl(set, midi));
       if (!response.ok) throw new Error(`${set}/${midi}: HTTP ${response.status}`);
-      const buffer = await context.decodeAudioData(await response.arrayBuffer());
-      // Measured here, once per decode, rather than baked into a generated
-      // file: the decoded data is already in hand, the sweep over it costs
-      // milliseconds behind the same gate the decoding hides behind, and a
-      // measurement taken at load can never go stale against the recordings.
-      return { buffer, onset: perceptualOnset(buffer.getChannelData(0), buffer.sampleRate) };
+      return context.decodeAudioData(await response.arrayBuffer());
     }),
   );
-  return new Map(midis.map((midi, index) => [midi, samples[index]]));
+  return new Map(midis.map((midi, index) => [midi, buffers[index]]));
 }
 
 export class Sampler implements Voice {
   private readonly master: GainNode;
   private readonly context: AudioContext;
-  private readonly samples: Map<number, LoadedSample>;
+  private readonly buffers: Map<number, AudioBuffer>;
   private readonly pitches: number[];
   private active: { gain: GainNode; node: AudioBufferSourceNode } | null = null;
 
   private constructor(
     context: AudioContext,
-    samples: Map<number, LoadedSample>,
+    buffers: Map<number, AudioBuffer>,
     destination: AudioNode,
   ) {
     this.context = context;
-    this.samples = samples;
-    this.pitches = [...samples.keys()].sort((a, b) => a - b);
+    this.buffers = buffers;
+    this.pitches = [...buffers.keys()].sort((a, b) => a - b);
     this.master = context.createGain();
     this.master.gain.value = 0.85;
     this.master.connect(destination);
@@ -280,25 +201,13 @@ export class Sampler implements Voice {
   play(midi: number, startTime: number, durationSeconds: number): void {
     if (this.pitches.length === 0) return;
     const source = nearestSample(this.pitches, midi);
-    const sample = this.samples.get(source);
-    if (!sample) return;
-    const { buffer } = sample;
+    const buffer = this.buffers.get(source);
+    if (!buffer) return;
 
     const ctx = this.context;
     const node = ctx.createBufferSource();
     node.buffer = buffer;
     node.playbackRate.value = playbackRateFor(midi, source);
-
-    // Started early by the recording's own speak time, so the note is *heard*
-    // on the beat rather than beginning to bloom there; see `speakingStart`.
-    // The musical end is unmoved — the lead lengthens the attack's room, not
-    // the note.
-    const { when, offset } = speakingStart(
-      sample.onset,
-      node.playbackRate.value,
-      startTime,
-      ctx.currentTime,
-    );
 
     const gain = ctx.createGain();
     const end = startTime + Math.max(durationSeconds, ATTACK + 0.03);
@@ -306,9 +215,9 @@ export class Sampler implements Voice {
 
     // The recording carries its own attack, so this envelope only removes the
     // click at each edge and stops the note when it is over.
-    gain.gain.setValueAtTime(floor, when);
-    gain.gain.linearRampToValueAtTime(1, when + ATTACK);
-    gain.gain.setValueAtTime(1, Math.max(when + ATTACK, end - RELEASE));
+    gain.gain.setValueAtTime(floor, startTime);
+    gain.gain.linearRampToValueAtTime(1, startTime + ATTACK);
+    gain.gain.setValueAtTime(1, Math.max(startTime + ATTACK, end - RELEASE));
     gain.gain.exponentialRampToValueAtTime(floor, end);
 
     /*
@@ -317,13 +226,13 @@ export class Sampler implements Voice {
      * a note played below the sample's pitch is slowed down. That is what
      * decides whether looping is needed at all.
      */
-    if (end - when > (buffer.duration - offset) / node.playbackRate.value) {
+    if (end - startTime > buffer.duration / node.playbackRate.value) {
       loopSustain(node, buffer, source);
     }
 
     node.connect(gain);
     gain.connect(this.master);
-    node.start(when, offset);
+    node.start(startTime);
     node.stop(end + 0.02);
 
     this.active = { gain, node };
