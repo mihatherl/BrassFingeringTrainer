@@ -7,6 +7,7 @@ import {
   MAJOR_KEYS,
   needsAccidental,
   spellInKey,
+  spellWithLetter,
 } from './keys';
 import { midiFromName } from './pitch';
 
@@ -161,5 +162,31 @@ describe('describing a key signature', () => {
 
   it('has a word for C major rather than "0 sharps"', () => {
     expect(describeFifths(0)).toBe('no sharps or flats');
+  });
+});
+
+/**
+ * Spelling on a given letter, which is what a scale needs and the signature's
+ * direction cannot give: D harmonic minor's seventh is C sharp, on the letter
+ * C, where one flat would write the same sound as D flat.
+ */
+describe('spellWithLetter', () => {
+  it('alters the letter as far as it takes to reach the pitch', () => {
+    expect(spellWithLetter(midiFromName('C#4'), 'C')).toEqual({ letter: 'C', alter: 1, octave: 4 });
+    expect(spellWithLetter(midiFromName('C#4'), 'D')).toEqual({ letter: 'D', alter: -1, octave: 4 });
+    expect(spellWithLetter(midiFromName('B3'), 'B')).toEqual({ letter: 'B', alter: 0, octave: 3 });
+  });
+
+  it('goes the short way round the octave', () => {
+    // C is one above B, not eleven below it; the octave follows the letter.
+    expect(spellWithLetter(midiFromName('C4'), 'B')).toEqual({ letter: 'B', alter: 1, octave: 3 });
+    expect(spellWithLetter(midiFromName('B3'), 'C')).toEqual({ letter: 'C', alter: -1, octave: 4 });
+  });
+
+  it('refuses a double accidental, which this app never prints', () => {
+    // F double-sharp: the raised seventh of G sharp minor, on the letter F.
+    expect(spellWithLetter(midiFromName('G4'), 'F')).toBeNull();
+    expect(spellWithLetter(midiFromName('E4'), 'F')).toEqual({ letter: 'F', alter: -1, octave: 4 });
+    expect(spellWithLetter(midiFromName('D4'), 'F')).toBeNull();
   });
 });

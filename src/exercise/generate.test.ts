@@ -10,6 +10,7 @@ import {
   DRILLS,
   generateExercise,
   patternSpanFor,
+  type Drill,
   type DrillId,
   type GenerateOptions,
 } from './generate';
@@ -42,6 +43,18 @@ const KINDS: ExerciseKind[] = ['drills', 'phrases'];
  * rest. Tests about what the notes *are* run over the whole of `DRILLS`.
  */
 const SHAPES: DrillId[] = ['major-scale', 'tonic-arpeggio'];
+
+/** Every semitone above the root a drill visits, up or down, within `span`. */
+const tonesOf = (drill: Drill, span = Infinity): number[] =>
+  [...drill.up, ...(drill.down ?? [])]
+    .map((n) => n.semitones)
+    .filter((s) => s <= span)
+    .filter((s, i, all) => all.indexOf(s) === i);
+
+/** The drills whose every note is in the key: all but the two minor scales. */
+const DIATONIC = DRILLS.filter((d) =>
+  tonesOf(d).every((s) => [0, 2, 4, 5, 7, 9, 11].includes((d.rootDegree + s) % 12)),
+);
 
 describe('exercise generation', () => {
   it('is reproducible from its seed', () => {
@@ -309,14 +322,15 @@ describe('scales and arpeggios', () => {
     });
   });
 
-  it.each(DRILLS.map((d) => d.id))(
+  it.each(DIATONIC.map((d) => d.id))(
     'stays entirely in key, in every key (%s)',
     (drillId) => {
-      // The whole point of the drills: a drill in Eb contains the notes of Eb
-      // and nothing else — the dominant 7th and the relative minor included,
-      // which is precisely why they are built on their own degrees rather than
-      // borrowed from another mode. A stray accidental means the pattern was
-      // built on the wrong degree.
+      // The whole point of the diatonic drills: a drill in Eb contains the
+      // notes of Eb and nothing else — the dominant 7th and the minor arpeggio
+      // included, which is precisely why they are built on their own degrees
+      // rather than borrowed from another mode. A stray accidental means the
+      // pattern was built on the wrong degree. (The two minor scales raise
+      // degrees on purpose, and have a test of their own below.)
       for (const fifths of KEYS) {
         for (const instrumentId of ['cornet', 'euphonium', 'eb-bass']) {
           const instrument = instrumentById(instrumentId);
@@ -377,7 +391,7 @@ describe('scales and arpeggios', () => {
     for (const drill of DRILLS) {
       for (const fifths of KEYS) {
         const root = (tonicPitchClass(fifths) + drill.rootDegree) % 12;
-        const expected = new Set(drill.intervals.map((i) => (root + i) % 12));
+        const expected = new Set(tonesOf(drill).map((i) => (root + i) % 12));
 
         for (const seed of [1, 2, 3]) {
           const exercise = generateExercise(
@@ -414,9 +428,7 @@ describe('scales and arpeggios', () => {
             const instrument = instrumentById(instrumentId);
             const span = patternSpanFor(instrument, 'treble', fifths, difficulty, drill);
             const root = (tonicPitchClass(fifths) + drill.rootDegree) % 12;
-            const expected = new Set(
-              drill.intervals.filter((i) => i <= span).map((i) => (root + i) % 12),
-            );
+            const expected = new Set(tonesOf(drill, span).map((i) => (root + i) % 12));
 
             const exercise = generateExercise(
               options({
@@ -1214,6 +1226,109 @@ describe('somewhere to put a valve down, past every boundary', () => {
  * a judgement nothing else in the code would notice being changed.
  */
 /**
+ * The named minor scales, chosen the way a book prints them.
+ *
+ * The intervals were never the work; the spelling was. `spellInKey` chooses
+ * accidentals by the signature's direction, and a minor key takes its relative
+ * major's signature — so D harmonic minor is one flat and its raised seventh
+ * would have come out as D flat rather than C sharp. A scale is one note per
+ * letter, and each drill note now carries its letter step so the spelling
+ * follows the letters.
+ */
+describe('the minor scales', () => {
+  const dMinor = -1; // F major's signature, which is how D minor is written.
+  const letters = (exercise: ReturnType<typeof generateExercise>) =>
+    exercise.notes.map((n) => `${n.pitch.letter}${n.pitch.alter === 1 ? '#' : n.pitch.alter === -1 ? 'b' : ''}`);
+  const oneOctave = (drillId: DrillId, fifths: number, seed = 3) =>
+    generateExercise(
+      options({
+        kind: 'drills',
+        drillId,
+        fifths,
+        difficulty: difficultyById('easy'),
+        cycles: 1,
+        seed,
+      }),
+    );
+
+  it('writes the harmonic minor with its seventh raised on its own letter', () => {
+    // D E F G A Bb C# D, and back — never a D flat.
+    const names = letters(oneOctave('harmonic-minor-scale', dMinor));
+    expect(names.slice(0, 8)).toEqual(['D', 'E', 'F', 'G', 'A', 'Bb', 'C#', 'D']);
+    expect(names).not.toContain('Db');
+    // And a sharp is drawn on it, since the signature says nothing of the sort.
+    const raised = oneOctave('harmonic-minor-scale', dMinor).notes[6];
+    expect(raised.pitch).toMatchObject({ letter: 'C', alter: 1 });
+    expect(raised.showAccidental).toBe(true);
+  });
+
+  it('writes the melodic minor raised on the way up and natural on the way down', () => {
+    // Ruled before it was built: ascending melodic, descending natural.
+    const names = letters(oneOctave('melodic-minor-scale', dMinor));
+    expect(names).toEqual([
+      'D', 'E', 'F', 'G', 'A', 'B', 'C#', 'D',
+      'C', 'Bb', 'A', 'G', 'F', 'E', 'D',
+    ]);
+  });
+
+  it('cancels a flat with a natural where the raised note is the flattened letter', () => {
+    // C minor is three flats; its raised seventh is B natural, and the natural
+    // sign is drawn because the signature says B flat.
+    const exercise = oneOctave('harmonic-minor-scale', -3);
+    const seventh = exercise.notes[6];
+    expect(seventh.pitch).toMatchObject({ letter: 'B', alter: 0 });
+    expect(seventh.showAccidental).toBe(true);
+  });
+
+  it('starts on the relative minor tonic and takes the major signature', () => {
+    for (const fifths of [-6, -3, -1, 0, 2, 4]) {
+      for (const drillId of ['harmonic-minor-scale', 'melodic-minor-scale'] as const) {
+        const exercise = oneOctave(drillId, fifths);
+        expect(exercise.keys).toEqual([{ fromBeat: 0, fifths }]);
+        expect(((exercise.notes[0].writtenMidi % 12) + 12) % 12, `${drillId} in ${fifths}`).toBe(
+          (tonicPitchClass(fifths) + 9) % 12,
+        );
+      }
+    }
+  });
+
+  it('never prints a double accidental, in any drill or key', () => {
+    /*
+     * The app's rule, and the one place a drill could break it: the raised
+     * seventh of G sharp, D sharp and A sharp minor is a double sharp in a
+     * book. Here it falls back to the key's own spelling — the natural above,
+     * which is what `spellInKey` writes for that sound — and the settings
+     * screen says so beside those keys.
+     */
+    for (const drill of DRILLS) {
+      for (const fifths of [-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7]) {
+        const exercise = oneOctave(drill.id, fifths);
+        for (const note of exercise.notes) {
+          expect(Math.abs(note.pitch.alter), `${drill.id} in ${fifths}`).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+    // The fallback, named: G sharp minor's F double-sharp is written G natural.
+    const gSharpMinor = oneOctave('harmonic-minor-scale', 5);
+    expect(gSharpMinor.notes[6].pitch).toMatchObject({ letter: 'G', alter: 0 });
+  });
+
+  it('spells every diatonic drill exactly as the signature would', () => {
+    // The letter rule must change nothing for the drills that were right
+    // already: their notes are in key, so the letter step lands on the very
+    // letter the signature spells them with.
+    for (const drill of DIATONIC) {
+      for (const fifths of [-5, -3, 0, 2, 4]) {
+        const exercise = oneOctave(drill.id, fifths);
+        for (const note of exercise.notes) {
+          expect(note.pitch, `${drill.id} in ${fifths}`).toEqual(spellInKey(note.writtenMidi, fifths));
+        }
+      }
+    }
+  });
+});
+
+/**
  * What the Drills box promises, against what the generator actually makes.
  *
  * The player's rule, given on 2026-08-15: *nothing should make a claim of
@@ -1235,12 +1350,14 @@ describe('what the Drills box promises', () => {
    * the sentence owns it — refuses to compile.
    */
   const CLAIMS: Record<DrillId, RegExp> = {
-    'major-scale': /major scale/,
+    'major-scale': /\bmajor\b/,
+    'harmonic-minor-scale': /harmonic minor/,
+    'melodic-minor-scale': /melodic minor/,
     'tonic-arpeggio': /tonic/,
     'subdominant-arpeggio': /subdominant/,
     'dominant-arpeggio': /(?<!sub)dominant(?! 7)/,
     'dominant-7th': /dominant 7th/,
-    'relative-minor-arpeggio': /relative minor/,
+    'relative-minor-arpeggio': /minor arpeggio/,
   };
 
   it('promises every drill it plays', () => {
@@ -1256,22 +1373,19 @@ describe('what the Drills box promises', () => {
         expect(blurb, `still promises ${id}`).not.toMatch(claim);
       }
     }
-    // And the named minor scales are step 4 of the settings work — a question
-    // of spelling, not of intervals — so the sentence widens with them rather
-    // than before them.
-    expect(blurb, 'promises a minor scale it cannot play').not.toMatch(
-      /minor scale|harmonic|melodic/,
-    );
+    // And nothing beyond the list: no shape a future step might bring.
+    expect(blurb, 'promises a scale it cannot play').not.toMatch(/chromatic|whole.tone|blues/);
   });
 });
 
 describe('how long a run is, now that nobody chooses', () => {
   it('opens on the length the player set for each material', () => {
     expect(defaultLengthFor('phrases').bars, 'sixteen bars of reading').toBe(16);
-    expect(defaultLengthFor('drills', 'major-scale').cycles, 'four times through a scale').toBe(4);
-    // Shorter than a scale's, so more of them: a chord's cycle is fewer notes.
-    for (const drill of DRILLS.filter((d) => d.id !== 'major-scale')) {
-      expect(defaultLengthFor('drills', drill.id).cycles, `eight times through the ${drill.name}`).toBe(8);
+    // Four times through a scale, and twice that through a chord: shorter, so
+    // more of them. Which is which is read off the shape, seven notes or fewer.
+    for (const drill of DRILLS) {
+      const scale = drill.up.length === 7;
+      expect(defaultLengthFor('drills', drill.id).cycles, drill.name).toBe(scale ? 4 : 8);
     }
     expect(defaultLengthFor('themes').themeCount, 'four whole tunes').toBe(4);
   });

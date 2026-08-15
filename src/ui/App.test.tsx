@@ -155,6 +155,21 @@ describe('the app', () => {
     // A different drill, and the summary names that one instead.
     fireEvent.click(screen.getByRole('button', { name: 'Dominant 7th' }));
     expect(exerciseValues()).toBe('Eb major · Dominant 7th · 2 oct · mixed');
+
+    /*
+     * A minor drill is chosen the way a book prints it — C minor, not E flat
+     * major with the relative minor — so the keys relabel to the minors and
+     * the summary follows. The signature underneath is the same three flats.
+     */
+    fireEvent.click(screen.getByRole('button', { name: 'Harmonic minor scale' }));
+    expect(screen.getByRole('button', { name: 'C minor, 3 flats' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Eb major, 3 flats' })).toBeNull();
+    expect(exerciseValues()).toBe('C minor · Harmonic minor scale · 2 oct · mixed');
+
+    // And back to majors for a major drill.
+    fireEvent.click(screen.getByRole('button', { name: 'Major scale' }));
+    expect(screen.getByRole('button', { name: 'Eb major, 3 flats' })).toBeTruthy();
+    expect(exerciseValues()).toBe('Eb major · Major scale · 2 oct · mixed');
   });
 
   it('keeps collapsed sections reachable to assistive technology and search', () => {

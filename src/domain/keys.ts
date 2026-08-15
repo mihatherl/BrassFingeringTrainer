@@ -235,6 +235,31 @@ export function spellInKey(midi: number, fifths: number): SpelledPitch {
   throw new Error(`Cannot spell MIDI ${midi}`);
 }
 
+/**
+ * Spells a MIDI note on a *given* letter, or null if that would take a double
+ * accidental.
+ *
+ * What a scale needs and `spellInKey` cannot give: the raised seventh of D
+ * harmonic minor is C sharp — the letter C, altered — where the key's one flat
+ * would spell the same sound as D flat. A scale is one note per letter and its
+ * spelling follows its letters, not the signature's direction; the caller
+ * knows the letter and this supplies the accidental.
+ *
+ * Null rather than a double accidental, keeping the rule `spellInKey` states:
+ * this app never prints one. The caller falls back to `spellInKey`, which is
+ * why F double-sharp in G sharp minor is written G natural here — the
+ * cancelling natural that rule already prefers.
+ */
+export function spellWithLetter(midi: number, letter: Letter): SpelledPitch | null {
+  const wanted = pitchClass(midi);
+  const natural = LETTER_SEMITONES[letter];
+  // The alteration that carries this letter to the pitch, taken the short way
+  // round the octave: B to C is one up, not eleven down.
+  const alter = ((wanted - natural + 6) % 12 + 12) % 12 - 6;
+  if (Math.abs(alter) > 1) return null;
+  return withOctave(letter, alter, midi);
+}
+
 /** The seven pitch classes of the key's major scale. */
 /**
  * Semitones above the tonic for each degree of the major scale.

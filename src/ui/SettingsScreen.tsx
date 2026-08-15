@@ -163,6 +163,31 @@ export function SettingsScreen({
   const patternKind = isPattern(shown.kind);
   const drill = drillById(shown.drillId);
   const actualSpan = patternSpanFor(instrument, settings.clef, shown.fifths, difficulty, drill);
+
+  /*
+   * How a key is named to the player, which follows the drill.
+   *
+   * A minor drill — the harmonic and melodic minor scales, the minor arpeggio
+   * — is chosen the way a book prints it: *D minor*, not *F major with the
+   * relative minor*. The signature underneath is the same either way, and so
+   * is the control; only its labels change. Everywhere else a key is the major
+   * it always was.
+   */
+  const minorKeys = patternKind && drill.minor === true;
+  const keyName = (fifths: number, short = false): string => {
+    const key = MAJOR_KEYS.find((k) => k.fifths === fifths);
+    if (!key) return '';
+    if (minorKeys) return short ? `${key.relativeMinor}m` : `${key.relativeMinor} minor`;
+    return short ? key.name : `${key.name} major`;
+  };
+  /*
+   * The raised seventh of G sharp, D sharp and A sharp minor is a double sharp
+   * in a book, and this app never prints one — it writes the natural above
+   * instead, which is what `spellInKey` does with that sound. Said beside the
+   * keys where it applies, since a player who knows the scale will notice.
+   */
+  const naturalForDoubleSharp =
+    minorKeys && drill.up.length === 7 && shown.fifths >= 5;
   const shortenedSpan =
     patternKind && actualSpan < difficulty.patterns.spanSemitones ? describeSpan(actualSpan) : null;
 
@@ -209,10 +234,10 @@ export function SettingsScreen({
       // the first would hide the whole of a modulating exercise.
       shown.keySet.length > 1
         ? orderByCloseness(shown.fifths, shown.keySet)
-            .map((f) => MAJOR_KEYS.find((k) => k.fifths === f)?.name)
+            .map((f) => keyName(f, true))
             .filter(Boolean)
             .join(' → ')
-        : keySignature && `${keySignature.name} major`,
+        : keySignature && keyName(shown.fifths),
       // The drill's name says more than the box's: "Dominant 7th" is what will
       // be practised, where "Drills" only says where to look for it.
       patternKind ? drill.name : material?.name,
@@ -392,7 +417,7 @@ export function SettingsScreen({
                   aria-pressed={chosen}
                   // The accidentals are shown as "3♭" beside the name, which a
                   // screen reader would spell out as a number and a symbol.
-                  aria-label={`${key.name} major, ${describeFifths(key.fifths)}`}
+                  aria-label={`${keyName(key.fifths)}, ${describeFifths(key.fifths)}`}
                   className={`segmented__option key ${chosen ? 'is-selected' : ''} ${
                     start ? 'is-start' : ''
                   } ${locked.key(key.fifths) ? 'is-locked' : ''}`}
@@ -404,7 +429,7 @@ export function SettingsScreen({
                     onChange(sanitise({ ...settings, keySet: next }));
                   }}
                 >
-                  <span className="key__name">{key.name}</span>
+                  <span className="key__name">{keyName(key.fifths, true)}</span>
                   <span className="key__accidentals muted">{accidentalCount(key.fifths)}</span>
                 </button>
               );
@@ -414,8 +439,13 @@ export function SettingsScreen({
       </div>
       {shown.keySet.length > 1 && (
         <p className="field__note muted">
-          Starts in {MAJOR_KEYS.find((k) => k.fifths === shown.keySet[0])?.name}, and changes key
-          as it goes.
+          Starts in {keyName(shown.keySet[0], true)}, and changes key as it goes.
+        </p>
+      )}
+      {naturalForDoubleSharp && (
+        <p className="field__note muted">
+          A book writes the raised seventh of {keyName(shown.fifths)} as a double sharp. This app
+          never prints one, so it is written as the natural above.
         </p>
       )}
     </div>
@@ -465,9 +495,9 @@ export function SettingsScreen({
           </p>
           {patternKind && shortenedSpan && (
             <p className="field__note muted">
-              {instrument.name} in {MAJOR_KEYS.find((k) => k.fifths === settings.fifths)?.name} has
-              only room for {shortenedSpan}, so that is what you will get — the drill&apos;s starting
-              note sits too high for anything further.
+              {instrument.name} in {keyName(shown.fifths)} has only room for {shortenedSpan}, so
+              that is what you will get — the drill&apos;s starting note sits too high for
+              anything further.
             </p>
           )}
         </div>

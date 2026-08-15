@@ -16,9 +16,10 @@ import {
 } from '../domain/instruments';
 import {
   keyAt,
-  MAJOR_SCALE,
   orderByCloseness,
   scalePitchClasses,
+  spellInKey,
+  spellWithLetter,
   tonicPitchClass,
   tourKey,
   type KeyChange,
@@ -29,11 +30,11 @@ import {
   NOTE_VALUES,
   type Duration,
 } from '../domain/rhythm';
-import { pitchClass } from '../domain/pitch';
+import { LETTERS, pitchClass, type SpelledPitch } from '../domain/pitch';
 import type { Difficulty } from './difficulty';
 import { metreFor, type Metre } from '../domain/metre';
 import { createRng, type Rng } from './rng';
-import { assembleExercise, type Slot } from './assemble';
+import { assembleExercise, type Slot, type SlotPitch } from './assemble';
 import { tonicWindow } from './theme';
 import { stitchThemes } from './phrases';
 import { planTempo } from './tempo-plan';
@@ -412,7 +413,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
    * falls back to free material in the length free material is measured in.
    */
   const drill = drillById(options.drillId);
-  const contourFor = new Map<number, number[]>();
+  const contourFor = new Map<number, SpelledPitch[]>();
   if (isPattern(options.kind)) {
     for (const fifths of ordered) {
       const shape = patternContour({ ...options, fifths }, candidates, drill);
@@ -484,7 +485,7 @@ export function generateExercise(options: GenerateOptions): Exercise {
   const soundedSlots = slots.filter((s) => !s.isRest && !s.tiedFromPrevious);
   const keyForNote = (index: number) => keyAt(keys, soundedSlots[index]?.startBeat ?? 0);
 
-  const pitches = patterned
+  const pitches: SlotPitch[] = patterned
     ? patternPitches(soundedSlots, keys, contourFor)
     : generatePitches(
         rng,
@@ -906,9 +907,9 @@ const MIN_BARS_PER_KEY = 4;
 function patternPitches(
   soundedSlots: readonly Slot[],
   keys: readonly KeyChange[],
-  contourFor: ReadonlyMap<number, number[]>,
-): number[] {
-  const pitches: number[] = [];
+  contourFor: ReadonlyMap<number, SpelledPitch[]>,
+): SpelledPitch[] {
+  const pitches: SpelledPitch[] = [];
   let current: number | null = null;
   let index = 0;
 
@@ -1295,33 +1296,49 @@ function phrasePitches(
 }
 
 /**
- * The drills: scale and arpeggio shapes, as semitones above their own root,
- * paired with the scale degree that root sits on. The player picks one on the
- * settings screen; nothing here is chosen by a dice roll, because selecting
- * "C major" and being handed F-A-C is not what anyone means by a C major
- * arpeggio.
+ * The drills: scale and arpeggio shapes, each note as semitones above the
+ * drill's own root *and* the letter it is written on, paired with the scale
+ * degree that root sits on. The player picks one on the settings screen;
+ * nothing here is chosen by a dice roll, because selecting "C major" and being
+ * handed F-A-C is not what anyone means by a C major arpeggio.
  *
- * Every one of these is strictly diatonic to the key. That is the point: a
- * drill in Eb should contain the notes of Eb and nothing else. Patterns
- * built on the tonic but borrowed from another mode — a parallel minor, or a
- * flat-seventh chord on the tonic — look like heavy chromaticism against the key
- * signature, which is not what anyone means by "scales and arpeggios".
+ * Every one of these is diatonic to the key, or is one of the two minor scales
+ * a book prints under the key's relative minor. That is the point: a drill in
+ * Eb should contain the notes of Eb and nothing else. Patterns built on the
+ * tonic but borrowed from another mode — a parallel minor, or a flat-seventh
+ * chord on the tonic — look like heavy chromaticism against the key signature,
+ * which is not what anyone means by "scales and arpeggios".
  *
  * The dominant seventh is diatonic precisely because it is built on the fifth
- * degree, not the first: in Eb that is Bb D F Ab, all in key. The relative
- * minor likewise: its triad is the sixth degree's, three notes of the key,
- * so it needs no signature of its own and gets none. The named minor *scales*
- * — harmonic, melodic — are a different matter entirely, because their raised
- * degrees are a question of spelling rather than of intervals; they are step 4
- * of the settings work and must not be listed here until the spelling is built.
+ * degree, not the first: in Eb that is Bb D F Ab, all in key. The minor
+ * arpeggio and the minor scales likewise sit on the sixth degree — the
+ * relative minor's tonic — and take the key's own signature, which is how a
+ * book prints them: D minor is written with F major's one flat.
+ *
+ * **Which letter, not only which semitone.** The harmonic minor's raised
+ * seventh in D minor is C sharp, and the key's flat would spell that sound as
+ * D flat. A scale is one note per letter, so each note here carries its letter
+ * step above the root and the spelling follows it — see `spellDrillNote`. For
+ * every diatonic drill that comes out exactly as the signature would have
+ * spelled it, so nothing changed for them.
  *
  * `cycles` is how many times through — up and back down — one sitting opens
  * on: a judgement, not a derivation, pinned by a test. A chord's cycle is
  * half the notes of a scale's, so the chords get twice as many.
  */
 
+/** One note of a drill's shape, within an octave of the root. */
+export interface DrillNote {
+  /** Semitones above the root. */
+  semitones: number;
+  /** Letter steps above the root's letter, 0–6, which decides the spelling. */
+  step: number;
+}
+
 export type DrillId =
   | 'major-scale'
+  | 'harmonic-minor-scale'
+  | 'melodic-minor-scale'
   | 'tonic-arpeggio'
   | 'subdominant-arpeggio'
   | 'dominant-arpeggio'
@@ -1334,35 +1351,88 @@ export interface Drill {
   name: string;
   /** Semitones from the key's tonic to this drill's root. */
   rootDegree: number;
-  /** Semitones above that root. */
-  intervals: number[];
+  /** The shape going up, one octave of it, from the root. */
+  up: readonly DrillNote[];
+  /**
+   * The shape coming down, where it differs — the melodic minor, whose sixth
+   * and seventh are raised on the way up and natural on the way back. Given
+   * ascending like `up`, and reversed by the contour. Absent means the way
+   * down is the way up, reversed.
+   */
+  down?: readonly DrillNote[];
+  /**
+   * Whether the drill's root is a minor tonic, so the key is named for the
+   * player as the relative minor: D minor, not F major. The signature
+   * underneath is the same either way.
+   */
+  minor?: boolean;
   /** Times through, up and back down, that one sitting opens on. */
   cycles: number;
 }
 
+/** A scale: seven notes, one per letter, from semitones above the root. */
+const scale = (semitones: readonly number[]): DrillNote[] =>
+  semitones.map((s, step) => ({ semitones: s, step }));
+
+/** A chord in thirds: root, third, fifth, and a seventh if there is one. */
+const chord = (semitones: readonly number[]): DrillNote[] =>
+  semitones.map((s, i) => ({ semitones: s, step: i * 2 }));
+
+const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+const HARMONIC_MINOR = [0, 2, 3, 5, 7, 8, 11];
+const MELODIC_MINOR_UP = [0, 2, 3, 5, 7, 9, 11];
+const NATURAL_MINOR = [0, 2, 3, 5, 7, 8, 10];
+
+/**
+ * The relative minor's tonic: nine semitones above the major's, the sixth
+ * degree. Every minor drill sits here and takes the major's signature.
+ */
+const RELATIVE_MINOR = 9;
+
 export const DRILLS: readonly Drill[] = [
-  { id: 'major-scale', name: 'Major scale', rootDegree: 0, intervals: MAJOR_SCALE, cycles: 4 },
-  { id: 'tonic-arpeggio', name: 'Tonic arpeggio', rootDegree: 0, intervals: [0, 4, 7], cycles: 8 },
+  { id: 'major-scale', name: 'Major scale', rootDegree: 0, up: scale(MAJOR), cycles: 4 },
+  {
+    id: 'harmonic-minor-scale',
+    name: 'Harmonic minor scale',
+    rootDegree: RELATIVE_MINOR,
+    up: scale(HARMONIC_MINOR),
+    minor: true,
+    cycles: 4,
+  },
+  {
+    // Ruled before it was built: ascending melodic, descending natural.
+    id: 'melodic-minor-scale',
+    name: 'Melodic minor scale',
+    rootDegree: RELATIVE_MINOR,
+    up: scale(MELODIC_MINOR_UP),
+    down: scale(NATURAL_MINOR),
+    minor: true,
+    cycles: 4,
+  },
+  { id: 'tonic-arpeggio', name: 'Tonic arpeggio', rootDegree: 0, up: chord([0, 4, 7]), cycles: 8 },
   {
     id: 'subdominant-arpeggio',
     name: 'Subdominant arpeggio',
     rootDegree: 5,
-    intervals: [0, 4, 7],
+    up: chord([0, 4, 7]),
     cycles: 8,
   },
   {
     id: 'dominant-arpeggio',
     name: 'Dominant arpeggio',
     rootDegree: 7,
-    intervals: [0, 4, 7],
+    up: chord([0, 4, 7]),
     cycles: 8,
   },
-  { id: 'dominant-7th', name: 'Dominant 7th', rootDegree: 7, intervals: [0, 4, 7, 10], cycles: 8 },
+  { id: 'dominant-7th', name: 'Dominant 7th', rootDegree: 7, up: chord([0, 4, 7, 10]), cycles: 8 },
   {
+    // The id predates the minor scales, when it was named for the major key
+    // it is relative to; kept so a stored choice still names it.
     id: 'relative-minor-arpeggio',
-    name: 'Relative minor arpeggio',
-    rootDegree: 9,
-    intervals: [0, 3, 7],
+    name: 'Minor arpeggio',
+    rootDegree: RELATIVE_MINOR,
+    up: chord([0, 3, 7]),
+    minor: true,
     cycles: 8,
   },
 ];
@@ -1389,7 +1459,7 @@ function patternContour(
   options: GenerateOptions,
   candidates: Candidate[],
   drill: Drill,
-): number[] | null {
+): SpelledPitch[] | null {
   const tonic = tonicPitchClass(options.fifths);
   const rootClass = pitchClass(tonic + drill.rootDegree);
 
@@ -1440,19 +1510,73 @@ function patternContour(
             Math.abs(r - centre) < Math.abs(best - centre) ? r : best,
           );
 
-  // Every degree of the pattern from the root up to the top of the span. Working
-  // in semitones rather than whole octaves is what lets a pattern stop on the
-  // fifth rather than always having to complete an octave.
-  const degrees = new Set(drill.intervals.map((interval) => interval % 12));
-  const ascending: number[] = [];
-  for (let offset = 0; offset <= fitted.span; offset++) {
-    if (degrees.has(offset % 12)) ascending.push(root + offset);
-  }
+  /*
+   * Every note of the shape from the root up to the top of the span, octave
+   * by octave. Working in semitones rather than whole octaves is what lets a
+   * pattern stop on the fifth rather than always having to complete an octave.
+   * The letter step climbs with the octave — seven letters to each — which is
+   * what the spelling reads.
+   */
+  const climb = (shape: readonly DrillNote[]) => {
+    const notes: Array<{ midi: number; step: number }> = [];
+    for (let octave = 0; ; octave++) {
+      let any = false;
+      for (const note of shape) {
+        const offset = octave * 12 + note.semitones;
+        if (offset > fitted.span) continue;
+        notes.push({ midi: root + offset, step: octave * 7 + note.step });
+        any = true;
+      }
+      if (!any) break;
+    }
+    return notes;
+  };
 
+  const ascending = climb(drill.up);
   if (ascending.length < 2) return null;
+  const top = ascending[ascending.length - 1].midi;
 
-  // Up then back down, without sounding the turning notes twice.
-  return [...ascending, ...ascending.slice(1, -1).reverse()];
+  /*
+   * Back down without sounding the turning notes twice: everything strictly
+   * below the top and above the root, in reverse. From the way-down shape
+   * where the drill has one — the melodic minor comes down natural — and
+   * otherwise from the way up, which is what a plain reversal always was.
+   */
+  const descending = climb(drill.down ?? drill.up)
+    .filter((note) => note.midi < top && note.midi > root)
+    .reverse();
+
+  const rootLetter = spellInKey(root, options.fifths).letter;
+  return [...ascending, ...descending].map((note) =>
+    spellDrillNote(note.midi, rootLetter, note.step, options.fifths),
+  );
+}
+
+/**
+ * How a note of a drill is written: on the letter its step names, altered as
+ * far as it takes to reach the pitch.
+ *
+ * A scale is one note per letter, and this is what makes the harmonic minor's
+ * seventh come out as C sharp in D minor rather than the D flat the signature's
+ * direction would choose. For a diatonic note the letter step lands on the very
+ * letter the signature spells it with, so every drill that was right before is
+ * unchanged.
+ *
+ * Where the letter would need a double accidental — the raised seventh of G
+ * sharp, D sharp and A sharp minor, which a publisher prints as a double sharp
+ * — it falls back to the key's own spelling, which writes the same sound as
+ * the natural above. This app never prints a double accidental; see
+ * `spellInKey`, whose rule that is. Three keys no brass band part is written
+ * in, and the settings screen says so beside them.
+ */
+function spellDrillNote(
+  midi: number,
+  rootLetter: SpelledPitch['letter'],
+  step: number,
+  fifths: number,
+): SpelledPitch {
+  const letter = LETTERS[(LETTERS.indexOf(rootLetter) + step) % LETTERS.length];
+  return spellWithLetter(midi, letter) ?? spellInKey(midi, fifths);
 }
 
 function chooseNext(

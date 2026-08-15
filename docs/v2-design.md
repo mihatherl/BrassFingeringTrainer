@@ -244,22 +244,25 @@ release.
        the player's pick, never a dice roll. A stored `scales` or `arpeggios`
        migrates to the drill its box played. The picker is a scrolling window
        like the keys, sized for the named minors still to come.
-    4. **Named minor scales**: *A minor harmonic*, *A minor melodic*, chosen the
-       way a book prints them rather than as a key signature plus a mode. The
-       intervals are free; **the work is spelling**. `spellInKey` chooses
-       accidentals by the key signature's direction, and a minor key takes its
-       relative major's signature — so D harmonic minor is one flat and its
-       raised seventh would come out as D♭ rather than C♯. The pattern has to
-       carry which degree is raised, not just a semitone count. Melodic minor is
-       already ruled: ascending melodic, descending natural.
+    4. ~~**Named minor scales**~~ — built, v2.18.0. *Harmonic minor scale*
+       and *Melodic minor scale* in the Drills picker, chosen the way a book
+       prints them: pick the drill and the keys relabel to the minors — *Dm*,
+       *C minor* — with the relative major's signature underneath, which is
+       how D minor is written. The work was spelling, as predicted: each
+       drill note now carries its letter step above the root, and
+       `spellWithLetter` alters that letter as far as it takes, so D harmonic
+       minor's seventh is C♯ and not the D♭ one flat would have chosen.
+       Melodic minor is ascending melodic, descending natural, as ruled. See
+       *The named minor scales* below for the one limit.
     5. **A key and a difficulty per material.** Asked for on 2026-08-15 and
        deliberately sequenced *after* drills, on the reasoning that settled it:
        step 3 merges Scales and Arpeggios into one box, so settings keyed by
-       material would need migrating the moment it lands — and step 4 replaces
-       the Drills box's key control outright, since *A minor harmonic* names its
-       own tonic and does not want a key signature chosen beside it. Building
-       per-material keys now would be building storage for a setting that is
-       about to stop existing in one material of three. Difficulty is less
+       material would need migrating the moment it lands — and step 4 was
+       expected to replace the Drills box's key control outright. In the event
+       it *relabelled* it: the control is the same `keySet`, named as minors
+       when a minor drill is chosen, so the storage a per-material key would
+       need is now known. Building it earlier would have been building it
+       twice. Difficulty is less
        exposed, but the storage is the same piece of work either way, so
        splitting them buys nothing.
 
@@ -284,6 +287,45 @@ same format and nothing in the app changes.
 
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
+
+## The named minor scales — v2.18.0
+
+Step 4 of the settings work. *Harmonic minor scale* and *Melodic minor scale*
+sit in the Drills picker between the major scale and the arpeggios; the
+relative-minor arpeggio is now simply *Minor arpeggio*, and all three are
+chosen the way a book prints them.
+
+**A minor drill names its key as a minor.** Choose one and the fifteen key
+chips read *Dm*, *Cm*, *F♯m*; the summary reads *C minor · Harmonic minor
+scale · 1 octave*. Underneath, nothing moved: `keySet` is the same control
+holding the same signatures, and D minor is written with F major's one flat
+exactly as a publisher writes it. The plan expected step 4 to take the key
+control out of the box; relabelling it kept one control doing one job and
+kept key tours working for minors too.
+
+**The work was the spelling.** `spellInKey` chooses accidentals by the
+signature's direction, so D harmonic minor's seventh would have come out as
+D♭. A scale is one note per letter: each `DrillNote` carries its letter step
+above the root, and `spellWithLetter` alters that letter as far as it takes to
+reach the pitch — C♯ on the letter C. For every diatonic drill the letter step
+lands on the very letter the signature spells, so their notation is
+byte-identical to before (the engraving snapshots say so). The melodic minor
+carries a second shape for the way down — ascending melodic, descending
+natural, as ruled — and the contour climbs each shape octave by octave and
+joins them below the top note.
+
+**The one limit, and it is the app's own rule.** The raised seventh of G♯, D♯
+and A♯ minor is a double sharp in a book, and this app never prints one —
+`spellInKey`'s rule since v1. There the drill falls back to the key's own
+spelling, which writes F𝄪 as G♮, and the settings screen says so beside those
+keys. Three keys no brass band part is written in; if a player ever asks, the
+Bravura double-sharp glyph is one entry in `glyphs.ts` and one branch in
+`notes.ts`, and the fallback comes out.
+
+**The blurb guard did its job.** Adding the two drills without a claim refused
+to compile, which is exactly what it was built for; the sentence now reads
+*Major, harmonic minor and melodic minor scales; tonic, subdominant, dominant,
+dominant 7th and minor arpeggios.*
 
 ## The sound arrives when the clock says — v2.16.1 and v2.17.0
 

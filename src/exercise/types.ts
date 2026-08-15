@@ -205,8 +205,8 @@ export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blu
      * without the sentence widening to own it.
      */
     blurb:
-      'The major scale, and the arpeggios of the key: tonic, subdominant, dominant, ' +
-      'dominant 7th and relative minor.',
+      'Major, harmonic minor and melodic minor scales; tonic, subdominant, dominant, ' +
+      'dominant 7th and minor arpeggios.',
   },
   { id: 'phrases', name: 'Sight-reading', blurb: 'Musical phrases with contour, leaps and rests.' },
   {
