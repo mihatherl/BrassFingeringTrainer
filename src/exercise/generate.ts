@@ -1298,7 +1298,7 @@ interface Pattern {
   intervals: number[];
 }
 
-const SCALE_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: MAJOR_SCALE }];
+export const SCALE_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: MAJOR_SCALE }];
 
 /**
  * The tonic triad, and only the tonic triad.
@@ -1308,8 +1308,14 @@ const SCALE_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: MAJOR_SCALE }];
  * and being given F-A-C is not what anyone means by a C major arpeggio. They
  * belong behind an explicit choice, not behind a dice roll. Adding one is a
  * matter of listing it here and letting the player pick.
+ *
+ * **Which is the plan**, ruled on 2026-08-15: all four are wanted as selectable
+ * drills, and the picker that will select them is step 3 of the settings work.
+ * Until then the blurb on the Arpeggios box names the one chord this list holds
+ * — it named all five for a long time, describing an intention rather than the
+ * code, and that is exactly what the player asked never to happen.
  */
-const ARPEGGIO_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: [0, 4, 7] }];
+export const ARPEGGIO_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: [0, 4, 7] }];
 
 /**
  * Scales and arpeggios: a genuine pattern, starting on its own root and running

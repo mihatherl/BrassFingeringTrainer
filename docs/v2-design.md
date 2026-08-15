@@ -236,7 +236,10 @@ release.
        choose*.
     2. ~~The accordion~~ — built, v2.15.0. See *One box per material*.
     3. **Drills**: Scales and Arpeggios become one box with a selectable drill
-       type, and the key choice moves down into it. The generator is already
+       type, and the key choice moves down into it. The four arpeggios the box
+       used to promise — subdominant, dominant, dominant 7th and relative minor
+       — are wanted as selectable drills here; see *Nothing claims what it does
+       not deliver* below for why the promise came off in the meantime. The generator is already
        built for this — `SCALE_PATTERNS` and `ARPEGGIO_PATTERNS` are lists of
        `{ rootDegree, intervals }`, and the comment above them has said since it
        was written that adding one is a matter of listing it and letting the
@@ -272,6 +275,35 @@ same format and nothing in the app changes.
 
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
+
+## Nothing claims what it does not deliver — v2.15.1
+
+The player's rule, given on 2026-08-15 and worth keeping as a rule rather than
+as one correction: **nothing should make a claim of something it doesn't
+deliver.**
+
+What prompted it: the Arpeggios box read *"Tonic, subdominant, dominant,
+dominant 7th and relative minor — all in key"*, and `ARPEGGIO_PATTERNS` has held
+the tonic triad alone since it was written. The blurb was describing an
+intention. Nothing connected the sentence to the list, so nothing noticed — and
+a player choosing that box on the strength of it would have been reading one
+chord and wondering where the other four were.
+
+The sentence now names the one chord. The other four are wanted and are on the
+list for the drills picker; **the promise comes back when they arrive, and not
+before.** A test now ties the two together in both directions: it fails if the
+blurb widens past the patterns, and it fails when a pattern is added without the
+blurb widening — which is the reminder to write the sentence back.
+
+The same guard covers the Scales box, whose blurb must not mention a minor until
+step 4 gives it one.
+
+**The other nine blurbs were audited against the data and all hold.** Worth
+recording that they were checked rather than assumed: every difficulty's range,
+rhythm list, accidental, rest and tie chances say what the blurb says, including
+the two that make claims about a *different* level — Medium's pattern blurb says
+dotted rhythms wait for Hard, and Hard's pattern rhythms do indeed carry a dotted
+quaver.
 
 ## One box per material — v2.15.0
 

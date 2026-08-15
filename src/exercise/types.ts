@@ -197,7 +197,17 @@ export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blu
   {
     id: 'arpeggios',
     name: 'Arpeggios',
-    blurb: 'Tonic, subdominant, dominant, dominant 7th and relative minor — all in key.',
+    /*
+     * What it plays, which is one chord.
+     *
+     * It said "tonic, subdominant, dominant, dominant 7th and relative minor"
+     * until v2.15.1, and `ARPEGGIO_PATTERNS` has held the tonic triad alone
+     * since it was written — the blurb was describing an intention. The player's
+     * rule, and it is a good one: nothing should make a claim of something it
+     * doesn't deliver. The other four are wanted and are on the list for the
+     * drills picker; the sentence comes back when they arrive, and not before.
+     */
+    blurb: 'The tonic triad of the key, up and down.',
   },
   { id: 'phrases', name: 'Sight-reading', blurb: 'Musical phrases with contour, leaps and rests.' },
   {

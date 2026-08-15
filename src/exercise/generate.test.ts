@@ -6,13 +6,15 @@ import { keyAt, needsAccidental, spellInKey, tonicPitchClass } from '../domain/k
 import { durationBeats } from '../domain/rhythm';
 import { DIFFICULTIES, difficultyById } from './difficulty';
 import {
+  ARPEGGIO_PATTERNS,
   defaultLengthFor,
   generateExercise,
   patternSpanFor,
+  SCALE_PATTERNS,
   type GenerateOptions,
 } from './generate';
 import { isTieContinuation } from './ties';
-import type { ExerciseKind } from './types';
+import { EXERCISE_KINDS, type ExerciseKind } from './types';
 
 const ebBass = instrumentById('eb-bass');
 
@@ -1112,6 +1114,40 @@ describe('somewhere to put a valve down, past every boundary', () => {
  * these is worth, made on 2026-08-15 when length stopped being a setting — and
  * a judgement nothing else in the code would notice being changed.
  */
+/**
+ * What the boxes on the settings screen promise, against what the generator
+ * actually makes.
+ *
+ * The player's rule, given on 2026-08-15: *nothing should make a claim of
+ * something it doesn't deliver.* The Arpeggios box named five chords for a long
+ * time — tonic, subdominant, dominant, dominant 7th and relative minor — while
+ * `ARPEGGIO_PATTERNS` has held the tonic triad alone since it was written. The
+ * blurb was describing an intention, and nothing connected the two, so nothing
+ * noticed.
+ *
+ * This connects them. Adding the other four is wanted and planned; when they
+ * arrive this test fails, which is the reminder to put the sentence back.
+ */
+describe('what the material boxes promise', () => {
+  const blurbOf = (id: string) => EXERCISE_KINDS.find((k) => k.id === id)!.blurb.toLowerCase();
+
+  it('promises one chord for arpeggios, because it plays one chord', () => {
+    expect(ARPEGGIO_PATTERNS).toHaveLength(1);
+    expect(blurbOf('arpeggios')).toContain('tonic');
+    for (const unplayed of ['subdominant', 'dominant', 'relative minor']) {
+      expect(blurbOf('arpeggios'), `still promises the ${unplayed}`).not.toContain(unplayed);
+    }
+  });
+
+  it('promises the major scale for scales, because that is the only shape there is', () => {
+    expect(SCALE_PATTERNS).toHaveLength(1);
+    expect(blurbOf('scales')).toContain('major scale');
+    // The minors are step 4 of the settings work, and the sentence widens with
+    // them rather than before them.
+    expect(blurbOf('scales'), 'promises a minor it cannot play').not.toContain('minor');
+  });
+});
+
 describe('how long a run is, now that nobody chooses', () => {
   it('opens on the length the player set for each material', () => {
     expect(defaultLengthFor('phrases').bars, 'sixteen bars of reading').toBe(16);
