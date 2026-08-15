@@ -1076,9 +1076,30 @@ input[type='checkbox'] {
   gap: 0.5rem;
 }
 
+/*
+ * Two choices to a row.
+ *
+ * For the settings whose options are a pair — a reading mode, sound on or off —
+ * where one card per line spends a line saying what a second column says for
+ * nothing. An odd last card takes the whole width rather than sitting beside a
+ * gap: three options then read as two and one, which is how the fingering modes
+ * actually divide.
+ */
+.cards--two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.cards--two > .card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .card {
   display: grid;
   gap: 0.125rem;
+  /* Content at the top, not spread down the card. Side by side, a card is as
+     tall as the tallest of its row — so without this a short blurb floats away
+     from the name it belongs to, which reads as two separate things. */
+  align-content: start;
   text-align: left;
   padding: 0.75rem;
   border: 1px solid var(--border);

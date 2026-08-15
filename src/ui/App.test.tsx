@@ -169,6 +169,43 @@ describe('the app', () => {
    * other. Shown together they are noise, which is what the player asked to be
    * rid of.
    */
+  /**
+   * The Playing section, laid out in pairs.
+   *
+   * Its settings are mostly two-option questions — a reading mode, sound on or
+   * off, two switches for what keeps time — and one card per line spent a line
+   * saying what a second column says for nothing. The section came to 760 pixels
+   * on a phone, which is more than the screen has above the Start bar.
+   */
+  describe('the playing section', () => {
+    const cardsIn = (label: string) => {
+      const field = [...document.querySelectorAll('#panel-playing .field')].find(
+        (f) => f.querySelector('.field__label')?.textContent === label,
+      );
+      return [...(field?.querySelectorAll('.card strong') ?? [])].map((c) => c.textContent);
+    };
+
+    it('offers the fingering modes two up, with Every note on its own row', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Playing'));
+
+      // The two a player lives in share a row; the one chosen deliberately for
+      // a piece never seen before takes the row below, which is where the odd
+      // card of three lands anyway. Order is layout here, so it is pinned.
+      expect(cardsIn('Fingerings')).toEqual(['Where I struggle', 'Never', 'Every note']);
+      expect(document.querySelectorAll('#panel-playing .cards--two').length).toBe(3);
+    });
+
+    it('puts the two time-keepers on one line', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Playing'));
+
+      const row = document.querySelector('#panel-playing .field-row');
+      const labels = [...(row?.querySelectorAll('label span') ?? [])].map((s) => s.textContent);
+      expect(labels).toEqual(['Metronome', 'Conductor']);
+    });
+  });
+
   describe('the material boxes', () => {
     const openBox = () => document.querySelector('.mode.is-open .mode__summary strong')?.textContent;
     const fieldsShown = () =>

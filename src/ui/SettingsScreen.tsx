@@ -639,7 +639,7 @@ export function SettingsScreen({
       <Panel id="playing" title="Playing" values={panelValues.playing} open={isOpen('playing')} onToggle={setOpen}>
 
         <div className="field">
-          <div className="cards">
+          <div className="cards cards--two">
             {READING_MODES.map((mode) => (
               <button
                 key={mode.id}
@@ -668,27 +668,31 @@ export function SettingsScreen({
             )}
         </div>
 
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={settings.metronomeEnabled}
-            onChange={(event) => update('metronomeEnabled', event.target.checked)}
-          />
-          <span>Metronome</span>
-        </label>
+        {/* Two switches, one line. Neither needs a column of its own, and the
+            pair is the answer to the same question — what keeps time. */}
+        <div className="field field-row">
+          <label className="field field--inline">
+            <input
+              type="checkbox"
+              checked={settings.metronomeEnabled}
+              onChange={(event) => update('metronomeEnabled', event.target.checked)}
+            />
+            <span>Metronome</span>
+          </label>
 
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={settings.conductorEnabled}
-            onChange={(event) => update('conductorEnabled', event.target.checked)}
-          />
-          <span>Conductor</span>
-        </label>
+          <label className="field field--inline">
+            <input
+              type="checkbox"
+              checked={settings.conductorEnabled}
+              onChange={(event) => update('conductorEnabled', event.target.checked)}
+            />
+            <span>Conductor</span>
+          </label>
+        </div>
 
         <div className="field">
           <span className="field__label">Sound</span>
-          <div className="cards">
+          <div className="cards cards--two">
             {PLAYBACK_MODES.map((mode) => (
               <button
                 key={mode.id}
@@ -705,7 +709,7 @@ export function SettingsScreen({
 
         <div className="field">
           <span className="field__label">Fingerings</span>
-          <div className="cards">
+          <div className="cards cards--two">
             {FINGERING_MODES.map((choice) => (
               <button
                 key={choice.id}

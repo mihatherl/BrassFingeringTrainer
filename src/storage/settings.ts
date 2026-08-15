@@ -178,18 +178,26 @@ export const PLAYBACK_MODES: ReadonlyArray<Choice<PlaybackMode>> = [
   { id: 'off', name: 'Silent' },
 ];
 
+/*
+ * The order these are offered in, which is also how they are laid out.
+ *
+ * The two a player lives in come first and share a row — prompting where the
+ * trouble is, which is the default, and no prompting at all. *Every note* is the
+ * one you choose deliberately for a piece you have never seen, and it takes the
+ * row below on its own, which is where the odd card of three lands anyway.
+ */
 export const FINGERING_MODES: ReadonlyArray<Choice<FingeringMode>> = [
-  {
-    id: 'always',
-    name: 'Every note',
-    blurb: 'Reading something new, with the answers in front of you.',
-  },
   {
     id: 'trouble',
     name: 'Where I struggle',
     blurb: 'A prompt on the notes that go wrong, and on those that went wrong before.',
   },
   { id: 'never', name: 'Never', blurb: 'Just the music.' },
+  {
+    id: 'always',
+    name: 'Every note',
+    blurb: 'Reading something new, with the answers in front of you.',
+  },
 ];
 
 export const READING_MODES: ReadonlyArray<Choice<ReadingMode>> = [

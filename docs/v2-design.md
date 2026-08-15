@@ -305,6 +305,35 @@ the two that make claims about a *different* level — Medium's pattern blurb sa
 dotted rhythms wait for Hard, and Hard's pattern rhythms do indeed carry a dotted
 quaver.
 
+## The Playing section, in pairs — v2.15.4
+
+The same problem as the sight-reading box and the same measure: 760 pixels on a
+phone, against roughly 700 above the Start bar. It could not be seen in the
+window it was opened in.
+
+**Most of its settings are two-option questions**, and one card per line spent a
+line saying what a second column says for nothing. A reading mode is scrolling or
+paged; sound is on or off; what keeps time is a metronome, a conductor, or
+neither. All three now sit two to a row.
+
+**The fingering modes divide two and one**, which is what they actually are. The
+two a player lives in — prompting where the trouble is, which is the default, and
+no prompting at all — share a row. *Every note* is the one chosen deliberately
+for a piece never seen before, and it takes the row below on its own. That is
+also where the odd card of three lands: `.cards--two` gives a last-of-three the
+full width rather than a gap beside it, so the rule and the meaning agree without
+either being told about the other.
+
+`FINGERING_MODES` was reordered to match, since the list is the display order and
+nothing reads it by index. A test pins it, because the order now carries layout.
+
+**A card's content sits at the top of it.** Side by side a card is as tall as the
+tallest in its row, and without this a short blurb floated to the middle, away
+from the name it belongs to — *Never* and *Just the music.* read as two separate
+things.
+
+760 pixels down to 602, and it fits.
+
 ## Getting the sight-reading box into one frame — v2.15.3
 
 The player's reason, which is the thing to keep: *people will still get lost in
