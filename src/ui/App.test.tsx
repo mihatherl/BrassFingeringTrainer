@@ -253,6 +253,30 @@ describe('the app', () => {
         .find((panel) => panel.querySelector('.panel__title')?.textContent === 'Exercise')
         ?.querySelector('.panel__values')?.textContent;
 
+    /**
+     * Three rows of five in a window two rows tall, so one row shows whole with
+     * half a row above and below and the rest is a swipe away.
+     *
+     * The arrangement is the point, not decoration: five to a row is what puts
+     * B flat, F, C, G and D — two flats to two sharps — in the middle row on
+     * their own, which is where nearly all brass band reading lives. Change the
+     * row length and that stops being true silently.
+     */
+    it('lays the keys out five to a row, with the common five in the middle', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Exercise'));
+
+      const rows = [...document.querySelectorAll('.keys__row')].map((row) =>
+        [...row.querySelectorAll('.key__name')].map((name) => name.textContent),
+      );
+
+      expect(rows).toEqual([
+        ['Cb', 'Gb', 'Db', 'Ab', 'Eb'],
+        ['Bb', 'F', 'C', 'G', 'D'],
+        ['A', 'E', 'B', 'F#', 'C#'],
+      ]);
+    });
+
     it('starts in the first key chosen, and says the whole route', () => {
       render(<App />);
       fireEvent.click(screen.getByText('Exercise'));

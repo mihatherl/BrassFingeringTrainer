@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { INSTRUMENTS, availableClefs, instrumentById, writtenRange } from '../domain/instruments';
 import { describeFifths, MAJOR_KEYS, orderByCloseness } from '../domain/keys';
 import { metreFor } from '../domain/metre';
@@ -63,6 +63,21 @@ function Panel({ id, title, values, open, onToggle, children }: PanelProps) {
     </details>
   );
 }
+
+/**
+ * Keys to a row, which decides what the window opens on.
+ *
+ * Five, and not an arbitrary five: fifteen keys in rows of five puts B flat, F,
+ * C, G and D — two flats to two sharps — in the middle row on their own, which
+ * is where nearly all brass band reading lives. The rows either side hold the
+ * keys a player goes looking for rather than the ones they land on.
+ */
+const KEYS_PER_ROW = 5;
+
+const KEY_ROWS = Array.from(
+  { length: Math.ceil(MAJOR_KEYS.length / KEYS_PER_ROW) },
+  (_, row) => MAJOR_KEYS.slice(row * KEYS_PER_ROW, row * KEYS_PER_ROW + KEYS_PER_ROW),
+);
 
 /** Joins the parts of a collapsed section's summary line. */
 function summarise(...parts: Array<string | undefined>): string {
@@ -239,6 +254,42 @@ export function SettingsScreen({
   };
 
   /*
+   * Which row of keys the window rests on.
+   *
+   * The window is two rows tall and the rows are three, so it shows one row
+   * whole with half of a row above and below — enough to say *there is more this
+   * way* without a scrollbar having to say it, and enough that a thumb knows
+   * which way to move.
+   *
+   * It opens on the row holding the key the exercise starts in, rather than
+   * always on the middle one. Nearly always they are the same row: two flats to
+   * two sharps is the middle five by construction, and that is where brass band
+   * reading lives. When they are not — an Eb player, which is the default — a
+   * control that opened with the current choice half out of sight would be
+   * hiding the one thing it most has to say.
+   *
+   * Set when the section opens rather than on mount: a shut `<details>` hides
+   * its children outright, and an element with no box has no scroll to set.
+   */
+  const keysWindow = useRef<HTMLDivElement>(null);
+  const exerciseOpen = isOpen('exercise');
+  const startingKey = shown.keySet[0];
+
+  useEffect(() => {
+    const window_ = keysWindow.current;
+    if (!window_ || !exerciseOpen) return;
+    const row = window_.children[
+      Math.floor(MAJOR_KEYS.findIndex((k) => k.fifths === startingKey) / KEYS_PER_ROW)
+    ] as HTMLElement | undefined;
+    if (!row) return;
+    // Centred by hand rather than by `scrollIntoView`, which would also scroll
+    // the page to bring the window itself into view — and the player has just
+    // opened the section, so the page is already where they put it.
+    window_.scrollTop = row.offsetTop - (window_.clientHeight - row.offsetHeight) / 2;
+  }, [exerciseOpen, startingKey]);
+
+
+  /*
    * The fields a material's box holds, built here and placed by the accordion
    * below rather than laid out in one fixed column.
    *
@@ -252,24 +303,25 @@ export function SettingsScreen({
    * and so that each is plainly the same one control wherever it is shown.
    */
   const keysField = (
-    <>
-        {/*
-          One control for keys, not two.
+    <div className="field">
+      <span className="field__label">Keys</span>
+      {/*
+        One control for keys, not two.
 
-          There used to be a dropdown naming the starting key and a grid naming
-          the keys in play, which said the same thing twice: `keySet[0]` *is*
-          the starting key and always was. The pair also needed a rule to keep
-          them agreeing — the starting key's chip could not be deselected —
-          which is a rule that only existed because there were two controls.
+        There used to be a dropdown naming the starting key and a grid naming the
+        keys in play, which said the same thing twice: `keySet[0]` *is* the
+        starting key and always was. The pair also needed a rule to keep them
+        agreeing — the starting key's chip could not be deselected — which is a
+        rule that only existed because there were two controls.
 
-          Pick keys in the order you want them. The first is where the exercise
-          opens; the collapsed summary spells the whole route out, so the order
-          is never a secret you have to remember choosing.
-        */}
-        <div className="field">
-          <span className="field__label">Keys</span>
-          <div className="segmented segmented--wrap">
-            {MAJOR_KEYS.map((key) => {
+        Pick keys in the order you want them. The first is where the exercise
+        opens; the collapsed summary spells the whole route out, so the order is
+        never a secret you have to remember choosing.
+      */}
+      <div className="keys" ref={keysWindow}>
+        {KEY_ROWS.map((row) => (
+          <div className="keys__row" key={row[0].fifths}>
+            {row.map((key) => {
               const chosen = shown.keySet.includes(key.fifths);
               const start = shown.keySet[0] === key.fifths;
               const full = shown.keySet.length >= MAX_KEYS_IN_PLAY;
@@ -306,14 +358,15 @@ export function SettingsScreen({
               );
             })}
           </div>
-          {shown.keySet.length > 1 && (
-            <p className="field__note muted">
-              Starts in {MAJOR_KEYS.find((k) => k.fifths === shown.keySet[0])?.name}, and changes
-              key as it goes.
-            </p>
-          )}
-        </div>
-    </>
+        ))}
+      </div>
+      {shown.keySet.length > 1 && (
+        <p className="field__note muted">
+          Starts in {MAJOR_KEYS.find((k) => k.fifths === shown.keySet[0])?.name}, and changes key
+          as it goes.
+        </p>
+      )}
+    </div>
   );
 
   const difficultyField = (

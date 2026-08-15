@@ -305,6 +305,40 @@ the two that make claims about a *different* level — Medium's pattern blurb sa
 dotted rhythms wait for Hard, and Hard's pattern rhythms do indeed carry a dotted
 quaver.
 
+## The keys, in a window two rows tall — v2.15.2
+
+Asked for by the player: the key chips were three quarters of a screen of
+buttons, and a settings screen that has just been cleared of choices should not
+then spend its height on fifteen of them.
+
+**Three rows of five, in a window two rows tall.** One row shows whole with half
+a row above and below — enough to say *there is more this way* without a
+scrollbar having to say it, and enough that a thumb knows which way to move.
+Rows snap, so a swipe lands on a row and never between two.
+
+**Five to a row is not an arbitrary five.** Fifteen keys in rows of five puts B
+flat, F, C, G and D — two flats to two sharps — in the middle row on their own,
+which is where nearly all brass band reading lives. The rows either side hold the
+keys a player goes looking for rather than the ones they land on. A test pins the
+arrangement, because changing the row length would stop that being true silently.
+
+**The window opens on the row holding the key the exercise starts in**, rather
+than always on the middle one. Nearly always they are the same row. When they are
+not — an E flat player, which is the default — a control that opened with the
+current choice half out of sight would be hiding the one thing it most has to
+say. At either end of the list this shows two whole rows rather than one and two
+halves, because there is nothing beyond the end to show half of.
+
+**The chip is three quarters of the height it was**, 61 pixels down to 46. It was
+padded top and bottom around two short lines, carrying the empty room of a button
+built for one. It now has an explicit height and is centred in it — which is also
+what makes the window's height arithmetic rather than a guess, since two chips
+and two gaps is exactly one row plus the two halves.
+
+The window is capped at 22rem wide. It is a thumb control, and five chips
+stretched across a desktop panel are both ugly and further apart than one hand
+can work.
+
 ## One box per material — v2.15.0
 
 The second of the four steps. Pure presentation: not a line of the model, the
