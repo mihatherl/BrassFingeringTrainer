@@ -159,6 +159,47 @@ export interface Settings {
    * sight-reading a moving cursor otherwise does for them.
    */
   readingMode: ReadingMode;
+  /**
+   * The headphones and speakers the player has calibrated, each with how far
+   * behind the clock it is heard. The phone's own speaker is not on the list:
+   * it is what "none of these" means, and it needs no lead.
+   *
+   * A list rather than one number because the player has more than one, and
+   * they are late by different amounts — three outputs, three latencies, was
+   * the observation that asked for this. Switching should be a tap, not a
+   * recalibration.
+   */
+  audioOutputs: AudioOutput[];
+  /** Which of `audioOutputs` is in the ears, or null for the phone's speaker. */
+  audioOutputId: string | null;
+}
+
+/**
+ * A calibrated output device.
+ *
+ * `leadMs` is how early sound is handed to the audio thread so that it is
+ * heard on the beat: the device's latency, as the player measured it by
+ * tapping along. See `Transport.audioLead` for what is done with it.
+ */
+export interface AudioOutput {
+  id: string;
+  name: string;
+  leadMs: number;
+}
+
+/**
+ * How far sound may be brought forward, in milliseconds.
+ *
+ * Bluetooth headsets sit between roughly a tenth and a third of a second;
+ * the ceiling leaves room for a slow one without letting a mis-tap ask for a
+ * lead longer than a beat.
+ */
+export const AUDIO_LEAD_RANGE = { min: 0, max: 500 } as const;
+
+/** The lead in force, in seconds, for the output the player says is in use. */
+export function audioLeadFor(settings: Settings): number {
+  const output = settings.audioOutputs.find((o) => o.id === settings.audioOutputId);
+  return (output?.leadMs ?? 0) / 1000;
 }
 
 export const SCROLL_SPEED_RANGE = { min: 50, max: 220 } as const;
@@ -253,6 +294,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fingerings: 'trouble',
   scrollSpeed: 110,
   readingMode: 'scrolling',
+  audioOutputs: [],
+  audioOutputId: null,
 };
 
 /**
@@ -448,7 +491,40 @@ export function sanitise(settings: Settings): Settings {
       CONDUCTOR_STYLE_RANGE.min,
       CONDUCTOR_STYLE_RANGE.max,
     ),
+    ...sanitiseOutputs(settings),
   };
+}
+
+/**
+ * The calibrated outputs, forced into a state the transport can rely on.
+ *
+ * Anything that is not an output — no id, no name, a lead that is not a
+ * number — is dropped rather than repaired, since there is no way to guess
+ * what a device was called; a lead is clamped, since a number out of range is
+ * still a measurement of something. And the chosen output must be on the list,
+ * or the phone's speaker is what is in use.
+ */
+function sanitiseOutputs(settings: Settings): Pick<Settings, 'audioOutputs' | 'audioOutputId'> {
+  const seen = new Set<string>();
+  const audioOutputs = (Array.isArray(settings.audioOutputs) ? settings.audioOutputs : [])
+    .filter(
+      (o): o is AudioOutput =>
+        !!o &&
+        typeof o.id === 'string' &&
+        o.id.length > 0 &&
+        typeof o.name === 'string' &&
+        Number.isFinite(o.leadMs),
+    )
+    .filter((o) => !seen.has(o.id) && seen.add(o.id))
+    .map((o) => ({
+      id: o.id,
+      name: o.name.trim() || 'Headphones',
+      leadMs: Math.round(clamp(o.leadMs, AUDIO_LEAD_RANGE.min, AUDIO_LEAD_RANGE.max)),
+    }));
+  const audioOutputId = audioOutputs.some((o) => o.id === settings.audioOutputId)
+    ? settings.audioOutputId
+    : null;
+  return { audioOutputs, audioOutputId };
 }
 
 /**

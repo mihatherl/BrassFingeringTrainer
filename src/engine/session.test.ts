@@ -1188,3 +1188,65 @@ describe('pausing and rewinding', () => {
     s.stop();
   });
 });
+
+/**
+ * The output's lead: sound handed to the audio thread early, so it is heard
+ * when the clock says.
+ *
+ * A Bluetooth headset delivers sound a fifth of a second and more after the
+ * context does, each device by its own amount, and the player measured three
+ * of them. The fix moves one thing — when sound is *sent* — and nothing else:
+ * the notation and the judge keep reading the clock as the truth.
+ */
+describe('a session with an output lead', () => {
+  const lead = 0.2;
+  const led = (exercise: Exercise) =>
+    new Session({
+      context,
+      exercise,
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'reference',
+      brassVoice: voice,
+      audioLead: lead,
+    });
+
+  it('hands every note to the voice the lead earlier than the beat it is for', () => {
+    const s = led(tiedExercise());
+    runTo(s, 4);
+    // Three sounds; each starts exactly the lead ahead of its beat's clock time.
+    expect(played).toHaveLength(3);
+    for (const [i, beat] of [0, 1, 3].entries()) {
+      expect(played[i].startTime, `note at beat ${beat}`).toBeCloseTo(
+        s.timeForNote([0, 1, 3][i]) - lead,
+        6,
+      );
+    }
+  });
+
+  it('judges against the clock, not the earlier sound', () => {
+    // A press on the beat as the clock has it — where the player sees and now
+    // hears it — is right, whatever the lead. Fingers held from the start, so
+    // only the timing question is being asked.
+    const s = led(tiedExercise());
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+    runTo(s, 4);
+    expect(s.judgements.map((j) => j.verdict)).toEqual(['correct', 'correct', 'correct']);
+  });
+
+  it('is never late with the first note, which is sent the lead earlier still', () => {
+    // The clock opens far enough ahead that even the first sound has its
+    // whole lead of room: it is handed over at or after the moment of
+    // starting, never in the past.
+    const s = led(tiedExercise());
+    audioTime = 5;
+    s.start();
+    audioTime = 5.025;
+    vi.advanceTimersByTime(25);
+    expect(played.length).toBeGreaterThan(0);
+    expect(played[0].startTime).toBeGreaterThanOrEqual(5);
+    s.stop();
+  });
+});

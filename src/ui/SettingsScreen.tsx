@@ -121,6 +121,8 @@ interface SettingsScreenProps {
   onStart: () => void;
   /** Opens My Music, where a part is read out of a file rather than generated. */
   onImport: () => void;
+  /** Opens the headphones screen, where an output is chosen and measured. */
+  onOutputs: () => void;
 }
 
 export function SettingsScreen({
@@ -129,6 +131,7 @@ export function SettingsScreen({
   onChange,
   onStart,
   onImport,
+  onOutputs,
 }: SettingsScreenProps) {
   /*
    * What will actually be played, as against what is stored.
@@ -197,6 +200,7 @@ export function SettingsScreen({
   const material = EXERCISE_KINDS.find((k) => k.id === shown.kind);
   const reading = READING_MODES.find((m) => m.id === shown.readingMode);
   const sound = PLAYBACK_MODES.find((m) => m.id === settings.playbackMode);
+  const output = settings.audioOutputs.find((o) => o.id === settings.audioOutputId);
 
   const panelValues = {
     instrument: summarise(instrument.name, settings.clef === 'treble' ? 'Treble' : 'Bass'),
@@ -239,6 +243,9 @@ export function SettingsScreen({
       settings.scrollSpeed !== DEFAULT_SETTINGS.scrollSpeed ? 'scroll speed' : undefined,
       settings.conductorStyle !== DEFAULT_SETTINGS.conductorStyle ? 'conductor style' : undefined,
       shown.weakNoteDrilling !== DEFAULT_SETTINGS.weakNoteDrilling ? 'weak notes' : undefined,
+      // The phone's own speaker is the default and says nothing; a headset in
+      // use is worth a word, since it changes when every sound is sent.
+      output ? output.name : undefined,
     ),
   };
 
@@ -880,6 +887,21 @@ export function SettingsScreen({
           />
           <span>Favour notes I get wrong</span>
         </label>
+
+        {/*
+          A door rather than a control, like My Music: an output cannot be
+          measured from here, since the click has to be running while it is.
+          The line under it says what is in use, which is the one thing worth
+          knowing without going through.
+        */}
+        <button type="button" className="entry" onClick={onOutputs}>
+          <span className="entry__title">Headphones &amp; speakers</span>
+          <span className="entry__detail">
+            {output
+              ? `${output.name} — sound brought forward ${output.leadMs} ms`
+              : 'Phone speaker. Measure a Bluetooth headset so its sound lands on the beat'}
+          </span>
+        </button>
       </Panel>
 
       {/* CC-BY requires the attribution to travel with the app itself, not only

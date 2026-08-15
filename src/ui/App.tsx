@@ -23,11 +23,12 @@ import {
 import { horizonBarsFor } from '../licensing/entitlements';
 import { loadStats, noteWeights, recordSession, type NoteStats } from '../storage/stats';
 import { ImportScreen } from './ImportScreen';
+import { OutputScreen } from './OutputScreen';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
 
-type Screen = 'settings' | 'play' | 'results' | 'import';
+type Screen = 'settings' | 'play' | 'results' | 'import' | 'outputs';
 
 interface Finished {
   summary: SessionSummary;
@@ -225,6 +226,16 @@ export function App() {
       );
     }
 
+    if (screen === 'outputs') {
+      return (
+        <OutputScreen
+          settings={chosen}
+          onChange={updateSettings}
+          onBack={() => setScreen('settings')}
+        />
+      );
+    }
+
     if (screen === 'import') {
       return (
         <ImportScreen
@@ -265,6 +276,7 @@ export function App() {
         onChange={updateSettings}
         onStart={startNew}
         onImport={() => setScreen('import')}
+        onOutputs={() => setScreen('outputs')}
       />
     );
   }, [screen, exercise, finished, chosen, entitlements, onFinish, repeat, startNew, updateSettings, playImported, build]);

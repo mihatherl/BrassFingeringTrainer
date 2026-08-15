@@ -62,6 +62,12 @@ export interface SessionOptions {
   brassVoice?: Voice;
   /** Multiplies the judging window, where 1 is the default. */
   timingTolerance?: number;
+  /**
+   * How early to hand every sound to the audio thread, in seconds, so it is
+   * heard when the clock says. The output device's latency, calibrated by the
+   * player; zero for the phone's own speaker. See `Transport.audioLead`.
+   */
+  audioLead?: number;
   onJudgement?: (judgement: NoteJudgement) => void;
   /**
    * Fires the instant a note's fingering comes right, rather than when the note
@@ -214,7 +220,13 @@ export class Session {
     // follow it — recorded in `musicxml-import-plan.md` rather than guessed at
     // here, since nothing generates such an exercise yet.
     const opening = metreAt(exercise.metres, 0);
-    this.transport = new Transport(context, tempo, exercise.tempo, opening.pulseBeats);
+    this.transport = new Transport(
+      context,
+      tempo,
+      exercise.tempo,
+      opening.pulseBeats,
+      options.audioLead ?? 0,
+    );
     this.input = new ValveInput(() => context.currentTime);
     this.synth = options.brassVoice ?? new BrassSynth(context);
     this.metronome = new Metronome(context);
@@ -543,7 +555,7 @@ export class Session {
         for (let pulse = 0; pulse < metre.pulsesPerBar; pulse++) {
           const beat = barStart + pulse * metre.pulseBeats;
           if (beat < fromBeat || beat >= toBeat || beat > this.soundUntil) continue;
-          this.metronome.click(this.transport.timeForBeat(beat), pulse === 0);
+          this.metronome.click(this.transport.audioTimeForBeat(beat), pulse === 0);
         }
       }
     }
@@ -565,9 +577,11 @@ export class Session {
       if (isTieContinuation(exercise.notes, index)) continue;
 
       const beats = tiedBeats(exercise.notes, index);
+      // At the audio time, not the clock time: everything that *sounds* is
+      // handed over the output's lead early, so it is heard on the beat.
       this.synth.play(
         note.soundingMidi,
-        this.transport.timeForBeat(note.startBeat),
+        this.transport.audioTimeForBeat(note.startBeat),
         // Detached slightly so repeated notes articulate rather than slurring.
         this.transport.secondsBetween(note.startBeat, note.startBeat + beats) * 0.92,
       );

@@ -285,6 +285,59 @@ same format and nothing in the app changes.
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
 
+## The sound arrives when the clock says — v2.16.1 and v2.17.0
+
+Two faults with one symptom, found by the player's ear on 2026-08-15 and 16:
+the tuba sounds late against the beat.
+
+**The recordings bloom** — v2.16.1. The FluidR3 tuba samples have no leading
+silence, but their attacks take 15–60ms to reach half level and up to 195ms
+to reach 90%, slowest in exactly the register an Eb bass part sounds in; the
+metronome's click has no bloom at all. So the sampler now does what a player
+does: it starts the attack early and lands the note on the beat. Each
+recording's speak time — the moment its envelope reaches half of its peak —
+is measured once at decode, and every note is scheduled that much ahead,
+scaled by the playback rate. Where there is no room to start early the missed
+stretch of attack is skipped rather than the note arriving late. Rendered
+offline, notes scheduled at beat 1.000 speak at 0.997–1.002.
+
+**The output is late** — v2.17.0. The audio context's time is when a sample is
+handed to the output, not when it reaches an ear, and a Bluetooth headset sits
+a fifth of a second and more behind. The player measured three outputs on one
+phone: the speaker on the beat, over-ear headphones a little late, earbuds a
+lot late — each by its own amount, and none of it readable by the app.
+
+The rulings:
+
+- **The clock is the truth and the sound moves.** Every sound is handed to
+  the audio thread early by the output's *lead*, so it is heard when the clock
+  says; notation and judging read the clock as before. `Transport.audioLead`,
+  applied in exactly one place — `audioTimeForBeat` — with the scheduling
+  horizon and the origin widened by the same amount so nothing is ever late.
+  The alternative, delaying the display and the judge, would touch every
+  reader of the clock to fix one writer of sound.
+- **The player measures it, per device, by tapping along.** The app cannot
+  hear its own output, so the finger is the sensor: a click a second, taps in
+  time with what is *heard*, and the median offset is the lead. Tapping to a
+  steady beat is prediction rather than reaction, so it measures the device
+  and not the player. `estimateLead` in `engine/calibrate.ts` takes the lead
+  already in force, so measuring again converges rather than doubling — and
+  confirms, since the offset then reads zero. The click keeps running at the
+  lead being tried, with a dot pulsing where the beat is, so the number can be
+  checked by ear and eye rather than read.
+- **Outputs are a list, and the speaker is "none of these".** Three devices,
+  three latencies; switching is a tap, not a recalibration. Stored as
+  `audioOutputs` with `audioOutputId`, sanitised on load; the phone's speaker
+  needs no entry and no lead.
+- **Its own screen, behind a door in Advanced.** A number of milliseconds is
+  not something a player can set by looking at it — the click has to be
+  running while it is set — and the door's own line says what is in use.
+
+Left open: taps carry the phone's own touch latency and a player's habit of
+tapping a shade early, which roughly cancel and are small beside a Bluetooth
+lead. The offered figure is what the finger measured; the slider is there for
+the last few milliseconds by ear.
+
 ## Nothing claims what it does not deliver — v2.15.1
 
 The player's rule, given on 2026-08-15 and worth keeping as a rule rather than

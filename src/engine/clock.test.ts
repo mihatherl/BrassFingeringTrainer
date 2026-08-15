@@ -386,3 +386,59 @@ describe('changing tempo while running', () => {
     expect(t.secondsBetween(4, 8)).toBeCloseTo(2, 12);
   });
 });
+
+/**
+ * The output's lead: sound scheduled early so it is heard when the clock says.
+ * The clock itself is unchanged by it — only the moment a sound is handed over,
+ * and how far ahead the scheduler must therefore look.
+ */
+describe('the audio lead', () => {
+  it('puts audio time the lead ahead of clock time, and nowhere else', () => {
+    const t = new Transport(context, 120, [], 1, 0.2);
+    t.start(() => {});
+    for (const beat of [0, 1, 7.5]) {
+      expect(t.audioTimeForBeat(beat)).toBeCloseTo(t.timeForBeat(beat) - 0.2, 9);
+    }
+    // Reading the clock knows nothing of it.
+    audioTime = t.timeForBeat(3);
+    expect(t.currentBeat()).toBeCloseTo(3, 9);
+    t.stop();
+  });
+
+  it('keeps the horizon a lookahead ahead of now in *audio* time, whatever the lead', () => {
+    /*
+     * The scheduler's promise is that every sound is handed over a lookahead
+     * before it is due on the audio thread. A led sound is due earlier than
+     * its beat, so the horizon has to reach further in beats by exactly the
+     * lead — or the sound for the last beat in the window would already be in
+     * the past when the window arrives.
+     */
+    for (const lead of [0, 0.2, 0.45]) {
+      const windows: Array<[number, number]> = [];
+      const t = new Transport(context, 120, [], 1, lead);
+      audioTime = 3;
+      t.start((from, to) => windows.push([from, to]));
+      const reached = Math.max(...windows.map(([, to]) => to));
+      expect(t.audioTimeForBeat(reached), `lead ${lead}`).toBeCloseTo(3 + 0.15, 6);
+      t.stop();
+    }
+  });
+
+  it('gives the first sound its whole lead of room', () => {
+    // The origin sits the lead further from now, so the audio time of beat 0
+    // is where the origin would have been without one: never in the past.
+    audioTime = 10;
+    const t = new Transport(context, 120, [], 1, 0.3);
+    t.start(() => {});
+    expect(t.audioTimeForBeat(0)).toBeCloseTo(10.1, 9);
+    expect(t.timeForBeat(0)).toBeCloseTo(10.4, 9);
+    t.stop();
+  });
+
+  it('is nothing at all by default', () => {
+    const t = transport();
+    t.start(() => {});
+    expect(t.audioTimeForBeat(2)).toBe(t.timeForBeat(2));
+    t.stop();
+  });
+});

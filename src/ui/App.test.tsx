@@ -487,3 +487,70 @@ describe('a copy that withholds things', () => {
     expect(screen.getByText('Exercise').closest('summary')?.textContent).toContain('Eb major');
   });
 });
+
+/**
+ * The headphones screen: which output is in the ears, and how late it is.
+ *
+ * Only the list and the choice are driven here — the measurement itself runs a
+ * click on a real AudioContext, which the suite has not got. What a unit test
+ * cannot see is that the door in Advanced opens the screen, that a saved
+ * output can be chosen and forgotten, and that the choice reads back on the
+ * settings screen; that is what this covers.
+ */
+describe('headphones and speakers', () => {
+  const stored = (outputs: unknown[], chosen: string | null) =>
+    localStorage.setItem(
+      'brass-trainer:settings',
+      JSON.stringify({ audioOutputs: outputs, audioOutputId: chosen }),
+    );
+
+  it('is a door in Advanced, saying what is in use', () => {
+    stored([{ id: 'b', name: 'Bose', leadMs: 180 }], 'b');
+    render(<App />);
+    fireEvent.click(screen.getByText('Advanced'));
+    const door = screen.getByRole('button', { name: /Headphones & speakers/ });
+    expect(door.textContent).toContain('Bose');
+    expect(door.textContent).toContain('180 ms');
+
+    fireEvent.click(door);
+    expect(screen.getByRole('heading', { name: 'Headphones & speakers' })).toBeTruthy();
+  });
+
+  it('chooses the phone speaker by default, and lets an output be chosen and forgotten', () => {
+    stored(
+      [
+        { id: 'b', name: 'Bose', leadMs: 180 },
+        { id: 'z', name: 'Zen', leadMs: 260 },
+      ],
+      null,
+    );
+    render(<App />);
+    fireEvent.click(screen.getByText('Advanced'));
+    fireEvent.click(screen.getByRole('button', { name: /Headphones & speakers/ }));
+
+    const speaker = screen.getByRole('button', { name: /Phone speaker/ });
+    const zen = screen.getByRole('button', { name: /^Zen/ });
+    expect(speaker.getAttribute('aria-pressed')).toBe('true');
+    expect(zen.getAttribute('aria-pressed')).toBe('false');
+    expect(zen.textContent).toContain('260 ms');
+
+    fireEvent.click(zen);
+    expect(zen.getAttribute('aria-pressed')).toBe('true');
+    expect(speaker.getAttribute('aria-pressed')).toBe('false');
+
+    // Forgetting the one in use puts the phone speaker back in charge.
+    fireEvent.click(screen.getByRole('button', { name: 'Forget Zen' }));
+    expect(screen.queryByRole('button', { name: /^Zen/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Phone speaker/ }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+
+    // And the way back lands on settings, with the change kept.
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByText('Advanced'));
+    expect(
+      screen.getByRole('button', { name: /Headphones & speakers/ }).textContent,
+    ).toContain('Phone speaker');
+    expect(JSON.parse(localStorage.getItem('brass-trainer:settings')!).audioOutputs).toHaveLength(1);
+  });
+});

@@ -29,7 +29,7 @@ import { loadStats } from '../storage/stats';
 import { SCORE_WINDOW_BARS, type NoteJudgement, type SessionSummary, type Verdict } from '../engine/judge';
 import { currentTheme, StaveRenderer } from '../render/surface';
 import type { Exercise } from '../exercise/types';
-import type { Settings } from '../storage/settings';
+import { audioLeadFor, type Settings } from '../storage/settings';
 import { patternFor } from '../render/conductor';
 import { barLabel } from '../render/system';
 import { ConductorPanel } from './ConductorPanel';
@@ -220,6 +220,9 @@ export function PlayScreen({
       playbackMode: settings.playbackMode,
       brassVoice: voiceRef.current,
       timingTolerance: settings.timingTolerance,
+      // The output in the player's ears, and how far behind the clock it is
+      // heard; zero for the phone's own speaker.
+      audioLead: audioLeadFor(settings),
       // Fires as the fingers arrive, not when the note is finally judged, so
       // the green reads as confirmation of what was just played.
       onCorrect: () => rendererRef.current?.flashCorrect(),

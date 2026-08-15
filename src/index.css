@@ -1800,6 +1800,76 @@ input[type='checkbox'] {
   font-size: 0.8125rem;
 }
 
+/* The list doubles as a chooser on the outputs screen: one entry is in use. */
+.library__open.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/*
+ * The output calibration.
+ *
+ * A dot that pulses where the beat is, and a button big enough to tap in time
+ * without looking for it — the eye should be on the dot and the ear on the
+ * click, not on finding the target. The dot changes only its colour: a change
+ * of size or position would be motion to read, and there is one beat to read.
+ */
+.calibrate {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  margin-bottom: 1rem;
+}
+
+.calibrate .field {
+  width: 100%;
+  justify-items: stretch;
+}
+
+.calibrate__pulse {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface-raised);
+  transition: background-color 60ms ease-out, border-color 60ms ease-out;
+}
+
+.calibrate__pulse.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  transition: none;
+}
+
+.calibrate__tap {
+  appearance: none;
+  width: 100%;
+  min-height: 7rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.calibrate__tap:active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.calibrate__reading {
+  margin: 0;
+  min-height: 1.5em;
+  text-align: center;
+}
+
 /*
  * A way out of this screen rather than a control on it — full width, its own
  * line, and stated as a place rather than as an action.

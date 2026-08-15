@@ -114,6 +114,24 @@ export class Transport {
   private frozenBeat: number | null = null;
 
   /**
+   * How far ahead of the clock every sound is scheduled, in seconds, so that
+   * it is *heard* on the beat the clock says.
+   *
+   * The audio context's time is when a sample is handed to the output, not
+   * when it reaches an ear. Between the two sit the device's buffers, and on
+   * a Bluetooth headset that is a fifth of a second and more — measured by the
+   * player against three outputs, each late by a different amount, and the
+   * phone's own speaker on the beat. Nothing else in the app moves: notation
+   * and judging keep reading this clock as the truth, and the sound is sent
+   * early enough to arrive when they say it should. Doing it the other way
+   * round — delaying the display and the judge — would touch every reader of
+   * the clock to fix one writer of sound.
+   *
+   * See `audioTimeForBeat`, which is the only place the lead is applied.
+   */
+  readonly audioLead: number;
+
+  /**
    * `tempo` and every event count the **conducted** beat; `crotchetsPerBeat`
    * says how long one of those is, which is `metre.pulseBeats`. It defaults to
    * 1 because that is every simple metre, where the two have always been the
@@ -124,8 +142,10 @@ export class Transport {
     tempo: number,
     events: readonly TempoEvent[] = [],
     crotchetsPerBeat = 1,
+    audioLead = 0,
   ) {
     this.context = context;
+    this.audioLead = Math.max(0, audioLead);
     // Still seconds per *crotchet*, whatever the beat is: its customer is the
     // scrolling surface, which measures the page in the same crotchets every
     // note length is written in.
@@ -146,6 +166,16 @@ export class Transport {
 
   timeForBeat(beat: number): number {
     return this.originTime + timeAt(this.map, beat);
+  }
+
+  /**
+   * When to hand a sound to the audio thread so that it is heard at `beat`.
+   *
+   * Everything that *sounds* asks this; everything that reads or judges asks
+   * `timeForBeat`. The two differ by the output's lead and by nothing else.
+   */
+  audioTimeForBeat(beat: number): number {
+    return this.timeForBeat(beat) - this.audioLead;
   }
 
   beatForTime(time: number): number {
@@ -295,8 +325,10 @@ export class Transport {
     this.visualFloor = -Infinity;
     this.onWindow = onWindow;
     // A small offset gives the first scheduling pass room to run before the
-    // origin passes, so the very first note is never late.
-    this.originTime = this.context.currentTime + 0.1 - timeAt(this.map, startAtBeat);
+    // origin passes, so the very first note is never late — and the lead on
+    // top of it, since the first sound is handed over that much earlier still.
+    this.originTime =
+      this.context.currentTime + 0.1 + this.audioLead - timeAt(this.map, startAtBeat);
     this.scheduledUntilBeat = startAtBeat;
 
     this.tick();
@@ -402,7 +434,12 @@ export class Transport {
   }
 
   private tick(): void {
-    const horizonBeat = this.beatForTime(this.context.currentTime + LOOKAHEAD_SECONDS);
+    // The horizon reaches the lead further, so a beat whose *sound* is due
+    // within the lookahead is scheduled in time — its clock time is that much
+    // later than its audio time.
+    const horizonBeat = this.beatForTime(
+      this.context.currentTime + LOOKAHEAD_SECONDS + this.audioLead,
+    );
     if (horizonBeat <= this.scheduledUntilBeat) return;
     this.onWindow?.(this.scheduledUntilBeat, horizonBeat);
     this.scheduledUntilBeat = horizonBeat;

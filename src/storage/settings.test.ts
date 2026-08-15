@@ -3,6 +3,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { instrumentById, writtenRange } from '../domain/instruments';
 import {
+  AUDIO_LEAD_RANGE,
+  audioLeadFor,
   DEFAULT_SETTINGS,
   PLAYBACK_MODES,
   loadSettings,
@@ -272,5 +274,57 @@ describe('the fingering setting, which used to be a switch', () => {
     // Nonsense in storage, or a settings file from before either existed.
     const odd = sanitise({ ...DEFAULT_SETTINGS, fingerings: 'sometimes' } as never);
     expect(odd.fingerings).toBe(DEFAULT_SETTINGS.fingerings);
+  });
+});
+
+describe('the calibrated outputs', () => {
+  /*
+   * A list of headsets, each with how far behind the clock it is heard, and
+   * which is in the ears. The phone's speaker is what "none of these" means.
+   */
+  const bose = { id: 'a', name: 'Bose', leadMs: 180 };
+  const buds = { id: 'b', name: 'Buds', leadMs: 260 };
+
+  it('keeps a well-formed list and the choice from it', () => {
+    const settings = sanitise({ ...DEFAULT_SETTINGS, audioOutputs: [bose, buds], audioOutputId: 'b' });
+    expect(settings.audioOutputs).toEqual([bose, buds]);
+    expect(settings.audioOutputId).toBe('b');
+    expect(audioLeadFor(settings)).toBeCloseTo(0.26, 9);
+  });
+
+  it('means the phone speaker, and no lead, when nothing is chosen or the choice has gone', () => {
+    expect(audioLeadFor(sanitise({ ...DEFAULT_SETTINGS, audioOutputs: [bose] }))).toBe(0);
+    const gone = sanitise({ ...DEFAULT_SETTINGS, audioOutputs: [bose], audioOutputId: 'zzz' });
+    expect(gone.audioOutputId).toBeNull();
+    expect(audioLeadFor(gone)).toBe(0);
+  });
+
+  it('drops what is not an output and clamps a lead out of range', () => {
+    const settings = sanitise({
+      ...DEFAULT_SETTINGS,
+      audioOutputs: [
+        bose,
+        { id: '', name: 'nameless', leadMs: 10 },
+        { id: 'c', name: 'Slow', leadMs: 9000 },
+        { id: 'a', name: 'Duplicate', leadMs: 1 },
+        { id: 'd', name: '  ', leadMs: 50 },
+        'not an output',
+        null,
+      ] as never,
+      audioOutputId: 'c',
+    });
+    expect(settings.audioOutputs).toEqual([
+      bose,
+      { id: 'c', name: 'Slow', leadMs: AUDIO_LEAD_RANGE.max },
+      { id: 'd', name: 'Headphones', leadMs: 50 },
+    ]);
+    expect(settings.audioOutputId).toBe('c');
+  });
+
+  it('starts empty for a settings file that predates it', () => {
+    store({ tempo: 90 });
+    const settings = loadSettings();
+    expect(settings.audioOutputs).toEqual([]);
+    expect(settings.audioOutputId).toBeNull();
   });
 });
