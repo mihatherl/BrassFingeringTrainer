@@ -846,6 +846,35 @@ body {
   gap: 0.5rem;
 }
 
+/*
+ * A label and its control on one line, the control taking what is left.
+ *
+ * For the one-word settings whose control is a dropdown: stacking them spends a
+ * whole line on a label with nothing beside it, which on this screen is a line
+ * that could have been music.
+ */
+.field--beside {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  /* The same width the key window keeps, so the controls in a box line up as a
+     column rather than each finding its own edge. On a wide panel a label and
+     its dropdown at opposite ends of seven hundred pixels stop looking related. */
+  max-width: 22rem;
+}
+
+.field--beside .field__label {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+.field--beside select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 12rem;
+}
+
 .field__label {
   display: block;
   font-size: 0.875rem;
@@ -898,6 +927,30 @@ input[type='checkbox'] {
   flex-wrap: wrap;
 }
 
+/*
+ * One row, always, however many options there are.
+ *
+ * Equal columns rather than wrapping: a difficulty that dropped its fourth
+ * option onto a second line cost as much height as the key window saves, and
+ * the settings screen is being fought for a line at a time. The type comes down
+ * a step and the padding in with it, which is what makes four labels fit the
+ * width of a phone — the longest of them, the patterns' *2 oct · mixed*, is the
+ * one that decides it.
+ */
+.segmented--row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.segmented--row .segmented__option {
+  min-width: 0;
+  padding: 0.4rem 0.25rem;
+  font-size: 0.8125rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .segmented__option {
   flex: 1 1 auto;
   padding: 0.5rem 0.75rem;
@@ -916,17 +969,20 @@ input[type='checkbox'] {
 }
 
 /*
- * Fifteen keys, three rows of five, in a window two rows tall.
+ * Fifteen keys, three rows of five, in a window a row and a half tall.
  *
- * One row whole with half a row above and below: enough to say *there is more
- * this way* without a scrollbar having to say it, and enough that a thumb knows
- * which way to move. Rows of five put B flat, F, C, G and D — two flats to two
- * sharps — in the middle row on their own, which is where nearly all brass band
- * reading lives.
+ * **A row and a half, not two.** Two rows tall meant that at either end of the
+ * list — the top being where an E flat player starts — both visible rows were
+ * *whole*, and a window showing only whole rows looks like the whole control. A
+ * player with no reason to think anything is missing has no reason to swipe.
+ * Under two rows there is always part of a row cut off, which is the only thing
+ * that says *there is more this way* without a scrollbar having to say it.
+ *
+ * Rows of five put B flat, F, C, G and D — two flats to two sharps — in the
+ * middle row on their own, which is where nearly all brass band reading lives.
  *
  * The height is arithmetic rather than a guess, which is why the chip has an
- * explicit height rather than growing out of its padding: two chips and two
- * gaps is exactly one row plus the two halves.
+ * explicit height rather than growing out of its padding.
  */
 .keys {
   --key-h: 2.875rem;
@@ -936,7 +992,7 @@ input[type='checkbox'] {
   position: relative;
   display: grid;
   gap: var(--key-gap);
-  height: calc(2 * var(--key-h) + 2 * var(--key-gap));
+  height: calc(1.5 * var(--key-h) + var(--key-gap));
   /*
    * Hand-sized wherever it is shown. It is a thumb control — a row is swiped —
    * and five chips stretched across a desktop panel are both ugly and further
@@ -1100,6 +1156,15 @@ input[type='checkbox'] {
   gap: 0.9rem;
   padding: 0.9rem 0.75rem;
   border-top: 1px solid var(--border);
+}
+
+/*
+ * The grid's gap does the spacing here, and the fields' own margins would be
+ * added to it — which they were, putting half a centimetre of nothing between
+ * every control in a screen being fought for a line at a time.
+ */
+.mode__body > .field {
+  margin-bottom: 0;
 }
 
 /* --- Buttons ------------------------------------------------------------ */

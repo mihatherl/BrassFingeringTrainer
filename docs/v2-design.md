@@ -305,6 +305,46 @@ the two that make claims about a *different* level — Medium's pattern blurb sa
 dotted rhythms wait for Hard, and Hard's pattern rhythms do indeed carry a dotted
 quaver.
 
+## Getting the sight-reading box into one frame — v2.15.3
+
+The player's reason, which is the thing to keep: *people will still get lost in
+the settings screen.* An expanded box that runs off the bottom is most of how
+that happens — you are shown the top half of the thing you just asked for, and
+have to hunt for the rest.
+
+**The key window came down from two rows to one and a half.** Two rows tall meant
+that at either end of the list — the top being where an E flat player starts —
+both visible rows were *whole*, and a window showing only whole rows looks like
+the whole control. A player with no reason to think anything is missing has no
+reason to swipe. Under two rows there is always part of a row cut off, which is
+the only thing that says *there is more this way* without a scrollbar saying it.
+
+**Difficulty is one row of four**, whatever the width. Equal columns rather than
+wrapping, with the type a step down and the padding in with it — which is what
+makes four labels fit a phone. The longest of them, the patterns' *2 oct · mixed*,
+is the one that decides the size.
+
+**A label and its dropdown share a line** where the control is small enough to
+allow it. Stacking spent a whole line on a label with nothing beside it.
+
+**The fields' margins were being added to the body's grid gap**, which put half a
+centimetre of nothing between every control. The grid does the spacing now.
+
+Those four together took the box from 461 pixels to 419.
+
+**And an opened section comes to the top of the screen.** The box was never the
+problem — 419 pixels fits an 844-pixel phone with room to spare — it was the 497
+pixels of title, My Music, instrument and two collapsed material boxes sitting
+above it. Scrolling the section up is what actually met the player's goal, and it
+throws nothing away to do it.
+
+Measured rather than eyeballed: on a 390×844 phone the whole expanded
+sight-reading box now sits inside the frame, above the sticky Start bar. On a
+360×740 phone it is still 74 pixels over. The remaining lever is the blurb under
+each *collapsed* material name, which wraps to two lines and is read once — but
+that is information being taken away rather than space being recovered, and it is
+the player's call.
+
 ## The keys, in a window two rows tall — v2.15.2
 
 Asked for by the player: the key chips were three quarters of a screen of

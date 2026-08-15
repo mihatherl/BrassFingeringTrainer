@@ -50,6 +50,7 @@ function Panel({ id, title, values, open, onToggle, children }: PanelProps) {
   return (
     <details
       className="panel"
+      id={`panel-${id}`}
       open={open}
       onToggle={(event) => onToggle(id, event.currentTarget.open)}
     >
@@ -249,8 +250,25 @@ export function SettingsScreen({
   const isOpen = (id: string) => openPanels.includes(id);
   const setOpen = (id: string, open: boolean) => {
     setOpenPanels((current) =>
-      open ? [...new Set([...current, id])] : current.filter((p) => p !== id),
+      open ? [...new Set([...current, id])] : current.filter((panel) => panel !== id),
     );
+    /*
+     * An opened section comes to the top of the screen.
+     *
+     * Without it, opening *Exercise* leaves its contents starting most of a
+     * screen down — behind the title, My Music, the instrument and two collapsed
+     * material boxes — so a section that fits the window comfortably still
+     * cannot be seen in it. The player's report is that people get lost in here,
+     * and being shown the top half of a thing you have just asked for is most of
+     * how that happens.
+     *
+     * After a frame, because the section has to have grown before there is
+     * anything to scroll to.
+     */
+    if (!open) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`panel-${id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
   };
 
   /*
@@ -372,7 +390,7 @@ export function SettingsScreen({
   const difficultyField = (
         <div className="field">
           <span className="field__label">Difficulty</span>
-          <div className="segmented segmented--wrap">
+          <div className="segmented segmented--row">
             {DIFFICULTIES.map((option) => (
               <button
                 key={option.id}
@@ -403,7 +421,7 @@ export function SettingsScreen({
   );
 
   const timeSignatureField = (
-    <label className="field">
+    <label className="field field--beside">
       <span className="field__label">Time signature</span>
       <select
         value={`${settings.beatsPerBar}/${settings.beatUnit}`}
