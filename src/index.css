@@ -1304,6 +1304,19 @@ input[type='checkbox'] {
   background: linear-gradient(to top, var(--bg) 65%, transparent);
 }
 
+/* The output in use, beside Start: one line, and the switch back on it. */
+.output-in-use {
+  margin: 0;
+  text-align: center;
+}
+
+.output-in-use__switch {
+  padding: 0.125rem 0.5rem;
+  font-size: inherit;
+  text-decoration: underline;
+  color: var(--accent);
+}
+
 /*
  * A sticky strip that carries text as well as buttons goes solid.
  *

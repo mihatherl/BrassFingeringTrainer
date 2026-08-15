@@ -985,6 +985,27 @@ export function SettingsScreen({
           )}
         </label>
 
+        {/*
+          Which output the sound is being sent early for, where it cannot be
+          missed. The choice does not follow the device — the browser cannot
+          say what is in the player's ears — so a headset left chosen after
+          moving back to the phone's speaker sends every note a fifth of a
+          second early, and nothing on the play screen says why. Said here,
+          beside Start, only when a headset is chosen, with the way back.
+        */}
+        {output && (
+          <p className="field__note muted output-in-use">
+            Sound brought forward {output.leadMs} ms for {output.name}.{' '}
+            <button
+              type="button"
+              className="button button--quiet output-in-use__switch"
+              onClick={() => update('audioOutputId', null)}
+            >
+              Using the phone speaker
+            </button>
+          </p>
+        )}
+
         <button type="button" className="button button--primary button--large" onClick={onStart}>
           Start
         </button>

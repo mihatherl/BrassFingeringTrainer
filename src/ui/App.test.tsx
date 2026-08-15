@@ -561,6 +561,25 @@ describe('headphones and speakers', () => {
       JSON.stringify({ audioOutputs: outputs, audioOutputId: chosen }),
     );
 
+  it('says beside Start when a headset is in use, with the way back to the speaker', () => {
+    // A headset left chosen after moving to the phone's speaker sends every
+    // note early and nothing else says why — so it is said next to Start,
+    // and one tap puts the speaker back in charge.
+    stored([{ id: 'z', name: 'Zen Air', leadMs: 231 }], 'z');
+    render(<App />);
+    expect(screen.getByText(/Sound brought forward 231 ms for Zen Air/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Using the phone speaker' }));
+    expect(screen.queryByText(/Sound brought forward/)).toBeNull();
+    expect(JSON.parse(localStorage.getItem('brass-trainer:settings')!).audioOutputId).toBeNull();
+    // The headset is still on the list for next time.
+    expect(JSON.parse(localStorage.getItem('brass-trainer:settings')!).audioOutputs).toHaveLength(1);
+  });
+
+  it('says nothing beside Start for the phone speaker', () => {
+    render(<App />);
+    expect(screen.queryByText(/Sound brought forward/)).toBeNull();
+  });
+
   it('is a door in Advanced, saying what is in use', () => {
     stored([{ id: 'b', name: 'Bose', leadMs: 180 }], 'b');
     render(<App />);
