@@ -9,7 +9,7 @@ The durable rulings live in `v2-design.md`; the feature plans are
 `tempo-map-plan.md`, `endless-play-plan.md` and `musicxml-import-plan.md`.
 **Read this for the shape, those for the reasons.**
 
-The app went from **v2.12.0 to v2.15.1** — seven releases, all deployed, and one
+The app went from **v2.12.0 to v2.15.5** — eleven releases, all deployed, and one
 commit of documentation carrying no version because it changed nothing. It began
 by clearing the faults the previous handover listed as inherited, built the
 feature the player asked for on top, and ended in the settings screen, which is
@@ -38,6 +38,10 @@ half way through a planned reorganisation.
 | v2.14.0 | **Three choices taken off it.** *Random notes*, Expert, and the three length settings that wore one label. The paywall moved from lengths to *playing on*. |
 | v2.15.0 | **One box per material**, holding only the settings that apply to it. The open box is the material. |
 | v2.15.1 | **Nothing claims what it does not deliver.** The Arpeggios box promised five chords and played one. |
+| v2.15.2 | **The keys in a window a row and a half tall**, three rows of five, opening on the row the current key is in. |
+| v2.15.3 | **The open material box fits the screen it is opened on** — and an opened section now comes to the top. |
+| v2.15.4 | **The Playing settings two to a row**, and the fingering modes divided two and one. |
+| v2.15.5 | **A shut box is its name, on a short screen.** The last of the room the open box needed. |
 
 ## The decisions worth not re-litigating
 
@@ -122,16 +126,25 @@ deleted the test rather than weaken its threshold to fit, and wrote the loss dow
 where the rule lives. A test that cannot fail is decoration, and it would have
 read as a guarantee for years.
 
-**Two mechanical own goals, both from editing files with scripts.** A greedy
-deletion in `settings.ts` took `REGISTERS` out along with the constants either
-side of it, and a restore from a `/tmp` backup older than the edit I was keeping
-silently reverted two `export` keywords. The typecheck caught both within a
-minute. **Assert what a scripted edit is about to remove**, and never restore
-from a backup taken before the change you want to keep.
+**Mechanical own goals from editing files with scripts, three of them, and the
+third after this was written.** A greedy deletion in `settings.ts` took
+`REGISTERS` out along with the constants either side of it; a restore from a
+`/tmp` backup older than the edit I was keeping
+silently reverted two `export` keywords; and a `git checkout` used to undo a
+*mutation test* threw away the edits of the release being built. The typecheck
+caught all three within a minute, which is the only reason they are footnotes.
+**Assert what a scripted edit is about to remove**, never restore from a backup
+older than the change you want to keep, and never undo a mutation by reverting a
+file — put the one line back that you took out.
 
 ## What is left
 
-**The settings screen**, half done. `v2-design.md` item 11 carries the plan.
+**The settings screen**, half done. `v2-design.md` item 11 carries the plan, now
+five steps rather than four.
+
+The two that shipped were subtraction and rearrangement; what is left is where the
+model changes. Everything below was measured on a simulated phone rather than a
+real one, so it is worth a player's own device before it is called finished.
 
 - **Step 3 — Drills.** Scales and Arpeggios become one box with a selectable
   drill type, and the key choice moves into it. `SCALE_PATTERNS` and
@@ -148,6 +161,21 @@ from a backup taken before the change you want to keep.
   raised, not a semitone count.
 - The picker ends up around ten entries once both land, which argues for a
   scrollable list rather than a row of chips.
+- **Step 5 — a key and a difficulty per material.** Asked for and deliberately
+  sequenced last: step 3 merges two materials into one box, and step 4 takes the
+  key control out of that box altogether, since *A minor harmonic* names its own
+  tonic. Building per-material keys before those land would be building storage
+  for a setting about to stop existing in one material of three.
+
+**The settings screen on a short phone**, which is the one measurement still
+failing:
+
+- **Playing is 70 points over on a 360×740 phone.** Exercise fits there now; the
+  blurb on a *shut* material box is hidden below 800 points of height, which is
+  what bought the room. Playing has no shut boxes above it, so the same lever
+  does not exist. Its equivalent would be hiding the blurb on the cards *not*
+  chosen, which is a worse trade — comparing options is exactly when those
+  sentences are wanted. Left open rather than taken.
 
 **The engraving fault the key dial made prominent**, and the first thing to look
 at if notation looks wrong at a change of key:

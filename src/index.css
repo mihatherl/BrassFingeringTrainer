@@ -1160,6 +1160,33 @@ input[type='checkbox'] {
   font-size: 0.8125rem;
 }
 
+/*
+ * On a short screen a shut box is its name alone.
+ *
+ * The blurb under each material is orientation — read once, when you are working
+ * out what the four things are — and after that it is three lines of prose
+ * between a player and the box they came to open. On a tall phone there is room
+ * for both. On a short one the open box would otherwise run off the bottom of the
+ * screen it was opened on, and being shown the top half of the thing you just
+ * asked for is most of how people get lost in here.
+ *
+ * The open box keeps its blurb, so the sentence is never gone — only the three
+ * you are not reading are quiet.
+ *
+ * Keyed on height because height is what runs out. A phone held upright at
+ * 844 points has the room; at 740 it does not.
+ */
+@media (max-height: 800px) {
+  .mode:not(.is-open) .mode__summary span {
+    display: none;
+  }
+
+  /* And a name alone does not need the padding a name over a sentence did. */
+  .mode:not(.is-open) .mode__summary {
+    padding: 0.55rem 0.75rem;
+  }
+}
+
 .mode__summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;

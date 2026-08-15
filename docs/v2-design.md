@@ -252,6 +252,16 @@ release.
        raised seventh would come out as D♭ rather than C♯. The pattern has to
        carry which degree is raised, not just a semitone count. Melodic minor is
        already ruled: ascending melodic, descending natural.
+    5. **A key and a difficulty per material.** Asked for on 2026-08-15 and
+       deliberately sequenced *after* drills, on the reasoning that settled it:
+       step 3 merges Scales and Arpeggios into one box, so settings keyed by
+       material would need migrating the moment it lands — and step 4 replaces
+       the Drills box's key control outright, since *A minor harmonic* names its
+       own tonic and does not want a key signature chosen beside it. Building
+       per-material keys now would be building storage for a setting that is
+       about to stop existing in one material of three. Difficulty is less
+       exposed, but the storage is the same piece of work either way, so
+       splitting them buys nothing.
 
 **Before any of those, if the app is ever to be sold**: the gated settings
 screen, which currently accepts choices it then silently overrides. It is a
@@ -304,6 +314,32 @@ rhythm list, accidental, rest and tie chances say what the blurb says, including
 the two that make claims about a *different* level — Medium's pattern blurb says
 dotted rhythms wait for Hard, and Hard's pattern rhythms do indeed carry a dotted
 quaver.
+
+## A shut box is its name, on a short screen — v2.15.5
+
+The last of the room needed to get an open material box onto the screen it was
+opened on, and the player's call on where it should come from.
+
+**The blurb under a shut box is hidden below 800 points of height.** It is
+orientation — read once, while you work out what the four materials are — and
+after that it is three lines of prose between a player and the box they came to
+open. The *open* box keeps its blurb, so the sentence is never gone; only the
+three you are not reading go quiet. A name alone does not need the padding a name
+over a sentence did, so that comes in too.
+
+Keyed on height because height is what runs out. A phone upright at 844 points
+has the room and is untouched; at 740 it does not.
+
+Measured: the Exercise box was 74 points over on a 360×740 phone, then 12, and
+now fits. **Playing is still 70 points over at that size** — it has no collapsed
+boxes above it to save, so the same lever does not exist there. Its equivalent
+would be hiding the blurb on the cards a player has *not* chosen, which is a
+worse trade: comparing options is exactly when those sentences are wanted.
+
+**And the key window rests on the row holding the current key**, ratified by the
+player on 2026-08-15 after being built that way as a judgement call. Opening on
+the middle five would put an E flat player's own key half out of sight, and a
+control that hides its current setting is answering the wrong question.
 
 ## The Playing section, in pairs — v2.15.4
 
