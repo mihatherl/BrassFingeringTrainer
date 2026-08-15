@@ -3,10 +3,32 @@ import { instrumentById, writtenRange } from '../domain/instruments';
 import { keyAt } from '../domain/keys';
 import { metreFor } from '../domain/metre';
 import { midiOf } from '../domain/pitch';
+import { composeTune } from './compose';
+import { DIFFICULTIES } from './difficulty';
+import { createRng } from './rng';
 import { exerciseFromTheme, realiseTheme, validateTheme, type Theme } from './theme';
-import { THEMES } from './themes';
 
 const EB_BASS = { instrument: instrumentById('eb-bass'), clef: 'treble' as const };
+
+/**
+ * A corpus to run the whole-theme checks over: composed tunes, a few at every
+ * level in every metre the app offers, from fixed seeds. What the hand-written
+ * corpus was to these tests until v2.20.0.
+ */
+const THEMES: Theme[] = [];
+for (const difficulty of DIFFICULTIES) {
+  for (const [n, d] of [[4, 4], [3, 4], [2, 4], [6, 8]] as const) {
+    for (let seed = 1; seed <= 3; seed++) {
+      const tune = composeTune({
+        difficulty,
+        metre: metreFor(n, d),
+        rng: createRng(seed),
+        id: `${difficulty.id}-${n}${d}-${seed}`,
+      });
+      if (tune) THEMES.push(tune);
+    }
+  }
+}
 
 function themeOf(overrides: Partial<Theme>): Theme {
   return {
@@ -26,7 +48,8 @@ describe('validateTheme', () => {
    * count. This is the guard that keeps the data honest, so it is worth knowing
    * it fails on the things it claims to.
    */
-  it('passes every theme in the corpus', () => {
+  it('passes every composed tune', () => {
+    expect(THEMES.length).toBeGreaterThan(40);
     for (const theme of THEMES) {
       expect(validateTheme(theme), theme.id).toEqual([]);
     }
@@ -179,7 +202,8 @@ describe('realiseTheme', () => {
         // realised one must actually be playable.
         if (!realised) continue;
         const [low, high] = writtenRange(instrument, 'treble');
-        for (const midi of realised.pitches) {
+        for (const pitch of realised.pitches) {
+          const midi = typeof pitch === 'number' ? pitch : midiOf(pitch);
           expect(midi, `${theme.id} on ${id}`).toBeGreaterThanOrEqual(low);
           expect(midi, `${theme.id} on ${id}`).toBeLessThanOrEqual(high);
         }
@@ -188,7 +212,16 @@ describe('realiseTheme', () => {
   });
 
   it('carries a tie across the bar line as two notes, not one long one', () => {
-    const theme = THEMES.find((t) => t.id === 'dotted-conversation')!;
+    const theme = themeOf({
+      bars: 2,
+      events: [
+        { degree: 1, beats: 2 },
+        { degree: 3, beats: 2, tied: true },
+        { degree: 3, beats: 1 },
+        { degree: 2, beats: 1 },
+        { degree: 1, beats: 2 },
+      ],
+    });
     const exercise = exerciseFromTheme(theme, { ...EB_BASS, fifths: -3, metre })!;
     const heads = exercise.notes.filter((note) => note.tiedToNext);
 

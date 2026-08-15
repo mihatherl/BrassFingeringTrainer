@@ -19,10 +19,10 @@
  */
 
 import { writtenRange, type Clef, type Instrument } from '../domain/instruments';
-import { MAJOR_SCALE, tonicPitchClass, type KeyChange } from '../domain/keys';
+import { MAJOR_SCALE, spellInKey, spellWithLetter, tonicPitchClass, type KeyChange } from '../domain/keys';
 import { metreFor, type Metre } from '../domain/metre';
 import { durationBeats, durationFromBeats, snapBeat } from '../domain/rhythm';
-import { assembleExercise, type Slot } from './assemble';
+import { assembleExercise, type Slot, type SlotPitch } from './assemble';
 import { DIFFICULTIES } from './difficulty';
 import type { Exercise } from './types';
 
@@ -360,7 +360,12 @@ export interface RealiseOptions {
 /** A theme placed in a key and an octave, ready to be assembled or appended. */
 export interface RealisedTheme {
   slots: Slot[];
-  pitches: number[];
+  /**
+   * A written MIDI number for a diatonic note, spelled downstream by the key;
+   * a settled spelling for an altered one, on its own degree's letter — see
+   * `realiseTheme` for why.
+   */
+  pitches: SlotPitch[];
   keys: KeyChange[];
   beats: number;
 }
@@ -500,7 +505,22 @@ export function realiseTheme(theme: Theme, options: RealiseOptions): RealisedThe
   if (base === undefined) return null;
 
   const tonics = tonicsFrom(base);
-  const pitches = sounded.map(({ note, key }) => tonics[key] + semitonesAbove(note));
+  /*
+   * An altered degree is spelled here, on its own degree's letter, rather than
+   * left to the key downstream. `spellInKey` chooses by the signature's
+   * direction, and in a flat key that writes a raised sixth approaching the
+   * seventh as D flat before D natural — the same sound, and a misprint to
+   * read. The theme said "the sixth, raised": the letter is the sixth's, and
+   * the accidental is whatever carries that letter to the pitch. Where that
+   * would be a double accidental, which this app never prints, the key's own
+   * spelling stands.
+   */
+  const pitches: SlotPitch[] = sounded.map(({ note, key }) => {
+    const midi = tonics[key] + semitonesAbove(note);
+    if (!note.alter) return midi;
+    const letter = spellInKey(midi - note.alter, keys[key].fifths).letter;
+    return spellWithLetter(midi, letter) ?? midi;
+  });
 
   return { slots, pitches, keys, beats: beat - fromBeat };
 }

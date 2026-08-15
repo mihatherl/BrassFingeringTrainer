@@ -35,8 +35,6 @@ import { instrumentById } from '../domain/instruments';
 import { metreAt, metreFor } from '../domain/metre';
 import { difficultyById } from '../exercise/difficulty';
 import { generateExercise, type GenerateOptions } from '../exercise/generate';
-import { exerciseFromTheme } from '../exercise/theme';
-import { themeById } from '../exercise/themes';
 import type { Exercise } from '../exercise/types';
 import { planReview } from './review';
 import {
@@ -140,25 +138,14 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
   },
   {
     name: 'theme-plain',
-    why: 'An authored theme, degrees spelled into the key the player chose.',
-    exercise: () =>
-      exerciseFromTheme(themeById('plain-answer')!, {
-        instrument: instrumentById('eb-bass'),
-        clef: 'treble',
-        fifths: -3,
-        metre: metreFor(4, 4),
-      })!,
+    why: 'A composed tune, degrees spelled into the key the player chose — with an accidental on its own letter.',
+    exercise: () => generated({ kind: 'themes', themeCount: 1, difficulty: difficultyById('medium'), seed: 1 }),
   },
   {
     name: 'theme-modulating',
-    why: 'A theme rebuilt on the new tonic at its key change, rather than reprinted under a new signature.',
+    why: 'Two composed tunes with the key touring across the join, the second rebuilt on the new tonic rather than reprinted under a new signature.',
     exercise: () =>
-      exerciseFromTheme(themeById('lift-a-fifth')!, {
-        instrument: instrumentById('eb-bass'),
-        clef: 'treble',
-        fifths: -3,
-        metre: metreFor(4, 4),
-      })!,
+      generated({ kind: 'themes', themeCount: 2, keySet: [-3, -1], difficulty: difficultyById('easy'), seed: 2 }),
   },
   {
     name: 'triplets',

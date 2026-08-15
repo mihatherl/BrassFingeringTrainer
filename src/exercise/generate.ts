@@ -37,6 +37,8 @@ import { createRng, type Rng } from './rng';
 import { assembleExercise, type Slot, type SlotPitch } from './assemble';
 import { tonicWindow } from './theme';
 import { stitchThemes } from './phrases';
+import { composeTune, TUNE_BARS } from './compose';
+import type { Theme } from './theme';
 import { planTempo } from './tempo-plan';
 import type { Exercise, ExerciseKind } from './types';
 
@@ -339,11 +341,26 @@ export function generateExercise(options: GenerateOptions): Exercise {
    * whole themes — and neither has to apologise for the other. Sight-reading
    * keeps the random walk it always had.
    *
-   * A fall back to generated material stays, for a difficulty or metre the
-   * corpus has nothing for. It is the same shape as a pattern that will not fit
-   * an instrument, and while the corpus is small it is the ordinary case.
+   * A fall back to generated material stays, for a metre no cell is written
+   * in. It is the same shape as a pattern that will not fit an instrument;
+   * with cells in every metre the picker offers, it is now the rare case.
    */
   if (options.kind === 'themes') {
+    /*
+     * The tunes are composed here, for this exercise, from cells — enough for
+     * the count asked for and the horizon beyond it, with a few to spare so
+     * the stitcher has a choice and never repeats one. Composed from the
+     * exercise's own rng, before the stitcher draws, so a seed names its
+     * tunes as surely as it names its walk. See `compose.ts`.
+     */
+    const horizonBeats = options.horizonBars ? options.horizonBars * metre.barBeats : undefined;
+    const tuneBeats = TUNE_BARS * metre.barBeats;
+    const wanted =
+      options.themeCount + (horizonBeats ? Math.ceil(horizonBeats / tuneBeats) : 0) + 2;
+    const corpus = Array.from({ length: wanted }, (_, i) =>
+      composeTune({ difficulty: options.difficulty, metre, rng, id: `tune-${i + 1}` }),
+    ).filter((tune): tune is Theme => tune !== null);
+
     const stitched = stitchThemes({
       instrument: options.instrument,
       clef: options.clef,
@@ -352,8 +369,9 @@ export function generateExercise(options: GenerateOptions): Exercise {
       keys: orderByCloseness(options.fifths, options.keySet ?? [options.fifths]),
       metre,
       count: options.themeCount,
-      horizonBeats: options.horizonBars ? options.horizonBars * metre.barBeats : undefined,
+      horizonBeats,
       rng,
+      corpus,
     });
     if (stitched) {
       /*

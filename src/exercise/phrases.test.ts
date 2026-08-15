@@ -6,35 +6,58 @@ import { difficultyById } from './difficulty';
 import { generateExercise } from './generate';
 import { createRng } from './rng';
 import { stitchThemes, themesFor, type StitchOptions } from './phrases';
-import { exerciseFromTheme, tonicWindow } from './theme';
-import { themeById, THEMES } from './themes';
+import { composeTune, TUNE_BARS } from './compose';
+import { exerciseFromTheme, tonicWindow, type Theme } from './theme';
+
+/**
+ * A corpus of composed tunes at a level in a metre, deterministic, for the
+ * stitcher to draw from — what the generator hands it, made the same way.
+ */
+function composed(difficulty: string, metre = metreFor(4, 4), count = 6): Theme[] {
+  const tunes: Theme[] = [];
+  for (let seed = 1; seed <= count; seed++) {
+    const tune = composeTune({
+      difficulty: difficultyById(difficulty),
+      metre,
+      rng: createRng(seed),
+      id: `${difficulty}-${seed}`,
+    });
+    if (tune) tunes.push(tune);
+  }
+  return tunes;
+}
 
 function stitchOptions(overrides: Partial<StitchOptions> = {}): StitchOptions {
+  const difficulty = overrides.difficulty ?? 'beginner';
+  const metre = overrides.metre ?? metreFor(4, 4);
   return {
     instrument: instrumentById('eb-bass'),
     clef: 'treble',
     fifths: -3,
-    difficulty: 'beginner',
-    metre: metreFor(4, 4),
+    difficulty,
+    metre,
     count: 3,
     rng: createRng(1),
+    corpus: composed(difficulty, metre),
     ...overrides,
   };
 }
 
 describe('themesFor', () => {
   it('offers only themes of the right difficulty and metre', () => {
-    const found = themesFor(stitchOptions({ difficulty: 'easy', metre: metreFor(3, 4) }));
-    expect(found.map((t) => t.id)).toEqual(['waltz-step']);
+    const corpus = [...composed('easy', metreFor(3, 4)), ...composed('medium', metreFor(3, 4))];
+    const found = themesFor(stitchOptions({ difficulty: 'easy', metre: metreFor(3, 4), corpus }));
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.every((t) => t.difficulty === 'easy')).toBe(true);
+    // And a corpus in four offers nothing to a metre of three.
+    const inFour = composed('easy', metreFor(4, 4));
+    expect(themesFor(stitchOptions({ difficulty: 'easy', metre: metreFor(3, 4), corpus: inFour }))).toEqual([]);
   });
 
   it('offers nothing where the corpus has nothing, rather than the wrong thing', () => {
-    /*
-     * Five-four, because nothing is written in it and nothing will be while the
-     * app does not offer it. This used to name beginner in 3/4, which was a real
-     * gap at the time and has since been filled — a test that encodes a gap
-     * fails the day the gap closes, which is the wrong thing to be told.
-     */
+    // Five-four, because no cell is written in it and none will be while the
+    // app does not offer it: nothing composes, so nothing is offered.
+    expect(composed('beginner', metreFor(5, 4))).toEqual([]);
     expect(themesFor(stitchOptions({ difficulty: 'beginner', metre: metreFor(5, 4) }))).toEqual([]);
   });
 });
@@ -46,11 +69,9 @@ describe('stitchThemes', () => {
       expect(stitched.used, `${count} themes`).toHaveLength(count);
 
       // Length is a consequence of which themes were drawn, not a target: the
-      // total is the sum of their own lengths and nothing is cut.
-      const barsUsed = stitched.used
-        .map((id) => THEMES.find((t) => t.id === id)!.bars)
-        .reduce((a, b) => a + b, 0);
-      expect(stitched.totalBeats, `${count} themes`).toBe(barsUsed * 4);
+      // total is the sum of their own lengths and nothing is cut. Every
+      // composed tune is the same length, which makes the sum plain.
+      expect(stitched.totalBeats, `${count} themes`).toBe(count * TUNE_BARS * 4);
     }
   });
 
@@ -89,7 +110,7 @@ describe('stitchThemes', () => {
     stitched.used.forEach((id, index) => {
       expect(stitched.starts[index], id).toBe(expected);
       expect(expected % 4, `${id} on a bar line`).toBe(0);
-      expected += THEMES.find((t) => t.id === id)!.bars * 4;
+      expected += TUNE_BARS * 4;
     });
   });
 
@@ -206,7 +227,20 @@ describe('themes through the generator', () => {
      */
     const instrument = instrumentById('eb-bass');
     const [low, high] = tonicWindow(instrument, 'treble');
-    const opensOnTheTonic = themeById('plain-answer')!;
+    const opensOnTheTonic: Theme = {
+      id: 'opens-on-the-tonic',
+      name: 'Opens on the tonic',
+      difficulty: 'beginner',
+      metres: [[4, 4]],
+      bars: 2,
+      events: [
+        { degree: 1, beats: 1 },
+        { degree: 2, beats: 1 },
+        { degree: 3, beats: 2 },
+        { degree: 2, beats: 1 },
+        { degree: 1, beats: 3 },
+      ],
+    };
 
     for (const fifths of [-5, -3, -1, 0, 2, 4]) {
       const exercise = exerciseFromTheme(opensOnTheTonic, {

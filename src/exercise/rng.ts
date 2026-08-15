@@ -14,6 +14,8 @@ export interface Rng {
   /** Picks by weight; weights need not sum to anything in particular. */
   weighted<T>(items: readonly T[], weightOf: (item: T) => number): T;
   chance(probability: number): boolean;
+  /** A new list, the same items in a random order. */
+  shuffle<T>(items: readonly T[]): T[];
 }
 
 /** mulberry32 — small, fast and statistically fine for this. */
@@ -50,6 +52,16 @@ export function createRng(seed: number): Rng {
   };
 
   rng.chance = (probability) => next() < probability;
+
+  rng.shuffle = (items) => {
+    const out = [...items];
+    // Fisher–Yates, from the back, so every order is as likely as any other.
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(next() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
 
   return rng;
 }

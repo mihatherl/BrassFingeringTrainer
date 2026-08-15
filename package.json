@@ -1,7 +1,7 @@
 {
   "name": "brass-fingering-trainer",
   "private": true,
-  "version": "2.19.1",
+  "version": "2.20.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "svg": "tsx tools/stave-to-svg.mts",
     "shots": "tsx tools/shots.mts",
-    "themes": "tsx tools/theme-sheet.mts"
+    "tunes": "tsx tools/tune-sheet.mts"
   },
   "dependencies": {
     "react": "^19.2.8",

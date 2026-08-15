@@ -288,6 +288,29 @@ same format and nothing in the app changes.
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
 
+## Themes, composed — v2.20.0
+
+The theme corpus measured a level or two easy at every level — an octave
+where the sight-reading of the same name spanned an octave and a half, no
+accidentals where it had one in six, no rests where it breathed twice a bar.
+The player's ear said so first; the measurement is in `tunes-plan.md`. The
+choice put to the player was to hand-write hundreds of tunes or to build a
+composer, and the player chose the composer — and ruled, when the thought
+came up, that **Sight-reading stays**: a walk held inside a stated interval
+trains something a tune does not.
+
+So Themes is now tunes assembled from authored one-bar cells — opens, moves,
+closes, in every metre the picker offers — into two phrases, an antecedent
+closing on the dominant or mediant and a consequent closing on the tonic,
+with anchors chosen so joins step, so the tune reaches its level's range, and
+so a motif recurs; then inflected with accidentals where a neighbour, a
+passing note or a repeated note invites one, and breathed at bar ends, both
+at the level's chance. Everything after that — placement, key tours across
+tunes, ties, triplets, the tempo plan's joins — is what already existed for a
+`Theme`. New every time; calibrated by the same measurement that condemned
+the corpus, held as a test. The forty-seven hand-written tunes are retired to
+the history. Plan, measurement and what is still short: `tunes-plan.md`.
+
 ## The named minor scales — v2.18.0
 
 Step 4 of the settings work. *Harmonic minor scale* and *Melodic minor scale*

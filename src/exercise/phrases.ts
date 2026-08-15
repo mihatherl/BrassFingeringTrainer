@@ -1,5 +1,6 @@
 /**
- * Sight-reading material, stitched from authored themes.
+ * Themes, stitched from tunes — composed for the exercise, since v2.20.0, by
+ * `compose.ts`; hand-written before that.
  *
  * Themes are laid end to end until the asked-for length is reached. The join is
  * why every theme starts and ends on a stable degree: two arbitrary phrases
@@ -22,10 +23,9 @@ import type { Clef, Instrument } from '../domain/instruments';
 import { tourKey, type KeyChange } from '../domain/keys';
 import type { Metre } from '../domain/metre';
 import { snapBeat } from '../domain/rhythm';
-import type { Slot } from './assemble';
+import type { Slot, SlotPitch } from './assemble';
 import type { Rng } from './rng';
 import { realiseTheme, type Theme } from './theme';
-import { THEMES } from './themes';
 
 export interface StitchOptions {
   instrument: Instrument;
@@ -54,19 +54,16 @@ export interface StitchOptions {
   horizonBeats?: number;
   rng: Rng;
   /**
-   * The themes to draw from. Defaults to the shipped corpus.
-   *
-   * Injectable because selection is the part with rules in it — do not repeat,
-   * carry the key on, skip what will not fit — and while the corpus holds one
-   * theme per difficulty none of those rules has anything to choose between.
-   * Tests supply their own so the rules are exercised rather than assumed.
+   * The themes to draw from: composed for the exercise by `composeTune`, or
+   * supplied by a test so that the stitching rules — do not repeat, carry the
+   * key on, skip what will not fit — are exercised rather than assumed.
    */
-  corpus?: readonly Theme[];
+  corpus: readonly Theme[];
 }
 
 export interface StitchedPhrases {
   slots: Slot[];
-  pitches: number[];
+  pitches: SlotPitch[];
   keys: KeyChange[];
   totalBeats: number;
   /** Which themes were used, in order. For tests and for the results screen. */
@@ -88,7 +85,7 @@ export interface StitchedPhrases {
 /** Themes this instrument, difficulty and metre can actually take. */
 export function themesFor(options: Omit<StitchOptions, 'rng' | 'count' | 'keys'>): Theme[] {
   const { beatsPerBar, beatUnit } = options.metre;
-  return (options.corpus ?? THEMES).filter((theme) => {
+  return options.corpus.filter((theme) => {
     if (theme.difficulty !== options.difficulty) return false;
     if (!theme.metres.some(([n, d]) => n === beatsPerBar && d === beatUnit)) return false;
     // Range is asked of the real placement rather than guessed at: a theme is a
@@ -109,7 +106,7 @@ export function stitchThemes(options: StitchOptions): StitchedPhrases | null {
   if (available.length === 0) return null;
 
   const slots: Slot[] = [];
-  const pitches: number[] = [];
+  const pitches: SlotPitch[] = [];
   const keys: KeyChange[] = [];
   const used: string[] = [];
   const starts: number[] = [];
