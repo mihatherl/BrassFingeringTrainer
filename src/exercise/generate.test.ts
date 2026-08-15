@@ -128,11 +128,33 @@ describe('exercise generation', () => {
   });
 
   it('writes no accidentals at all on the beginner setting', () => {
-    const exercise = generateExercise(options({ difficulty: difficultyById('beginner') }));
-    for (const note of exercise.notes) {
-      expect(needsAccidental(spellInKey(note.writtenMidi, keyAt(exercise.keys, note.startBeat)), keyAt(exercise.keys, note.startBeat))).toBe(
-        false,
-      );
+    /*
+     * Across many seeds, instruments and keys, not one — the one seed this
+     * used to check happened never to reach the edge of the range band, where
+     * the only step down from D was D flat and the line took it. Measured
+     * before the fix at 7.5% of Beginner notes carrying an accidental.
+     */
+    for (const instrumentId of ['eb-bass', 'cornet', 'euphonium']) {
+      for (const fifths of [-3, 0, 2]) {
+        for (let seed = 1; seed <= 12; seed++) {
+          const exercise = generateExercise(
+            options({
+              difficulty: difficultyById('beginner'),
+              instrument: instrumentById(instrumentId),
+              fifths,
+              seed,
+              bars: 16,
+            }),
+          );
+          for (const note of exercise.notes) {
+            const key = keyAt(exercise.keys, note.startBeat);
+            expect(
+              needsAccidental(spellInKey(note.writtenMidi, key), key),
+              `${instrumentId} ${fifths} seed ${seed} at beat ${note.startBeat}`,
+            ).toBe(false);
+          }
+        }
+      }
     }
   });
 });

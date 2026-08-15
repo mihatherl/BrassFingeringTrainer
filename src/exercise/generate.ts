@@ -1282,7 +1282,15 @@ function phrasePitches(
       (c) => diatonicIn(c.midi, keyFor(i)) === !wantChromatic,
     );
 
-    const usable = preferred.length > 0 ? preferred : reachable;
+    /*
+     * Where nothing of the wanted kind lies in the phrase's direction, a wanted
+     * accidental is simply dropped — but a wanted *diatonic* note is not
+     * traded for a chromatic one. That happened at the edge of the range band,
+     * where the one reachable step down from D was D flat: Beginner, which
+     * allows no accidentals at all, wrote one every few lines. The line turns
+     * instead — `chooseNext` looks in every direction and prefers the key.
+     */
+    const usable = preferred.length > 0 ? preferred : wantChromatic ? reachable : [];
     const next =
       usable.length > 0
         ? rng.weighted(applyFingeringRules(usable, rules), (c) => noteWeight(options, c.midi))
