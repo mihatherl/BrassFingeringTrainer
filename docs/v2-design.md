@@ -254,17 +254,17 @@ release.
        minor's seventh is C♯ and not the D♭ one flat would have chosen.
        Melodic minor is ascending melodic, descending natural, as ruled. See
        *The named minor scales* below for the one limit.
-    5. **A key and a difficulty per material.** Asked for on 2026-08-15 and
-       deliberately sequenced *after* drills, on the reasoning that settled it:
-       step 3 merges Scales and Arpeggios into one box, so settings keyed by
-       material would need migrating the moment it lands — and step 4 was
-       expected to replace the Drills box's key control outright. In the event
-       it *relabelled* it: the control is the same `keySet`, named as minors
-       when a minor drill is chosen, so the storage a per-material key would
-       need is now known. Building it earlier would have been building it
-       twice. Difficulty is less
-       exposed, but the storage is the same piece of work either way, so
-       splitting them buys nothing.
+    5. ~~**A key and a difficulty per material.**~~ — built, v2.19.0. Each
+       material brings its own keys and difficulty back with it: drill scales
+       in D at two octaves, read themes in B♭ at Beginner, and swapping between
+       them resets nothing. `keySet`, `fifths` and `difficultyId` stay the pair
+       *in force* — every reader is untouched — and `materials` holds the rest,
+       put away on leaving a material and taken out on return; a material
+       never chosen carries the current pair over, as always. Old settings
+       files start with nothing remembered, so their one pair still carries
+       over on the first switch. Sequenced last as planned: step 4 settled that
+       a minor drill's key is a label on the same control, not a second
+       setting, so the storage was built once.
 
 **Before any of those, if the app is ever to be sold**: the gated settings
 screen, which currently accepts choices it then silently overrides. It is a

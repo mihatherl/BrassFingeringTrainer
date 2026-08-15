@@ -160,6 +160,22 @@ export interface Settings {
    */
   readingMode: ReadingMode;
   /**
+   * Each material's own key and difficulty, remembered from the last time it
+   * was chosen.
+   *
+   * `keySet`, `fifths` and `difficultyId` above are the ones **in force** — the
+   * current material's — and everything downstream reads those, unchanged.
+   * This is where the others wait. Choosing a material puts the current one's
+   * pair away here and takes the chosen one's out; a material never chosen
+   * before carries the current pair over, which is what always happened. See
+   * `switchMaterial`.
+   *
+   * Asked for on 2026-08-15 and built last, once step 4 had settled that a
+   * key is one control whatever the material calls it — a minor drill names
+   * the same signature as a minor, and that is a label, not a second setting.
+   */
+  materials: Partial<Record<Material, MaterialChoices>>;
+  /**
    * The headphones and speakers the player has calibrated, each with how far
    * behind the clock it is heard. The phone's own speaker is not on the list:
    * it is what "none of these" means, and it needs no lead.
@@ -185,6 +201,39 @@ export interface AudioOutput {
   id: string;
   name: string;
   leadMs: number;
+}
+
+/** The materials that have a key and a difficulty of their own: everything generated. */
+export type Material = Exclude<ExerciseKind, 'imported'>;
+
+/** What a material remembers: the keys it was last practised in, and how hard. */
+export interface MaterialChoices {
+  keySet: number[];
+  difficultyId: string;
+}
+
+/**
+ * Chooses a material, taking its own key and difficulty with it.
+ *
+ * The current material's pair goes into `materials` under its name, and the
+ * chosen material's comes out — or, for one never chosen before, the current
+ * pair carries over, which is what choosing a material always did. Sanitised
+ * on the way out so `fifths` follows `keySet` and nothing invalid is put in
+ * force. Choosing the material already chosen changes nothing.
+ */
+export function switchMaterial(settings: Settings, kind: ExerciseKind): Settings {
+  if (kind === settings.kind || kind === 'imported') return settings;
+  const remembered = settings.materials[kind as Material];
+  return sanitise({
+    ...settings,
+    kind,
+    ...(remembered ?? {}),
+    // Put away *before* sanitise mirrors the new pair in under the new name.
+    materials: {
+      ...settings.materials,
+      [settings.kind]: { keySet: settings.keySet, difficultyId: settings.difficultyId },
+    },
+  });
 }
 
 /**
@@ -294,6 +343,9 @@ export const DEFAULT_SETTINGS: Settings = {
   fingerings: 'trouble',
   scrollSpeed: 110,
   readingMode: 'scrolling',
+  // The default pair, under the default material — what `sanitise` would put
+  // there, so a fresh load and a saved default agree.
+  materials: { phrases: { keySet: [-3], difficultyId: 'easy' } },
   audioOutputs: [],
   audioOutputId: null,
 };
@@ -395,6 +447,12 @@ export function loadSettings(): Settings {
       merged.playbackMode = 'off';
     }
 
+    // A file from before materials had pairs of their own must not inherit the
+    // *default's* — the player's one pair carries over to every material on the
+    // first switch, which is what always happened, rather than sight-reading
+    // jumping to E flat and Easy under them.
+    if (stored.materials === undefined) merged.materials = {};
+
     return sanitise(merged);
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -468,6 +526,7 @@ export function sanitise(settings: Settings): Settings {
     // has nothing here, and the merge above must land on "off".
     variableTempo: settings.variableTempo === true,
     ...drillsOf(settings),
+    materials: sanitiseMaterials(settings, keySet, difficulty),
     register: REGISTERS.some((r) => r.id === settings.register)
       ? settings.register
       : DEFAULT_SETTINGS.register,
@@ -493,6 +552,36 @@ export function sanitise(settings: Settings): Settings {
     ),
     ...sanitiseOutputs(settings),
   };
+}
+
+/**
+ * Each material's remembered pair, kept valid, and the material in force
+ * mirrored in under its own name — so what is put away on leaving is always
+ * what was actually in force, and a stale entry can never win over it.
+ *
+ * An entry that is not a pair, or names keys or a difficulty that do not
+ * exist, is dropped rather than repaired: the material will simply carry the
+ * current pair over next time, as one never chosen does.
+ */
+function sanitiseMaterials(
+  settings: Settings,
+  keySet: number[],
+  difficultyId: string,
+): Settings['materials'] {
+  const stored = settings.materials && typeof settings.materials === 'object' ? settings.materials : {};
+  const kept: Settings['materials'] = {};
+  for (const [name, pair] of Object.entries(stored) as Array<[Material, MaterialChoices | undefined]>) {
+    if (!EXERCISE_KINDS.some((k) => k.id === name) || !pair) continue;
+    const keys = (Array.isArray(pair.keySet) ? pair.keySet : [])
+      .filter((f) => MAJOR_KEYS.some((k) => k.fifths === f))
+      .filter((f, index, all) => all.indexOf(f) === index)
+      .slice(0, MAX_KEYS_IN_PLAY);
+    if (keys.length === 0 || !DIFFICULTIES.some((d) => d.id === pair.difficultyId)) continue;
+    kept[name] = { keySet: keys, difficultyId: pair.difficultyId };
+  }
+  const inForce = drillsOf(settings).kind;
+  if (inForce !== 'imported') kept[inForce] = { keySet, difficultyId };
+  return kept;
 }
 
 /**

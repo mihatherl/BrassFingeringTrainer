@@ -172,6 +172,48 @@ describe('the app', () => {
     expect(exerciseValues()).toBe('Eb major · Major scale · 2 oct · mixed');
   });
 
+  it('gives each material its own key and difficulty', () => {
+    /*
+     * Asked for on 2026-08-15: a player drilling scales in D at two octaves
+     * and reading themes in B flat at Beginner should not have to reset both
+     * every time they swap. Each box brings its own pair back with it.
+     */
+    const exerciseValues = () =>
+      [...document.querySelectorAll<HTMLDetailsElement>('details.panel')]
+        .find((panel) => panel.querySelector('.panel__title')?.textContent === 'Exercise')
+        ?.querySelector('.panel__values')?.textContent;
+    const first = render(<App />);
+    fireEvent.click(screen.getByText('Exercise'));
+
+    fireEvent.click(screen.getByRole('button', { name: /Drills/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'D major, 2 sharps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Eb major, 3 flats' }));
+    fireEvent.click(screen.getByRole('button', { name: '2 oct · mixed' }));
+    expect(exerciseValues()).toBe('D major · Major scale · 2 oct · mixed');
+
+    // Themes carries the pair over the first time, and is then given its own.
+    fireEvent.click(screen.getByRole('button', { name: /Themes/ }));
+    expect(exerciseValues()).toBe('D major · Themes · Hard');
+    fireEvent.click(screen.getByRole('button', { name: 'Bb major, 2 flats' }));
+    fireEvent.click(screen.getByRole('button', { name: 'D major, 2 sharps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Beginner' }));
+    expect(exerciseValues()).toBe('Bb major · Themes · Beginner');
+
+    // Back to Drills: D and two octaves, exactly as left.
+    fireEvent.click(screen.getByRole('button', { name: /Drills/ }));
+    expect(exerciseValues()).toBe('D major · Major scale · 2 oct · mixed');
+    fireEvent.click(screen.getByRole('button', { name: /Themes/ }));
+    expect(exerciseValues()).toBe('Bb major · Themes · Beginner');
+
+    // And it survives a reload.
+    first.unmount();
+    render(<App />);
+    fireEvent.click(screen.getByText('Exercise'));
+    expect(exerciseValues()).toBe('Bb major · Themes · Beginner');
+    fireEvent.click(screen.getByRole('button', { name: /Drills/ }));
+    expect(exerciseValues()).toBe('D major · Major scale · 2 oct · mixed');
+  });
+
   it('keeps collapsed sections reachable to assistive technology and search', () => {
     // `<details>` keeps its contents in the document, which is why the controls
     // below are still found even while their section is shut.

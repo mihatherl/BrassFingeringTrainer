@@ -10,6 +10,7 @@ import {
   loadSettings,
   sanitise,
   saveSettings,
+  switchMaterial,
 } from './settings';
 
 const STORAGE_KEY = 'brass-trainer:settings';
@@ -326,5 +327,81 @@ describe('the calibrated outputs', () => {
     const settings = loadSettings();
     expect(settings.audioOutputs).toEqual([]);
     expect(settings.audioOutputId).toBeNull();
+  });
+});
+
+describe('a key and a difficulty per material', () => {
+  /*
+   * The pair in force stays where everything reads it; each material's own
+   * pair waits in `materials`, put away on leaving and taken out on return.
+   */
+  const inDrills = sanitise({
+    ...DEFAULT_SETTINGS,
+    kind: 'drills',
+    keySet: [2, 4],
+    difficultyId: 'hard',
+  });
+
+  it('mirrors the pair in force under the material in force', () => {
+    expect(inDrills.materials.drills).toEqual({ keySet: [2, 4], difficultyId: 'hard' });
+    expect(inDrills.fifths).toBe(2);
+  });
+
+  it('carries the pair over to a material never chosen, and puts the old one away', () => {
+    const inThemes = switchMaterial(inDrills, 'themes');
+    expect(inThemes.kind).toBe('themes');
+    expect(inThemes.keySet).toEqual([2, 4]);
+    expect(inThemes.difficultyId).toBe('hard');
+    expect(inThemes.materials.drills).toEqual({ keySet: [2, 4], difficultyId: 'hard' });
+  });
+
+  it('brings a material its own pair back when it is chosen again', () => {
+    const inThemes = sanitise({
+      ...switchMaterial(inDrills, 'themes'),
+      keySet: [-2],
+      difficultyId: 'beginner',
+    });
+    const back = switchMaterial(inThemes, 'drills');
+    expect(back.keySet).toEqual([2, 4]);
+    expect(back.fifths).toBe(2);
+    expect(back.difficultyId).toBe('hard');
+    // And themes' own pair is waiting for next time.
+    expect(back.materials.themes).toEqual({ keySet: [-2], difficultyId: 'beginner' });
+    expect(switchMaterial(back, 'themes').keySet).toEqual([-2]);
+  });
+
+  it('changes nothing for the material already chosen, or for imported music', () => {
+    expect(switchMaterial(inDrills, 'drills')).toBe(inDrills);
+    expect(switchMaterial(inDrills, 'imported')).toBe(inDrills);
+  });
+
+  it('drops a remembered pair that names keys or a difficulty that do not exist', () => {
+    // Themes is in force here, so its entry is whatever is in force; the
+    // other two are what was remembered, kept or dropped on their merits.
+    const settings = sanitise({
+      ...DEFAULT_SETTINGS,
+      kind: 'themes',
+      materials: {
+        drills: { keySet: [1], difficultyId: 'impossible' },
+        phrases: { keySet: [1, 1, 3], difficultyId: 'easy' },
+      } as never,
+    });
+    expect(settings.materials.drills).toBeUndefined();
+    expect(settings.materials.phrases).toEqual({ keySet: [1, 3], difficultyId: 'easy' });
+    expect(settings.materials.themes).toEqual({ keySet: [-3], difficultyId: 'easy' });
+
+    const badKeys = sanitise({
+      ...DEFAULT_SETTINGS,
+      kind: 'themes',
+      materials: { drills: { keySet: [42], difficultyId: 'easy' } },
+    });
+    expect(badKeys.materials.drills).toBeUndefined();
+  });
+
+  it('starts with nothing remembered for a settings file that predates it', () => {
+    store({ kind: 'themes', keySet: [1], difficultyId: 'easy' });
+    const settings = loadSettings();
+    // Only the material in force, mirrored from what was stored.
+    expect(settings.materials).toEqual({ themes: { keySet: [1], difficultyId: 'easy' } });
   });
 });

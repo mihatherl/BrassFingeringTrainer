@@ -20,6 +20,7 @@ import {
   MAX_KEYS_IN_PLAY,
   constrainToEntitlements,
   sanitise,
+  switchMaterial,
   SCROLL_SPEED_RANGE,
   PLAYBACK_MODES,
   READING_MODES,
@@ -694,7 +695,9 @@ export function SettingsScreen({
                   aria-pressed={chosen}
                   aria-expanded={chosen}
                   aria-controls={bodyId}
-                  onClick={() => update('kind', kind.id as ExerciseKind)}
+                  // Each material brings its own key and difficulty with it;
+                  // see `switchMaterial`.
+                  onClick={() => onChange(switchMaterial(settings, kind.id as ExerciseKind))}
                 >
                   <strong>{kind.name}</strong>
                   <span className="muted">{kind.blurb}</span>
