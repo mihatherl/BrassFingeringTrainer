@@ -131,7 +131,7 @@ const FIGURES: ReadonlyArray<{ name: string; why: string; exercise: () => Exerci
   {
     name: 'scale-cycles',
     why: 'Cycles running straight on into one another, with the tonic held at the end — no gap in the middle of a scale.',
-    exercise: () => generated({ kind: 'scales', cycles: 2 }),
+    exercise: () => generated({ kind: 'drills', cycles: 2 }),
   },
   {
     name: 'compound-metre',

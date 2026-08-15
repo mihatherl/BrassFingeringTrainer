@@ -18,7 +18,7 @@ import { TEMPO_RANGE } from '../domain/tempo';
 import { CONDUCTOR_STYLE_RANGE } from '../render/conductor';
 import type { FingeringMode } from '../exercise/hints';
 import type { ExerciseKind } from '../exercise/types';
-import type { PatternRegister } from '../exercise/generate';
+import { DRILLS, type DrillId, type PatternRegister } from '../exercise/generate';
 
 // Re-exported from the domain, where the tempo plan clamps against the same
 // figures; the settings screen was this range's first customer, not its owner.
@@ -65,6 +65,13 @@ export interface Settings {
   variableTempo: boolean;
   difficultyId: string;
   kind: ExerciseKind;
+  /**
+   * Which drill the Drills material plays — the major scale, or one of the
+   * arpeggios of the key. Always present and always valid, whatever the kind,
+   * so choosing Drills after a season of sight-reading opens on a real shape
+   * rather than on a question. Ignored by everything but the drills.
+   */
+  drillId: DrillId;
   /*
    * How long a run is, is no longer here.
    *
@@ -228,6 +235,7 @@ export const DEFAULT_SETTINGS: Settings = {
   variableTempo: false,
   difficultyId: 'easy',
   kind: 'phrases',
+  drillId: 'major-scale',
   register: 'middle',
   // Left to the difficulty, which is what the app has always done.
   range: null,
@@ -262,6 +270,36 @@ function fingeringModeOf(settings: Settings & { fingeringHints?: boolean }): Fin
     return settings.fingeringHints ? 'trouble' : 'never';
   }
   return DEFAULT_SETTINGS.fingerings;
+}
+
+/**
+ * What the Drills material was before it was one box.
+ *
+ * A stored kind of `scales` or `arpeggios` is somebody who chose that material
+ * when it had a box of its own, before v2.16.0 merged the two — so it maps to
+ * Drills opened on the shape that box played: the major scale, or the tonic
+ * triad. Read here rather than migrated on load, for the same reason
+ * `fingeringModeOf` is: `sanitise` already runs over everything that comes out
+ * of storage, and a second place to know this would be a second place for it
+ * to go stale.
+ */
+function drillsOf(settings: Settings): { kind: ExerciseKind; drillId: DrillId } {
+  const legacy: Record<string, DrillId> = { scales: 'major-scale', arpeggios: 'tonic-arpeggio' };
+  const stored = legacy[settings.kind as string];
+  const drillId = stored ?? (DRILLS.some((d) => d.id === settings.drillId)
+    ? settings.drillId
+    : DEFAULT_SETTINGS.drillId);
+  return {
+    // Validated rather than merged through, so a settings file naming a kind
+    // this version no longer has — *Random notes*, dropped in v2.14.0 — opens
+    // on the default instead of on a mode the chooser cannot show.
+    kind: stored
+      ? 'drills'
+      : EXERCISE_KINDS.some((k) => k.id === settings.kind)
+        ? settings.kind
+        : DEFAULT_SETTINGS.kind,
+    drillId,
+  };
 }
 
 const STORAGE_KEY = 'brass-trainer:settings';
@@ -386,12 +424,7 @@ export function sanitise(settings: Settings): Settings {
     // Coerced to a real boolean: a settings file written by an older version
     // has nothing here, and the merge above must land on "off".
     variableTempo: settings.variableTempo === true,
-    // Validated rather than merged through, so a settings file naming a kind
-    // this version no longer has — *Random notes*, dropped in v2.14.0 — opens
-    // on the default instead of on a mode the chooser cannot show.
-    kind: EXERCISE_KINDS.some((k) => k.id === settings.kind)
-      ? settings.kind
-      : DEFAULT_SETTINGS.kind,
+    ...drillsOf(settings),
     register: REGISTERS.some((r) => r.id === settings.register)
       ? settings.register
       : DEFAULT_SETTINGS.register,

@@ -162,8 +162,8 @@ describe('generating ties', () => {
     // Ties arrive at Medium, and never in a scale: that drill is the shape and
     // the fingering, and a tie there is a reading problem laid on top of it.
     for (const difficulty of DIFFICULTIES) {
-      for (const kind of ['phrases', 'scales', 'arpeggios'] as const) {
-        const quiet = difficulty.tieChance === 0 || kind === 'scales' || kind === 'arpeggios';
+      for (const kind of ['phrases', 'drills'] as const) {
+        const quiet = difficulty.tieChance === 0 || kind === 'drills';
         if (!quiet) continue;
 
         for (let seed = 1; seed <= 15; seed++) {

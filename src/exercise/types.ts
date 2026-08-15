@@ -186,28 +186,27 @@ export interface Exercise {
  * and the chooser lists only what can actually be chosen.
  */
 export type ExerciseKind =
-  | 'scales'
-  | 'arpeggios'
+  | 'drills'
   | 'phrases'
   | 'themes'
   | 'imported';
 
 export const EXERCISE_KINDS: ReadonlyArray<{ id: ExerciseKind; name: string; blurb: string }> = [
-  { id: 'scales', name: 'Scales', blurb: 'The major scale of the key, up and down. No accidentals.' },
   {
-    id: 'arpeggios',
-    name: 'Arpeggios',
+    id: 'drills',
+    name: 'Drills',
     /*
-     * What it plays, which is one chord.
-     *
-     * It said "tonic, subdominant, dominant, dominant 7th and relative minor"
-     * until v2.15.1, and `ARPEGGIO_PATTERNS` has held the tonic triad alone
-     * since it was written — the blurb was describing an intention. The player's
-     * rule, and it is a good one: nothing should make a claim of something it
-     * doesn't deliver. The other four are wanted and are on the list for the
-     * drills picker; the sentence comes back when they arrive, and not before.
+     * One box where Scales and Arpeggios used to be two, holding every shape
+     * that is practised the same way: pick a drill, pick a key, up and back
+     * down. Which shapes exist is `DRILLS` in `generate.ts`, and this sentence
+     * is tied to that list by a test in both directions — it may not promise a
+     * drill the list does not hold (the Arpeggios box named five chords for
+     * months while the generator played one), and a drill may not be added
+     * without the sentence widening to own it.
      */
-    blurb: 'The tonic triad of the key, up and down.',
+    blurb:
+      'The major scale, and the arpeggios of the key: tonic, subdominant, dominant, ' +
+      'dominant 7th and relative minor.',
   },
   { id: 'phrases', name: 'Sight-reading', blurb: 'Musical phrases with contour, leaps and rests.' },
   {

@@ -128,7 +128,7 @@ describe('constraining settings', () => {
       keySet: [0],
       bars: 4,
       difficultyId: 'easy',
-      kind: 'scales' as const,
+      kind: 'drills' as const,
     };
     expect(constrainToEntitlements(chosen, FREE)).toEqual({ ...chosen, weakNoteDrilling: false });
   });

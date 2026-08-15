@@ -110,7 +110,7 @@ export function App() {
         if (one) return one;
       }
 
-    const length = defaultLengthFor(settings.kind);
+    const length = defaultLengthFor(settings.kind, settings.drillId);
       return generateExercise({
         instrument,
         clef: settings.clef,
@@ -118,6 +118,7 @@ export function App() {
         keySet: settings.keySet,
         difficulty: difficultyById(settings.difficultyId),
         kind: settings.kind,
+        drillId: settings.drillId,
         bars: length.bars,
         themeCount: length.themeCount,
         cycles: length.cycles,

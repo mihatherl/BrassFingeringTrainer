@@ -19,7 +19,7 @@ import { writeFileSync } from 'node:fs';
 import { instrumentById } from '../src/domain/instruments.ts';
 import { metreFor } from '../src/domain/metre.ts';
 import { difficultyById } from '../src/exercise/difficulty.ts';
-import { generateExercise } from '../src/exercise/generate.ts';
+import { generateExercise, type DrillId } from '../src/exercise/generate.ts';
 import { exerciseFromTheme } from '../src/exercise/theme.ts';
 import { themeById, THEMES } from '../src/exercise/themes.ts';
 import { tiedFigure, tripletFigure } from './figures.mts';
@@ -70,7 +70,9 @@ const exercise = arg('theme', '')
     ? arg('keys', '').split(',').map(Number)
     : undefined,
   difficulty: difficultyById(arg('difficulty', 'hard')),
-  kind: arg('kind', 'phrases') as 'scales' | 'arpeggios' | 'phrases' | 'themes',
+  kind: arg('kind', 'phrases') as 'drills' | 'phrases' | 'themes',
+  // Which drill --kind=drills plays, e.g. --drill=dominant-7th.
+  drillId: (arg('drill', '') || undefined) as DrillId | undefined,
   bars: Number(arg('bars', '8')),
   cycles: Number(arg('cycles', '2')),
   themeCount: Number(arg('themes', '2')),

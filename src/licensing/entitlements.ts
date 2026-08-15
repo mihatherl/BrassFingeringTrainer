@@ -88,7 +88,7 @@ export const FREE_TIER: {
   fifths: 0,
   difficultyIds: ['beginner', 'easy'],
   /** Everything the generator can make; see `allMaterial`. */
-  kinds: ['phrases', 'scales', 'arpeggios', 'themes'],
+  kinds: ['phrases', 'drills', 'themes'],
   readingMode: 'scrolling',
 };
 

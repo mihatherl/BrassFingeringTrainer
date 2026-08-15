@@ -116,7 +116,7 @@ beforeAll(() => {
   };
 });
 
-const KINDS: ExerciseKind[] = ['scales', 'arpeggios', 'phrases'];
+const KINDS: ExerciseKind[] = ['drills', 'phrases'];
 
 function build(
   kind: ExerciseKind,

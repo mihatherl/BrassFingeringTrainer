@@ -235,15 +235,15 @@ release.
     1. ~~Subtractions and defaults~~ — built, v2.14.0. See *Fewer things to
        choose*.
     2. ~~The accordion~~ — built, v2.15.0. See *One box per material*.
-    3. **Drills**: Scales and Arpeggios become one box with a selectable drill
-       type, and the key choice moves down into it. The four arpeggios the box
-       used to promise — subdominant, dominant, dominant 7th and relative minor
-       — are wanted as selectable drills here; see *Nothing claims what it does
-       not deliver* below for why the promise came off in the meantime. The generator is already
-       built for this — `SCALE_PATTERNS` and `ARPEGGIO_PATTERNS` are lists of
-       `{ rootDegree, intervals }`, and the comment above them has said since it
-       was written that adding one is a matter of listing it and letting the
-       player pick.
+    3. ~~**Drills**~~ — built, v2.16.0. Scales and Arpeggios are one box with a
+       selectable drill, the four promised arpeggios — subdominant, dominant,
+       dominant 7th and relative minor — are real, and the blurb's full
+       sentence is back; see *Nothing claims what it does not deliver* below.
+       One kind, `drills`, replaced the two, with `drillId` naming the shape:
+       a drill is data — `{ rootDegree, intervals, cycles }` in `DRILLS` — and
+       the player's pick, never a dice roll. A stored `scales` or `arpeggios`
+       migrates to the drill its box played. The picker is a scrolling window
+       like the keys, sized for the named minors still to come.
     4. **Named minor scales**: *A minor harmonic*, *A minor melodic*, chosen the
        way a book prints them rather than as a key signature plus a mode. The
        intervals are free; **the work is spelling**. `spellInKey` chooses
@@ -268,10 +268,9 @@ screen, which currently accepts choices it then silently overrides. It is a
 blocker rather than a feature, and it is written up ready to build in
 *Selling it, one day*.
 
-Two smaller things worth doing whenever they are convenient, both noted where
-they were found: the fourth exercise kind could use a second arpeggio pattern
-(the list in `ARPEGGIO_PATTERNS` is deliberately one entry and says so), and
-`FREE_TIER.playbackMode` is declared but never read.
+One smaller thing worth doing whenever it is convenient, noted where it was
+found: `FREE_TIER.playbackMode` is declared but never read. (The other one that
+stood here — a second arpeggio pattern — became the drills picker, v2.16.0.)
 
 ### Why local import before a server
 
@@ -299,14 +298,14 @@ intention. Nothing connected the sentence to the list, so nothing noticed — an
 a player choosing that box on the strength of it would have been reading one
 chord and wondering where the other four were.
 
-The sentence now names the one chord. The other four are wanted and are on the
-list for the drills picker; **the promise comes back when they arrive, and not
-before.** A test now ties the two together in both directions: it fails if the
-blurb widens past the patterns, and it fails when a pattern is added without the
-blurb widening — which is the reminder to write the sentence back.
+The sentence named the one chord until v2.16.0 built the drills picker, played
+the other four, and earned the full sentence back. A test ties the two together
+in both directions: the blurb may not name a drill `DRILLS` does not hold, and a
+drill added without its claim refuses to compile — which is the reminder to
+widen the sentence when it happens.
 
-The same guard covers the Scales box, whose blurb must not mention a minor until
-step 4 gives it one.
+The same guard keeps the blurb from mentioning a minor *scale* until step 4
+gives it one; the relative minor's arpeggio is in key and already there.
 
 **The other nine blurbs were audited against the data and all hold.** Worth
 recording that they were checked rather than assumed: every difficulty's range,

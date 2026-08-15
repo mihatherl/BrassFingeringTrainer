@@ -46,8 +46,7 @@ describe('canRekey', () => {
    */
   it('offers the dial to free material and nothing else', () => {
     expect(canRekeyKind('phrases')).toBe(true);
-    expect(canRekeyKind('scales')).toBe(false);
-    expect(canRekeyKind('arpeggios')).toBe(false);
+    expect(canRekeyKind('drills')).toBe(false);
     expect(canRekeyKind('themes')).toBe(false);
     expect(canRekeyKind('imported')).toBe(false);
   });

@@ -1071,6 +1071,41 @@ input[type='checkbox'] {
   opacity: 0.85;
 }
 
+/*
+ * The drill list: a window onto a column, run the same way as the keys above.
+ *
+ * Six entries now and around ten once the named minors land, which is what
+ * ruled out a row of chips — and the open material box's height is a budget
+ * that was fought for a screen at a time, so the list may not simply be as
+ * tall as it is long. Three rows and a half: the half-row is the scrollbar's
+ * job done without a scrollbar.
+ */
+.drills {
+  --drill-h: 2.25rem;
+  --drill-gap: 0.375rem;
+  /* So a row's `offsetTop` is measured from this box; see `.keys`. */
+  position: relative;
+  display: grid;
+  gap: var(--drill-gap);
+  height: calc(3.5 * var(--drill-h) + 3 * var(--drill-gap));
+  max-width: 22rem;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+.drills::-webkit-scrollbar {
+  display: none;
+}
+
+.drill {
+  display: grid;
+  align-content: center;
+  height: var(--drill-h);
+  scroll-snap-align: center;
+}
+
 .cards {
   display: grid;
   gap: 0.5rem;

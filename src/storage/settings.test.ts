@@ -205,6 +205,48 @@ describe('a chosen range', () => {
   });
 });
 
+describe('the drills, which used to be two materials', () => {
+  /*
+   * Scales and Arpeggios each had a box of their own until v2.16.0 merged them
+   * into Drills with a picker. A stored kind naming either is somebody who
+   * chose that material, and they must land on the drill their box played —
+   * not on the default material, which is what an unrecognised kind falls to.
+   */
+  it('reads a stored Scales as the major scale drill', () => {
+    const settings = sanitise({ ...DEFAULT_SETTINGS, kind: 'scales' } as never);
+    expect(settings.kind).toBe('drills');
+    expect(settings.drillId).toBe('major-scale');
+  });
+
+  it('reads a stored Arpeggios as the tonic arpeggio drill', () => {
+    const settings = sanitise({ ...DEFAULT_SETTINGS, kind: 'arpeggios' } as never);
+    expect(settings.kind).toBe('drills');
+    expect(settings.drillId).toBe('tonic-arpeggio');
+  });
+
+  it('keeps a modern kind and drill as they are', () => {
+    const settings = sanitise({ ...DEFAULT_SETTINGS, kind: 'drills', drillId: 'dominant-7th' });
+    expect(settings.kind).toBe('drills');
+    expect(settings.drillId).toBe('dominant-7th');
+  });
+
+  it('still opens an unrecognised kind on the default material', () => {
+    // *Random notes* was dropped in v2.14.0; a file naming it predates the
+    // drills too, so there is no better answer than the default.
+    const settings = sanitise({ ...DEFAULT_SETTINGS, kind: 'random' } as never);
+    expect(settings.kind).toBe(DEFAULT_SETTINGS.kind);
+  });
+
+  it('falls back to the major scale for a drill that does not exist', () => {
+    const settings = sanitise({
+      ...DEFAULT_SETTINGS,
+      kind: 'drills',
+      drillId: 'whole-tone' as never,
+    });
+    expect(settings.drillId).toBe('major-scale');
+  });
+});
+
 describe('the fingering setting, which used to be a switch', () => {
   /*
    * It was a boolean — "show fingerings for notes I get wrong" — and became

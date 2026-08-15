@@ -6,11 +6,11 @@ import { keyAt, needsAccidental, spellInKey, tonicPitchClass } from '../domain/k
 import { durationBeats } from '../domain/rhythm';
 import { DIFFICULTIES, difficultyById } from './difficulty';
 import {
-  ARPEGGIO_PATTERNS,
   defaultLengthFor,
+  DRILLS,
   generateExercise,
   patternSpanFor,
-  SCALE_PATTERNS,
+  type DrillId,
   type GenerateOptions,
 } from './generate';
 import { isTieContinuation } from './ties';
@@ -34,7 +34,14 @@ function options(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
   };
 }
 
-const KINDS: ExerciseKind[] = ['scales', 'arpeggios', 'phrases'];
+const KINDS: ExerciseKind[] = ['drills', 'phrases'];
+
+/*
+ * The two shapes a drill comes in, for tests about shape-level behaviour —
+ * rhythm pools, spans, metre — where one scale and one chord stand for the
+ * rest. Tests about what the notes *are* run over the whole of `DRILLS`.
+ */
+const SHAPES: DrillId[] = ['major-scale', 'tonic-arpeggio'];
 
 describe('exercise generation', () => {
   it('is reproducible from its seed', () => {
@@ -127,15 +134,23 @@ describe('scales and arpeggios', () => {
      * number of bars, generation stopped when the bars ran out — routinely
      * part way up the scale, which is the one place a scale should not stop.
      */
-    const PATTERNS = ['scales', 'arpeggios'] as const;
+    // Every drill, not a representative pair: being measured in cycles is a
+    // structural property, and each new chord earns the same guarantee.
+    const PATTERNS = DRILLS.map((d) => d.id);
 
-    it.each(PATTERNS)('plays each cycle through whole (%s)', (kind) => {
+    it.each(PATTERNS)('plays each cycle through whole (%s)', (drillId) => {
       for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
         for (const cycles of [1, 2, 4]) {
           const exercise = generateExercise(
-            options({ kind, cycles, difficulty: difficultyById(difficultyId), seed: cycles + 3 }),
+            options({
+              kind: 'drills',
+              drillId,
+              cycles,
+              difficulty: difficultyById(difficultyId),
+              seed: cycles + 3,
+            }),
           );
-          const where = `${kind} ${difficultyId} x${cycles}`;
+          const where = `${drillId} ${difficultyId} x${cycles}`;
 
           // Whole cycles, and then the one closing tonic — see `patternSlots`.
           const sounded = exercise.notes.length - 1;
@@ -155,28 +170,34 @@ describe('scales and arpeggios', () => {
       }
     });
 
-    it.each(PATTERNS)('finishes on the note it started on (%s)', (kind) => {
+    it.each(PATTERNS)('finishes on the note it started on (%s)', (drillId) => {
       /*
-       * A cycle leaves out the tonic it would repeat at each join, which is
+       * A cycle leaves out the root it would repeat at each join, which is
        * right for going round again and wrong for stopping: it left the
-       * exercise hanging on the second degree. The closing tonic is added back
+       * exercise hanging on the second degree. The closing root is added back
        * once, as the second-time bar of a scale in a method book does.
        */
       for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
         for (const cycles of [1, 2, 3]) {
           const exercise = generateExercise(
-            options({ kind, cycles, difficulty: difficultyById(difficultyId), seed: cycles + 17 }),
+            options({
+              kind: 'drills',
+              drillId,
+              cycles,
+              difficulty: difficultyById(difficultyId),
+              seed: cycles + 17,
+            }),
           );
           const notes = exercise.notes;
           expect(
             notes[notes.length - 1].writtenMidi,
-            `${kind} ${difficultyId} x${cycles} did not close on its tonic`,
+            `${drillId} ${difficultyId} x${cycles} did not close on its root`,
           ).toBe(notes[0].writtenMidi);
         }
       }
     });
 
-    it.each(PATTERNS)('lands every key change on a bar line (%s)', (kind) => {
+    it.each(PATTERNS)('lands every key change on a bar line (%s)', (drillId) => {
       /*
        * What the padding is for, and all it is for. A cycle boundary is made
        * a bar line exactly where the key moves across it, because that is the
@@ -186,7 +207,8 @@ describe('scales and arpeggios', () => {
       for (const difficultyId of ['beginner', 'easy', 'medium', 'hard']) {
         const exercise = generateExercise(
           options({
-            kind,
+            kind: 'drills',
+            drillId,
             cycles: 4,
             keySet: [-3, -1],
             difficulty: difficultyById(difficultyId),
@@ -194,41 +216,53 @@ describe('scales and arpeggios', () => {
           }),
         );
         const { barBeats } = metreAt(exercise.metres, 0);
-        expect(exercise.keys.length, `${kind} ${difficultyId}: no change to check`).toBeGreaterThan(
-          1,
-        );
+        expect(
+          exercise.keys.length,
+          `${drillId} ${difficultyId}: no change to check`,
+        ).toBeGreaterThan(1);
         for (const change of exercise.keys) {
           expect(
             change.fromBeat % barBeats,
-            `${kind} ${difficultyId}: a key change off the bar line`,
+            `${drillId} ${difficultyId}: a key change off the bar line`,
           ).toBeCloseTo(0, 9);
         }
       }
     });
 
-    it.each(PATTERNS)('runs cycles together where the key holds (%s)', (kind) => {
-      // Two cycles of an octave are twenty-eight crotchets — seven bars of
-      // four-four — and the tonic held at the end fills the eighth. A rest in
-      // the middle of a scale is a gap in the scale.
-      const exercise = generateExercise(options({ kind, cycles: 2, seed: 11 }));
-      expect(exercise.rests).toEqual([]);
+    it.each(PATTERNS)('runs cycles together where the key holds (%s)', (drillId) => {
+      // A rest in the middle of a scale is a gap in the scale, so cycles run
+      // straight on into one another. The one rest permitted is padding after
+      // the final held root, where the remainder of the last bar is not a
+      // value one note can be written as — never between two sounded notes.
+      const exercise = generateExercise(
+        options({ kind: 'drills', drillId, cycles: 2, seed: 11 }),
+      );
+      const lastNote = exercise.notes[exercise.notes.length - 1];
+      for (const rest of exercise.rests) {
+        expect(
+          rest.startBeat,
+          `${drillId}: a rest at ${rest.startBeat}, inside the pattern`,
+        ).toBeGreaterThan(lastNote.startBeat);
+      }
       expect(exercise.totalBeats % metreAt(exercise.metres, 0).barBeats).toBe(0);
     });
 
-    it.each(PATTERNS)('runs to a whole number of bars (%s)', (kind) => {
+    it.each(PATTERNS)('runs to a whole number of bars (%s)', (drillId) => {
       for (const cycles of [1, 2, 4, 8]) {
-        const exercise = generateExercise(options({ kind, cycles, seed: cycles }));
+        const exercise = generateExercise(
+          options({ kind: 'drills', drillId, cycles, seed: cycles }),
+        );
         const bars = exercise.totalBeats / metreAt(exercise.metres, 0).barBeats;
-        expect(bars, `${kind} x${cycles}`).toBe(Math.round(bars));
+        expect(bars, `${drillId} x${cycles}`).toBe(Math.round(bars));
         // And longer when asked for more, which is the whole of the control.
         expect(exercise.totalBeats).toBeGreaterThan(0);
       }
     });
 
     it('gets longer with more cycles', () => {
-      const once = generateExercise(options({ kind: 'scales', cycles: 1,
+      const once = generateExercise(options({ kind: 'drills', cycles: 1,
  themeCount: 2, seed: 2 }));
-      const twice = generateExercise(options({ kind: 'scales', cycles: 2,
+      const twice = generateExercise(options({ kind: 'drills', cycles: 2,
  themeCount: 2, seed: 2 }));
 
       // Notes scale exactly, discounting the closing tonic each ends on.
@@ -275,43 +309,55 @@ describe('scales and arpeggios', () => {
     });
   });
 
-  it.each(['scales', 'arpeggios'] as const)(
+  it.each(DRILLS.map((d) => d.id))(
     'stays entirely in key, in every key (%s)',
-    (kind) => {
-      // The whole point of these two modes: a scales drill in Eb contains the
-      // notes of Eb and nothing else. A stray accidental means the pattern was
-      // built on the wrong degree or borrowed from another mode.
+    (drillId) => {
+      // The whole point of the drills: a drill in Eb contains the notes of Eb
+      // and nothing else — the dominant 7th and the relative minor included,
+      // which is precisely why they are built on their own degrees rather than
+      // borrowed from another mode. A stray accidental means the pattern was
+      // built on the wrong degree.
       for (const fifths of KEYS) {
         for (const instrumentId of ['cornet', 'euphonium', 'eb-bass']) {
+          const instrument = instrumentById(instrumentId);
+          const [low, high] = writtenRange(instrument, 'treble');
           const exercise = generateExercise(
-            options({ kind, fifths, instrument: instrumentById(instrumentId), seed: fifths + 50 }),
+            options({ kind: 'drills', drillId, fifths, instrument, seed: fifths + 50 }),
           );
 
           for (const note of exercise.notes) {
             const spelled = spellInKey(note.writtenMidi, fifths);
             expect(
               needsAccidental(spelled, fifths),
-              `${kind} in ${fifths} fifths on ${instrumentId}: ${spelled.letter}${spelled.alter}`,
+              `${drillId} in ${fifths} fifths on ${instrumentId}: ${spelled.letter}${spelled.alter}`,
             ).toBe(false);
             expect(note.showAccidental).toBe(false);
+            expect(note.writtenMidi).toBeGreaterThanOrEqual(low);
+            expect(note.writtenMidi).toBeLessThanOrEqual(high);
           }
         }
       }
     },
   );
 
-  it('starts a scale on the tonic', () => {
-    for (const fifths of KEYS) {
-      const exercise = generateExercise(options({ kind: 'scales', fifths, seed: 9 }));
-      const first = exercise.notes[0].writtenMidi;
-      expect(((first % 12) + 12) % 12, `key with ${fifths} fifths`).toBe(
-        tonicPitchClass(fifths),
-      );
+  it('starts every drill on its own root, in every key', () => {
+    // The subdominant arpeggio in Eb starts on Ab, the relative minor on C:
+    // the root is the drill's own degree, not the key's tonic.
+    for (const drill of DRILLS) {
+      for (const fifths of KEYS) {
+        const exercise = generateExercise(
+          options({ kind: 'drills', drillId: drill.id, fifths, seed: 9 }),
+        );
+        const first = exercise.notes[0].writtenMidi;
+        expect(((first % 12) + 12) % 12, `${drill.id} in ${fifths} fifths`).toBe(
+          (tonicPitchClass(fifths) + drill.rootDegree) % 12,
+        );
+      }
     }
   });
 
   it('runs a scale up and back down rather than wandering', () => {
-    const exercise = generateExercise(options({ kind: 'scales', fifths: -3, bars: 16, seed: 4 }));
+    const exercise = generateExercise(options({ kind: 'drills', fifths: -3, bars: 16, seed: 4 }));
     const pitches = exercise.notes.map((n) => n.writtenMidi);
 
     // Consecutive scale notes move by a step, never by a leap.
@@ -324,60 +370,85 @@ describe('scales and arpeggios', () => {
     expect(pitches.some((p, i) => i > 0 && p < pitches[i - 1])).toBe(true);
   });
 
-  it('uses the tonic triad and nothing else', () => {
-    // Choosing "C major" and being handed F-A-C is not a C major arpeggio.
-    for (const fifths of KEYS) {
-      const tonic = tonicPitchClass(fifths);
-      const triad = new Set([tonic, (tonic + 4) % 12, (tonic + 7) % 12]);
+  it('uses each drill\'s own tones and nothing else', () => {
+    // Choosing "C major" and being handed F-A-C is not a C major arpeggio —
+    // and choosing the dominant 7th and being handed the tonic triad is no
+    // better. Each drill's notes are exactly its own degrees, from its data.
+    for (const drill of DRILLS) {
+      for (const fifths of KEYS) {
+        const root = (tonicPitchClass(fifths) + drill.rootDegree) % 12;
+        const expected = new Set(drill.intervals.map((i) => (root + i) % 12));
 
-      for (const seed of [1, 2, 3, 4, 5, 6]) {
-        const exercise = generateExercise(options({ kind: 'arpeggios', fifths, seed }));
-        const classes = new Set(exercise.notes.map((n) => ((n.writtenMidi % 12) + 12) % 12));
+        for (const seed of [1, 2, 3]) {
+          const exercise = generateExercise(
+            options({ kind: 'drills', drillId: drill.id, fifths, seed }),
+          );
+          const classes = new Set(exercise.notes.map((n) => ((n.writtenMidi % 12) + 12) % 12));
 
-        for (const pc of classes) {
-          expect(triad.has(pc), `key ${fifths} seed ${seed} contained pitch class ${pc}`).toBe(true);
+          for (const pc of classes) {
+            expect(
+              expected.has(pc),
+              `${drill.id} key ${fifths} seed ${seed} contained pitch class ${pc}`,
+            ).toBe(true);
+          }
+          // And every tone should be present, not just the ones that fitted:
+          // the default span here is two octaves, room for all of them.
+          expect(
+            classes.size,
+            `${drill.id} key ${fifths} seed ${seed} was missing tones`,
+          ).toBe(expected.size);
         }
-        // And every chord tone should be present, not just the ones that fitted.
-        expect(classes.size, `key ${fifths} seed ${seed} was missing chord tones`).toBe(3);
       }
     }
   });
 
   it('never truncates a pattern against the top of the range', () => {
     // The failure this guards against: a pattern running out of room part-way
-    // through its chord, leaving G-B-G-B where an arpeggio should be.
-    for (const difficulty of DIFFICULTIES) {
-      for (const instrumentId of ['cornet', 'euphonium', 'eb-bass', 'bb-bass', 'tenor-horn']) {
-        for (const fifths of KEYS) {
-          const exercise = generateExercise(
-            options({
-              kind: 'arpeggios',
-              difficulty,
-              fifths,
-              instrument: instrumentById(instrumentId),
-              seed: fifths + difficulty.id.length,
-            }),
-          );
-          const classes = new Set(exercise.notes.map((n) => ((n.writtenMidi % 12) + 12) % 12));
-          expect(
-            classes.size,
-            `${instrumentId} ${difficulty.id} key ${fifths}: only ${classes.size} chord tones`,
-          ).toBe(3);
+    // through its chord, leaving G-B-G-B where an arpeggio should be. What
+    // must be present is every degree the *fitted* span has room for — the
+    // span may honestly shrink, but never mid-chord.
+    for (const drill of DRILLS) {
+      for (const difficulty of DIFFICULTIES) {
+        for (const instrumentId of ['cornet', 'euphonium', 'eb-bass', 'bb-bass', 'tenor-horn']) {
+          for (const fifths of KEYS) {
+            const instrument = instrumentById(instrumentId);
+            const span = patternSpanFor(instrument, 'treble', fifths, difficulty, drill);
+            const root = (tonicPitchClass(fifths) + drill.rootDegree) % 12;
+            const expected = new Set(
+              drill.intervals.filter((i) => i <= span).map((i) => (root + i) % 12),
+            );
+
+            const exercise = generateExercise(
+              options({
+                kind: 'drills',
+                drillId: drill.id,
+                difficulty,
+                fifths,
+                instrument,
+                seed: fifths + difficulty.id.length,
+              }),
+            );
+            const classes = new Set(exercise.notes.map((n) => ((n.writtenMidi % 12) + 12) % 12));
+            expect(
+              classes,
+              `${drill.id} ${instrumentId} ${difficulty.id} key ${fifths}`,
+            ).toEqual(expected);
+          }
         }
       }
     }
   });
 
-  it.each(['scales', 'arpeggios'] as const)(
+  it.each(SHAPES)(
     'uses nothing but plain crotchets at Beginner and Easy (%s)',
-    (kind) => {
+    (drillId) => {
       // At these levels the exercise is about the fingering, not about reading a
       // rhythm at the same time. The closing tonic is the exception, held out
       // to the bar line as the second-time bar of any method book's scale is.
       for (const difficultyId of ['beginner', 'easy']) {
         for (let seed = 1; seed <= 6; seed++) {
           const exercise = generateExercise(
-            options({ kind, difficulty: difficultyById(difficultyId), seed, bars: 8 }),
+            options({ kind: 'drills', drillId, difficulty: difficultyById(difficultyId), seed, bars: 8 }),
           );
 
           for (const note of exercise.notes.slice(0, -1)) {
@@ -412,7 +483,7 @@ describe('scales and arpeggios', () => {
     const values = new Set<string>();
     for (let seed = 1; seed <= 8; seed++) {
       const exercise = generateExercise(
-        options({ kind: 'scales', difficulty: difficultyById('medium'), seed, bars: 8 }),
+        options({ kind: 'drills', difficulty: difficultyById('medium'), seed, bars: 8 }),
       );
       for (const note of exercise.notes) values.add(note.duration.value);
     }
@@ -421,27 +492,34 @@ describe('scales and arpeggios', () => {
 
   it('reaches a fifth, an octave, then two octaves as difficulty rises', () => {
     // Eb major on an Eb bass, which has the headroom for two octaves.
-    const span = (difficultyId: string, kind: 'scales' | 'arpeggios') => {
+    const span = (difficultyId: string, drillId: DrillId) => {
       const exercise = generateExercise(
-        options({ kind, difficulty: difficultyById(difficultyId), fifths: -3, seed: 4, bars: 16 }),
+        options({
+          kind: 'drills',
+          drillId,
+          difficulty: difficultyById(difficultyId),
+          fifths: -3,
+          seed: 4,
+          bars: 16,
+        }),
       );
       const pitches = exercise.notes.map((n) => n.writtenMidi);
       return Math.max(...pitches) - Math.min(...pitches);
     };
 
-    for (const kind of ['scales', 'arpeggios'] as const) {
-      expect(span('beginner', kind), `beginner ${kind}`).toBe(7);
-      expect(span('easy', kind), `easy ${kind}`).toBe(12);
-      expect(span('medium', kind), `medium ${kind}`).toBe(24);
-      expect(span('hard', kind), `hard ${kind}`).toBe(24);
-      expect(span('hard', kind), `expert ${kind}`).toBe(24);
+    for (const drillId of SHAPES) {
+      expect(span('beginner', drillId), `beginner ${drillId}`).toBe(7);
+      expect(span('easy', drillId), `easy ${drillId}`).toBe(12);
+      expect(span('medium', drillId), `medium ${drillId}`).toBe(24);
+      expect(span('hard', drillId), `hard ${drillId}`).toBe(24);
+      expect(span('hard', drillId), `expert ${drillId}`).toBe(24);
     }
   });
 
   it('plays only the first five notes at Beginner', () => {
     // A fifth, not an octave: root, second, third, fourth, fifth and back down.
     const exercise = generateExercise(
-      options({ kind: 'scales', difficulty: difficultyById('beginner'), fifths: -3, bars: 8 }),
+      options({ kind: 'drills', difficulty: difficultyById('beginner'), fifths: -3, bars: 8 }),
     );
     const distinct = new Set(exercise.notes.map((n) => n.writtenMidi));
     expect(distinct.size).toBe(5);
@@ -449,7 +527,13 @@ describe('scales and arpeggios', () => {
 
   it('uses root, third and fifth only for a Beginner arpeggio', () => {
     const exercise = generateExercise(
-      options({ kind: 'arpeggios', difficulty: difficultyById('beginner'), fifths: -3, bars: 8 }),
+      options({
+        kind: 'drills',
+        drillId: 'tonic-arpeggio',
+        difficulty: difficultyById('beginner'),
+        fifths: -3,
+        bars: 8,
+      }),
     );
     const distinct = [...new Set(exercise.notes.map((n) => n.writtenMidi))].sort((a, b) => a - b);
     expect(distinct).toHaveLength(3);
@@ -476,7 +560,7 @@ describe('scales and arpeggios', () => {
     // And what it reports must be what it actually generates.
     for (const fifths of [-5, -3, -2, 0, 2, 4]) {
       const exercise = generateExercise(
-        options({ instrument: cornet, kind: 'scales', difficulty: medium, fifths, bars: 16 }),
+        options({ instrument: cornet, kind: 'drills', difficulty: medium, fifths, bars: 16 }),
       );
       const pitches = exercise.notes.map((n) => n.writtenMidi);
       expect(Math.max(...pitches) - Math.min(...pitches), `key ${fifths}`).toBe(
@@ -495,7 +579,7 @@ describe('scales and arpeggios', () => {
       for (const difficultyId of ['beginner', 'easy', 'medium', 'hard', 'hard']) {
         const exercise = generateExercise(
           options({
-            kind: 'scales',
+            kind: 'drills',
             instrument,
             difficulty: difficultyById(difficultyId),
             seed: 9,
@@ -523,15 +607,19 @@ describe('scales and arpeggios', () => {
   });
 
   it('spans at least a full octave, root to root', () => {
-    for (const kind of ['scales', 'arpeggios'] as const) {
-      const exercise = generateExercise(options({ kind, fifths: 0, bars: 16, seed: 3 }));
+    for (const drillId of SHAPES) {
+      const exercise = generateExercise(
+        options({ kind: 'drills', drillId, fifths: 0, bars: 16, seed: 3 }),
+      );
       const pitches = exercise.notes.map((n) => n.writtenMidi);
-      expect(Math.max(...pitches) - Math.min(...pitches), kind).toBeGreaterThanOrEqual(12);
+      expect(Math.max(...pitches) - Math.min(...pitches), drillId).toBeGreaterThanOrEqual(12);
     }
   });
 
   it('leaps by chord tones in arpeggios, not by step', () => {
-    const exercise = generateExercise(options({ kind: 'arpeggios', fifths: 0, bars: 16, seed: 6 }));
+    const exercise = generateExercise(
+      options({ kind: 'drills', drillId: 'tonic-arpeggio', fifths: 0, bars: 16, seed: 6 }),
+    );
     const pitches = exercise.notes.map((n) => n.writtenMidi);
     const leaps = pitches.slice(1).filter((p, i) => Math.abs(p - pitches[i]) >= 3);
     expect(leaps.length).toBeGreaterThan(pitches.length / 3);
@@ -577,15 +665,15 @@ describe('fingering variety', () => {
     expect(consecutive / total, 'too many repeated fingerings').toBeLessThan(0.05);
   });
 
-  it('leaves scales and arpeggios alone', () => {
+  it('leaves the drills alone', () => {
     // Their notes are fixed by the pattern; a scale that skipped a degree to
     // vary the fingering would not be a scale.
-    for (const kind of ['scales', 'arpeggios'] as const) {
-      const exercise = generateExercise(options({ kind, seed: 5, bars: 16 }));
+    for (const drillId of SHAPES) {
+      const exercise = generateExercise(options({ kind: 'drills', drillId, seed: 5, bars: 16 }));
       const steps = exercise.notes
         .slice(1)
         .map((note, i) => Math.abs(note.writtenMidi - exercise.notes[i].writtenMidi));
-      expect(Math.max(...steps), kind).toBeLessThanOrEqual(kind === 'scales' ? 2 : 12);
+      expect(Math.max(...steps), drillId).toBeLessThanOrEqual(drillId === 'major-scale' ? 2 : 12);
     }
   });
 
@@ -854,7 +942,7 @@ describe('key changes', () => {
      * interrupted half way up to change key would be neither scale.
      */
     const exercise = generateExercise(
-      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 4,
+      options({ kind: 'drills', fifths: -3, keySet: [-3, -2], cycles: 4,
  themeCount: 2, seed: 6 }),
     );
     expect(exercise.keys.length).toBeGreaterThan(1);
@@ -872,7 +960,7 @@ describe('key changes', () => {
     // A scale in B flat is a different set of notes from one in E flat. Only
     // redrawing the signature would be a change of clothes, not of key.
     const exercise = generateExercise(
-      options({ kind: 'scales', fifths: -3, keySet: [-3, -2], cycles: 2,
+      options({ kind: 'drills', fifths: -3, keySet: [-3, -2], cycles: 2,
  themeCount: 2, seed: 3 }),
     );
     const [first, second] = exercise.keys;
@@ -978,7 +1066,7 @@ describe('variable tempo, at generation', () => {
   });
 
   it('broadens the end of every material kind, joins or none', () => {
-    for (const kind of ['scales', 'arpeggios', 'phrases'] as const) {
+    for (const kind of ['drills', 'phrases'] as const) {
       const exercise = generateExercise(
         options({ kind, cycles: 2, tempo: 80, variableTempo: true }),
       );
@@ -1015,13 +1103,24 @@ describe('the horizon', () => {
     expect(last.kind === 'ramp' && last.toBeat).toBe(48);
   });
 
-  it('fills whole cycles to the cap, the chosen count ending on a bar line', () => {
-    const scales = generateExercise(options({ kind: 'scales', cycles: 2, horizonBars: 15 }));
+  it('fills whole cycles to the cap, the chosen count ending where a cycle does', () => {
+    const scales = generateExercise(options({ kind: 'drills', cycles: 2, horizonBars: 15 }));
     expect(scales.totalBeats).toBeGreaterThanOrEqual(60);
     expect(scales.chosenBeats).toBeLessThan(scales.totalBeats);
-    expect(scales.chosenBeats % metreAt(scales.metres, 0).barBeats).toBe(0);
+    /*
+     * The white may leave off mid-bar — where the key holds, the next cycle
+     * starts at once rather than resting out the bar — but never mid-cycle:
+     * the note the grey opens on is a fresh cycle's root. (The earlier version
+     * of this test asserted a bar line here, which one seed happened to give
+     * it; a single-key pattern has no padding to guarantee one.)
+     */
+    const opening = scales.notes.find((n) => n.startBeat === scales.chosenBeats);
+    expect(opening, 'nothing starts where the grey does').toBeDefined();
+    expect(opening!.writtenMidi, 'the grey does not open on the root').toBe(
+      scales.notes[0].writtenMidi,
+    );
     // Without the cap, nothing changes: the old exact-length path survives.
-    const exact = generateExercise(options({ kind: 'scales', cycles: 2 }));
+    const exact = generateExercise(options({ kind: 'drills', cycles: 2 }));
     expect(exact.chosenBeats).toBe(exact.totalBeats);
   });
 
@@ -1053,7 +1152,7 @@ describe('somewhere to put a valve down, past every boundary', () => {
    * whole window is never open by accident.
    */
   const metre = metreFor(4, 4);
-  const windows = (kind: 'phrases' | 'phrases' | 'scales' | 'themes', seed: number) => {
+  const windows = (kind: 'phrases' | 'drills' | 'themes', seed: number) => {
     const exercise = generateExercise(
       options({ kind, metre, bars: 8, cycles: 2, themeCount: 2, seed, horizonBars: 60 }),
     );
@@ -1069,7 +1168,7 @@ describe('somewhere to put a valve down, past every boundary', () => {
   };
 
   it('never opens a boundary with nothing but open notes', () => {
-    for (const kind of ['phrases', 'scales', 'themes'] as const) {
+    for (const kind of ['phrases', 'drills', 'themes'] as const) {
       for (let seed = 1; seed <= 8; seed++) {
         for (const inWindow of windows(kind, seed)) {
           expect(
@@ -1115,45 +1214,65 @@ describe('somewhere to put a valve down, past every boundary', () => {
  * a judgement nothing else in the code would notice being changed.
  */
 /**
- * What the boxes on the settings screen promise, against what the generator
- * actually makes.
+ * What the Drills box promises, against what the generator actually makes.
  *
  * The player's rule, given on 2026-08-15: *nothing should make a claim of
  * something it doesn't deliver.* The Arpeggios box named five chords for a long
- * time — tonic, subdominant, dominant, dominant 7th and relative minor — while
- * `ARPEGGIO_PATTERNS` has held the tonic triad alone since it was written. The
- * blurb was describing an intention, and nothing connected the two, so nothing
- * noticed.
- *
- * This connects them. Adding the other four is wanted and planned; when they
- * arrive this test fails, which is the reminder to put the sentence back.
+ * time while the generator played the tonic triad alone — the blurb was
+ * describing an intention, and nothing connected the two, so nothing noticed.
+ * The five chords are real now and the sentence is back; this keeps the two
+ * tied together in both directions.
  */
-describe('what the material boxes promise', () => {
-  const blurbOf = (id: string) => EXERCISE_KINDS.find((k) => k.id === id)!.blurb.toLowerCase();
+describe('what the Drills box promises', () => {
+  const blurb = EXERCISE_KINDS.find((k) => k.id === 'drills')!.blurb.toLowerCase();
 
-  it('promises one chord for arpeggios, because it plays one chord', () => {
-    expect(ARPEGGIO_PATTERNS).toHaveLength(1);
-    expect(blurbOf('arpeggios')).toContain('tonic');
-    for (const unplayed of ['subdominant', 'dominant', 'relative minor']) {
-      expect(blurbOf('arpeggios'), `still promises the ${unplayed}`).not.toContain(unplayed);
+  /*
+   * Each drill's claim, as a pattern rather than a substring, because the
+   * words nest: "dominant" sits inside both "subdominant" and "dominant 7th".
+   *
+   * Typed over the whole of `DrillId`, which is the forward half of the guard:
+   * adding a drill without adding its claim — and so without asking whether
+   * the sentence owns it — refuses to compile.
+   */
+  const CLAIMS: Record<DrillId, RegExp> = {
+    'major-scale': /major scale/,
+    'tonic-arpeggio': /tonic/,
+    'subdominant-arpeggio': /subdominant/,
+    'dominant-arpeggio': /(?<!sub)dominant(?! 7)/,
+    'dominant-7th': /dominant 7th/,
+    'relative-minor-arpeggio': /relative minor/,
+  };
+
+  it('promises every drill it plays', () => {
+    for (const drill of DRILLS) {
+      expect(blurb, `does not own up to ${drill.name}`).toMatch(CLAIMS[drill.id]);
     }
   });
 
-  it('promises the major scale for scales, because that is the only shape there is', () => {
-    expect(SCALE_PATTERNS).toHaveLength(1);
-    expect(blurbOf('scales')).toContain('major scale');
-    // The minors are step 4 of the settings work, and the sentence widens with
-    // them rather than before them.
-    expect(blurbOf('scales'), 'promises a minor it cannot play').not.toContain('minor');
+  it('promises nothing it does not play', () => {
+    // The backward half: a claim whose drill has gone must leave the sentence.
+    for (const [id, claim] of Object.entries(CLAIMS)) {
+      if (!DRILLS.some((d) => d.id === id)) {
+        expect(blurb, `still promises ${id}`).not.toMatch(claim);
+      }
+    }
+    // And the named minor scales are step 4 of the settings work — a question
+    // of spelling, not of intervals — so the sentence widens with them rather
+    // than before them.
+    expect(blurb, 'promises a minor scale it cannot play').not.toMatch(
+      /minor scale|harmonic|melodic/,
+    );
   });
 });
 
 describe('how long a run is, now that nobody chooses', () => {
   it('opens on the length the player set for each material', () => {
     expect(defaultLengthFor('phrases').bars, 'sixteen bars of reading').toBe(16);
-    expect(defaultLengthFor('scales').cycles, 'four times through a scale').toBe(4);
-    // Shorter than a scale's, so more of them: an arpeggio cycle is fewer notes.
-    expect(defaultLengthFor('arpeggios').cycles, 'eight times through an arpeggio').toBe(8);
+    expect(defaultLengthFor('drills', 'major-scale').cycles, 'four times through a scale').toBe(4);
+    // Shorter than a scale's, so more of them: a chord's cycle is fewer notes.
+    for (const drill of DRILLS.filter((d) => d.id !== 'major-scale')) {
+      expect(defaultLengthFor('drills', drill.id).cycles, `eight times through the ${drill.name}`).toBe(8);
+    }
     expect(defaultLengthFor('themes').themeCount, 'four whole tunes').toBe(4);
   });
 
@@ -1161,7 +1280,7 @@ describe('how long a run is, now that nobody chooses', () => {
     // A scale too wide for the instrument falls back to free material, which is
     // measured in bars — so every kind carries all three figures, not just its
     // own. Imported music never asks, and is answered anyway rather than thrown at.
-    for (const kind of ['scales', 'arpeggios', 'themes', 'phrases', 'imported'] as const) {
+    for (const kind of ['drills', 'themes', 'phrases', 'imported'] as const) {
       expect(defaultLengthFor(kind).bars, kind).toBeGreaterThan(0);
     }
   });
@@ -1249,10 +1368,12 @@ describe('compound time', () => {
      * returns with the next material that has one.
      */
     for (const difficulty of DIFFICULTIES) {
-      for (const kind of ['scales', 'arpeggios'] as const) {
-        const exercise = generateExercise(options({ difficulty, metre, kind, cycles: 2, seed: 4 }));
-        expect(metreAt(exercise.metres, 0).beatsPerBar, `${kind} ${difficulty.id}`).toBe(4);
-        expect(metreAt(exercise.metres, 0).beatUnit, `${kind} ${difficulty.id}`).toBe(4);
+      for (const drillId of SHAPES) {
+        const exercise = generateExercise(
+          options({ difficulty, metre, kind: 'drills', drillId, cycles: 2, seed: 4 }),
+        );
+        expect(metreAt(exercise.metres, 0).beatsPerBar, `${drillId} ${difficulty.id}`).toBe(4);
+        expect(metreAt(exercise.metres, 0).beatUnit, `${drillId} ${difficulty.id}`).toBe(4);
       }
     }
   });
@@ -1280,7 +1401,7 @@ describe('where a pattern sits in the instrument', () => {
   const medium = difficultyById('medium');
   const patternOf = (overrides: Partial<GenerateOptions>) => {
     const exercise = generateExercise(
-      options({ instrument: tuba, kind: 'scales', cycles: 1, seed: 2, ...overrides }),
+      options({ instrument: tuba, kind: 'drills', cycles: 1, seed: 2, ...overrides }),
     );
     const written = exercise.notes.map((n) => n.writtenMidi);
     return { low: Math.min(...written), high: Math.max(...written) };
@@ -1412,11 +1533,11 @@ describe('a range the player chose', () => {
     }
   });
 
-  it('leaves scales and arpeggios to their register', () => {
-    // A pattern is placed by its tonic and its span; a range would mean
+  it('leaves the drills to their register', () => {
+    // A pattern is placed by its root and its span; a range would mean
     // something different there, so it is not asked and not honoured.
     const range = { low: lowest, high: lowest + 7 };
-    const scale = generateExercise(options({ kind: 'scales', range }));
+    const scale = generateExercise(options({ kind: 'drills', range }));
     expect(scale.notes.length).toBeGreaterThan(0);
     expect(Math.max(...written(scale))).toBeGreaterThan(lowest + 7);
   });

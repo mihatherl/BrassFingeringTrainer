@@ -141,15 +141,20 @@ describe('the app', () => {
         .find((panel) => panel.querySelector('.panel__title')?.textContent === 'Exercise')
         ?.querySelector('.panel__values')?.textContent;
 
-    fireEvent.click(screen.getByRole('button', { name: /Scales/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Drills/ }));
 
-    // Choosing scales relabels the difficulty buttons by how far the pattern
+    // Choosing drills relabels the difficulty buttons by how far the pattern
     // reaches, so "Hard" is no longer called Hard.
     expect(screen.queryByRole('button', { name: 'Hard' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '2 oct · mixed' }));
 
-    // And the summary has to follow suit, or it contradicts the button above it.
-    expect(exerciseValues()).toBe('Eb major · Scales · 2 oct · mixed');
+    // And the summary has to follow suit, or it contradicts the button above
+    // it — naming the drill, which says more than the box's name does.
+    expect(exerciseValues()).toBe('Eb major · Major scale · 2 oct · mixed');
+
+    // A different drill, and the summary names that one instead.
+    fireEvent.click(screen.getByRole('button', { name: 'Dominant 7th' }));
+    expect(exerciseValues()).toBe('Eb major · Dominant 7th · 2 oct · mixed');
   });
 
   it('keeps collapsed sections reachable to assistive technology and search', () => {
@@ -233,22 +238,23 @@ describe('the app', () => {
       render(<App />);
       fireEvent.click(screen.getByText('Exercise'));
 
-      choose(/Scales/);
-      expect(openBox()).toBe('Scales');
+      choose(/Drills/);
+      expect(openBox()).toBe('Drills');
       // Pressing the open one again is not a way to choose nothing.
-      choose(/Scales/);
-      expect(openBox()).toBe('Scales');
+      choose(/Drills/);
+      expect(openBox()).toBe('Drills');
     });
 
     it('shows a material only the settings that apply to it', () => {
       render(<App />);
       fireEvent.click(screen.getByText('Exercise'));
 
-      // A scale is a shape played against a click, so it has no metre to choose
-      // and no pool to be drawn from — it asks where on the horn to sit instead.
-      choose(/Scales/);
-      expect(fieldsShown()).toEqual(['Keys', 'Difficulty', 'Register']);
-      expect(hasRange(), 'a scale is placed by its tonic').toBe(false);
+      // A drill is a shape played against a click, so it has no metre to choose
+      // and no pool to be drawn from — it asks which shape, and where on the
+      // horn to sit.
+      choose(/Drills/);
+      expect(fieldsShown()).toEqual(['Drill', 'Keys', 'Difficulty', 'Register']);
+      expect(hasRange(), 'a drill is placed by its root').toBe(false);
 
       // Free material is the one thing drawn from a pool, so it is the one
       // thing that asks what the pool is.
@@ -268,13 +274,13 @@ describe('the app', () => {
       choose(/Themes/);
 
       const themes = screen.getByRole('button', { name: /Themes/ });
-      const scales = screen.getByRole('button', { name: /Scales/ });
+      const drills = screen.getByRole('button', { name: /Drills/ });
       // Both are true of it and neither implies the other: it is the pressed
       // one, and it is the expanded one.
       expect(themes.getAttribute('aria-pressed')).toBe('true');
       expect(themes.getAttribute('aria-expanded')).toBe('true');
-      expect(scales.getAttribute('aria-pressed')).toBe('false');
-      expect(scales.getAttribute('aria-expanded')).toBe('false');
+      expect(drills.getAttribute('aria-pressed')).toBe('false');
+      expect(drills.getAttribute('aria-expanded')).toBe('false');
     });
   });
 
@@ -448,8 +454,8 @@ describe('a copy that withholds things', () => {
     // And one of each that it does. Material is no longer among the withheld:
     // every kind the generator can make is free, and what the free tier is
     // short of is the horizon past the end — see `Entitlements.playOn`.
-    expect(screen.getByRole('button', { name: /Scales/ })).toHaveProperty('disabled', false);
-    expect(screen.getByRole('button', { name: /Arpeggios/ })).toHaveProperty('disabled', false);
+    expect(screen.getByRole('button', { name: /Drills/ })).toHaveProperty('disabled', false);
+    expect(screen.getByRole('button', { name: /Themes/ })).toHaveProperty('disabled', false);
     expect(screen.getByRole('button', { name: 'Easy' })).toHaveProperty('disabled', false);
   });
 

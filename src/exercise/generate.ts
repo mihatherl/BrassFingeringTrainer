@@ -73,8 +73,7 @@ export const DEFAULT_LENGTHS: Readonly<
   Record<Exclude<ExerciseKind, 'imported'>, { bars: number; cycles: number; themeCount: number }>
 > = {
   phrases: { bars: 16, cycles: 4, themeCount: 4 },
-  scales: { bars: 16, cycles: 4, themeCount: 4 },
-  arpeggios: { bars: 16, cycles: 8, themeCount: 4 },
+  drills: { bars: 16, cycles: 4, themeCount: 4 },
   themes: { bars: 16, cycles: 4, themeCount: 4 },
 };
 
@@ -82,13 +81,21 @@ export const DEFAULT_LENGTHS: Readonly<
  * The length figures for a kind, including the ones it does not measure itself
  * in — a pattern that will not fit the instrument falls back to free material,
  * and has to have a bar count waiting for it when it does.
+ *
+ * A drill's cycle count is its own rather than the kind's, because a cycle of
+ * a chord is half the notes of a cycle of a scale — the judgement about how
+ * long one sitting is worth lives on each entry of `DRILLS`.
  */
-export function defaultLengthFor(kind: ExerciseKind): {
+export function defaultLengthFor(
+  kind: ExerciseKind,
+  drillId?: DrillId,
+): {
   bars: number;
   cycles: number;
   themeCount: number;
 } {
-  return kind === 'imported' ? DEFAULT_LENGTHS.phrases : DEFAULT_LENGTHS[kind];
+  const base = kind === 'imported' ? DEFAULT_LENGTHS.phrases : DEFAULT_LENGTHS[kind];
+  return kind === 'drills' ? { ...base, cycles: drillById(drillId).cycles } : base;
 }
 
 /**
@@ -169,6 +176,12 @@ export interface GenerateOptions {
    * choice. Defaults to the middle. See `PatternRegister`.
    */
   register?: PatternRegister;
+  /**
+   * Which drill the Drills kind plays — the player's pick from `DRILLS`, never
+   * a dice roll. Absent means the major scale, which keeps every caller that
+   * predates the picker meaning what it always meant. Ignored by other kinds.
+   */
+  drillId?: DrillId;
   /**
    * Written notes the free material is drawn from, lowest and highest.
    *
@@ -398,11 +411,11 @@ export function generateExercise(options: GenerateOptions): Exercise {
    * A pattern that will not fit the instrument's compass is not a pattern, and
    * falls back to free material in the length free material is measured in.
    */
-  const patterns = options.kind === 'scales' ? SCALE_PATTERNS : ARPEGGIO_PATTERNS;
+  const drill = drillById(options.drillId);
   const contourFor = new Map<number, number[]>();
   if (isPattern(options.kind)) {
     for (const fifths of ordered) {
-      const shape = patternContour(rng, { ...options, fifths }, candidates, patterns);
+      const shape = patternContour({ ...options, fifths }, candidates, drill);
       if (shape) contourFor.set(fifths, shape);
     }
   }
@@ -580,9 +593,9 @@ function candidatePitches(options: GenerateOptions): Candidate[] {
   return candidates;
 }
 
-/** Scales and arpeggios, which are drilled differently from free material. */
+/** The drills — scales and arpeggios — which work differently from free material. */
 export function isPattern(kind: ExerciseKind): boolean {
-  return kind === 'scales' || kind === 'arpeggios';
+  return kind === 'drills';
 }
 
 /** Spans a pattern falls back to when the full one will not fit. */
@@ -624,9 +637,13 @@ export function patternSpanFor(
   clef: Clef,
   fifths: number,
   difficulty: Difficulty,
+  drill?: Drill,
 ): number {
   const [low, high] = writtenRange(instrument, clef);
-  const fitted = fitSpan(low, high, tonicPitchClass(fifths), difficulty.patterns.spanSemitones);
+  // From the drill's own root, not the tonic: a dominant drill in Eb starts on
+  // Bb, and whether two octaves fit depends on where *that* sits in the compass.
+  const rootClass = pitchClass(tonicPitchClass(fifths) + (drill?.rootDegree ?? 0));
+  const fitted = fitSpan(low, high, rootClass, difficulty.patterns.spanSemitones);
   return fitted?.span ?? 0;
 }
 
@@ -1278,44 +1295,86 @@ function phrasePitches(
 }
 
 /**
- * Scale and arpeggio shapes, as semitones above their own root, paired with the
- * scale degree that root sits on.
+ * The drills: scale and arpeggio shapes, as semitones above their own root,
+ * paired with the scale degree that root sits on. The player picks one on the
+ * settings screen; nothing here is chosen by a dice roll, because selecting
+ * "C major" and being handed F-A-C is not what anyone means by a C major
+ * arpeggio.
  *
  * Every one of these is strictly diatonic to the key. That is the point: a
- * scales drill in Eb should contain the notes of Eb and nothing else. Patterns
+ * drill in Eb should contain the notes of Eb and nothing else. Patterns
  * built on the tonic but borrowed from another mode — a parallel minor, or a
  * flat-seventh chord on the tonic — look like heavy chromaticism against the key
  * signature, which is not what anyone means by "scales and arpeggios".
  *
  * The dominant seventh is diatonic precisely because it is built on the fifth
- * degree, not the first: in Eb that is Bb D F Ab, all in key.
+ * degree, not the first: in Eb that is Bb D F Ab, all in key. The relative
+ * minor likewise: its triad is the sixth degree's, three notes of the key,
+ * so it needs no signature of its own and gets none. The named minor *scales*
+ * — harmonic, melodic — are a different matter entirely, because their raised
+ * degrees are a question of spelling rather than of intervals; they are step 4
+ * of the settings work and must not be listed here until the spelling is built.
+ *
+ * `cycles` is how many times through — up and back down — one sitting opens
+ * on: a judgement, not a derivation, pinned by a test. A chord's cycle is
+ * half the notes of a scale's, so the chords get twice as many.
  */
 
-interface Pattern {
-  /** Semitones from the key's tonic to this pattern's root. */
+export type DrillId =
+  | 'major-scale'
+  | 'tonic-arpeggio'
+  | 'subdominant-arpeggio'
+  | 'dominant-arpeggio'
+  | 'dominant-7th'
+  | 'relative-minor-arpeggio';
+
+export interface Drill {
+  id: DrillId;
+  /** What the picker calls it, inside a box already framed by the chosen key. */
+  name: string;
+  /** Semitones from the key's tonic to this drill's root. */
   rootDegree: number;
   /** Semitones above that root. */
   intervals: number[];
+  /** Times through, up and back down, that one sitting opens on. */
+  cycles: number;
 }
 
-export const SCALE_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: MAJOR_SCALE }];
+export const DRILLS: readonly Drill[] = [
+  { id: 'major-scale', name: 'Major scale', rootDegree: 0, intervals: MAJOR_SCALE, cycles: 4 },
+  { id: 'tonic-arpeggio', name: 'Tonic arpeggio', rootDegree: 0, intervals: [0, 4, 7], cycles: 8 },
+  {
+    id: 'subdominant-arpeggio',
+    name: 'Subdominant arpeggio',
+    rootDegree: 5,
+    intervals: [0, 4, 7],
+    cycles: 8,
+  },
+  {
+    id: 'dominant-arpeggio',
+    name: 'Dominant arpeggio',
+    rootDegree: 7,
+    intervals: [0, 4, 7],
+    cycles: 8,
+  },
+  { id: 'dominant-7th', name: 'Dominant 7th', rootDegree: 7, intervals: [0, 4, 7, 10], cycles: 8 },
+  {
+    id: 'relative-minor-arpeggio',
+    name: 'Relative minor arpeggio',
+    rootDegree: 9,
+    intervals: [0, 3, 7],
+    cycles: 8,
+  },
+];
 
 /**
- * The tonic triad, and only the tonic triad.
- *
- * Chords on other degrees — subdominant, dominant, dominant seventh, relative
- * minor — are all diatonic and all worth practising, but selecting "C major"
- * and being given F-A-C is not what anyone means by a C major arpeggio. They
- * belong behind an explicit choice, not behind a dice roll. Adding one is a
- * matter of listing it here and letting the player pick.
- *
- * **Which is the plan**, ruled on 2026-08-15: all four are wanted as selectable
- * drills, and the picker that will select them is step 3 of the settings work.
- * Until then the blurb on the Arpeggios box names the one chord this list holds
- * — it named all five for a long time, describing an intention rather than the
- * code, and that is exactly what the player asked never to happen.
+ * The drill an id names, or the major scale for an id from nobody — which is
+ * the drill the old Scales box always played, so an absent or stale choice
+ * degrades to the most familiar thing rather than to a surprise.
  */
-export const ARPEGGIO_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: [0, 4, 7] }];
+export function drillById(id: DrillId | undefined): Drill {
+  return DRILLS.find((d) => d.id === id) ?? DRILLS[0];
+}
 
 /**
  * Scales and arpeggios: a genuine pattern, starting on its own root and running
@@ -1327,14 +1386,12 @@ export const ARPEGGIO_PATTERNS: Pattern[] = [{ rootDegree: 0, intervals: [0, 4, 
  * never sounds or feels like the scale you meant to practise.
  */
 function patternContour(
-  rng: Rng,
   options: GenerateOptions,
   candidates: Candidate[],
-  patterns: Pattern[],
+  drill: Drill,
 ): number[] | null {
-  const pattern = rng.pick(patterns);
   const tonic = tonicPitchClass(options.fifths);
-  const rootClass = pitchClass(tonic + pattern.rootDegree);
+  const rootClass = pitchClass(tonic + drill.rootDegree);
 
   const [instrumentLow, instrumentHigh] = writtenRange(options.instrument, options.clef);
 
@@ -1386,7 +1443,7 @@ function patternContour(
   // Every degree of the pattern from the root up to the top of the span. Working
   // in semitones rather than whole octaves is what lets a pattern stop on the
   // fifth rather than always having to complete an octave.
-  const degrees = new Set(pattern.intervals.map((interval) => interval % 12));
+  const degrees = new Set(drill.intervals.map((interval) => interval % 12));
   const ascending: number[] = [];
   for (let offset = 0; offset <= fitted.span; offset++) {
     if (degrees.has(offset % 12)) ascending.push(root + offset);

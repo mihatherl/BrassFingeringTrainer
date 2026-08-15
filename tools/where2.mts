@@ -13,7 +13,7 @@ for (const [id, fifths] of [['eb-bass', -3], ['eb-bass', 2], ['cornet', -3]] as 
     const row: string[] = [];
     for (const register of ['low', 'middle', 'high'] as PatternRegister[]) {
       const ex = generateExercise({
-        instrument: inst, clef: 'treble', fifths, difficulty: d, kind: 'scales',
+        instrument: inst, clef: 'treble', fifths, difficulty: d, kind: 'drills',
         bars: 8, cycles: 1, themeCount: 2, metre: metreFor(4, 4), seed: 2, register,
       });
       const ns = ex.notes.map((n) => n.writtenMidi);

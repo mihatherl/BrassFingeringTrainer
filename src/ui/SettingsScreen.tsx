@@ -6,7 +6,7 @@ import { FREE_TIER, isLimited, type Entitlements } from '../licensing/entitlemen
 import { formatPitch } from '../domain/pitch';
 import { spellInKey } from '../domain/keys';
 import { DIFFICULTIES } from '../exercise/difficulty';
-import { isPattern, patternSpanFor } from '../exercise/generate';
+import { DRILLS, drillById, isPattern, patternSpanFor } from '../exercise/generate';
 import { EXERCISE_KINDS } from '../exercise/types';
 import { toleranceFor } from '../engine/judge';
 import type { ExerciseKind } from '../exercise/types';
@@ -100,7 +100,9 @@ function accidentalCount(fifths: number): string {
 function describeSpan(semitones: number): string {
   if (semitones >= 24) return 'two octaves';
   if (semitones >= 12) return 'one octave';
-  if (semitones >= 7) return 'the first five notes';
+  // "A fifth" rather than "the first five notes", because the shortened thing
+  // may be a chord: a triad squeezed into a fifth plays three notes, not five.
+  if (semitones >= 7) return 'a fifth';
   return 'a very short pattern';
 }
 
@@ -154,9 +156,10 @@ export function SettingsScreen({
   const metre = metreFor(settings.beatsPerBar, settings.beatUnit);
 
   // Scales and arpeggios are described by their reach rather than by a level
-  // name, and that reach depends on whether the key's tonic leaves room for it.
+  // name, and that reach depends on whether the drill's root leaves room for it.
   const patternKind = isPattern(shown.kind);
-  const actualSpan = patternSpanFor(instrument, settings.clef, shown.fifths, difficulty);
+  const drill = drillById(shown.drillId);
+  const actualSpan = patternSpanFor(instrument, settings.clef, shown.fifths, difficulty, drill);
   const shortenedSpan =
     patternKind && actualSpan < difficulty.patterns.spanSemitones ? describeSpan(actualSpan) : null;
 
@@ -206,7 +209,9 @@ export function SettingsScreen({
             .filter(Boolean)
             .join(' → ')
         : keySignature && `${keySignature.name} major`,
-      material?.name,
+      // The drill's name says more than the box's: "Dominant 7th" is what will
+      // be practised, where "Drills" only says where to look for it.
+      patternKind ? drill.name : material?.name,
       patternKind ? difficulty.patterns.label : difficulty.name,
       // Only when it has been asked for. Left to the difficulty it is not a
       // choice the player made, and a summary should not recite the defaults.
@@ -306,6 +311,28 @@ export function SettingsScreen({
     window_.scrollTop = row.offsetTop - (window_.clientHeight - row.offsetHeight) / 2;
   }, [exerciseOpen, startingKey]);
 
+  /*
+   * The drill window, kept the same way as the keys above and for the same
+   * reason: it is a window onto a longer list — six entries now, ten once the
+   * named minors land, which is what ruled out a row of chips — and the one
+   * thing it most has to say is which drill is chosen. Centring on the choice
+   * also shows half a row of what lies beyond, which is the scrollbar's job
+   * done without a scrollbar.
+   */
+  const drillsWindow = useRef<HTMLDivElement>(null);
+  const drillChosen = isOpen('exercise') && patternKind;
+  const chosenDrillId = drill.id;
+
+  useEffect(() => {
+    const window_ = drillsWindow.current;
+    if (!window_ || !drillChosen) return;
+    const row = window_.children[DRILLS.findIndex((d) => d.id === chosenDrillId)] as
+      | HTMLElement
+      | undefined;
+    if (!row) return;
+    window_.scrollTop = row.offsetTop - (window_.clientHeight - row.offsetHeight) / 2;
+  }, [drillChosen, chosenDrillId]);
+
 
   /*
    * The fields a material's box holds, built here and placed by the accordion
@@ -387,6 +414,25 @@ export function SettingsScreen({
     </div>
   );
 
+  const drillField = (
+    <div className="field">
+      <span className="field__label">Drill</span>
+      <div className="drills" ref={drillsWindow}>
+        {DRILLS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={shown.drillId === option.id}
+            className={`segmented__option drill ${shown.drillId === option.id ? 'is-selected' : ''}`}
+            onClick={() => update('drillId', option.id)}
+          >
+            {option.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const difficultyField = (
         <div className="field">
           <span className="field__label">Difficulty</span>
@@ -413,8 +459,8 @@ export function SettingsScreen({
           {patternKind && shortenedSpan && (
             <p className="field__note muted">
               {instrument.name} in {MAJOR_KEYS.find((k) => k.fifths === settings.fifths)?.name} has
-              only room for {shortenedSpan}, so that is what you will get — the tonic sits too high
-              for anything further.
+              only room for {shortenedSpan}, so that is what you will get — the drill&apos;s starting
+              note sits too high for anything further.
             </p>
           )}
         </div>
@@ -618,6 +664,9 @@ export function SettingsScreen({
                 </button>
                 {chosen && (
                   <div className="mode__body" id={bodyId}>
+                    {/* Which shape, before which key: the drill is what the
+                        box *is*, and everything under it qualifies it. */}
+                    {isPattern(kind.id) && drillField}
                     {keysField}
                     {difficultyField}
                     {/* A scale is a shape played against a click rather than a
