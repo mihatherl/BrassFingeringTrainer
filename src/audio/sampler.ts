@@ -19,6 +19,13 @@ export interface Voice {
   setVolume(volume: number): void;
   /** Cuts short whatever is currently sounding, so the voice stays monophonic. */
   stop(time?: number): void;
+  /**
+   * Told, where the voice wants to know, whether the fingers answer the note
+   * sounding now — every tick, on every change. A voice with this changes its
+   * *sound* on the fingering rather than having its volume halved; see
+   * `FollowingVoice`, which is the one that does.
+   */
+  follow?(right: boolean): void;
 }
 
 const ATTACK = 0.006;

@@ -1367,3 +1367,48 @@ describe('a run played by nobody', () => {
     expect(volumes.every((v) => v === 1)).toBe(true);
   });
 });
+
+/**
+ * The trial voice, `?voice=pad`: a synth pad until the fingers are right, the
+ * instrument once they are. The session tells such a voice rather than
+ * halving it — the change of sound is the whole of the signal.
+ */
+describe('a voice that follows the fingers', () => {
+  it('is told when the fingers come right and go wrong, and is never halved for them', () => {
+    const told: boolean[] = [];
+    const volumes: number[] = [];
+    const following: Voice = {
+      play: () => {},
+      setVolume: (v) => volumes.push(v),
+      stop: () => {},
+      follow: (right) => told.push(right),
+    };
+    const s = new Session({
+      context,
+      exercise: tiedExercise(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'reference',
+      brassVoice: following,
+    });
+    s.start();
+    // Nothing held through the first note: wrong, and the voice hears so.
+    for (let elapsed = 0; elapsed <= 0.5; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    expect(told[told.length - 1]).toBe(false);
+    // The right fingering lands: told again, straight away.
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+    for (let elapsed = 0.5; elapsed <= 0.6; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    expect(told[told.length - 1]).toBe(true);
+    // And its volume was never dropped for the fingers.
+    expect(volumes.every((v) => v === 1)).toBe(true);
+    s.stop();
+  });
+});

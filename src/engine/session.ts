@@ -326,6 +326,7 @@ export class Session {
     this.fingersRight = true;
     this.soundingIndex = 0;
     this.applyVolume();
+    this.synth.follow?.(true);
     this.input.clearHistory();
     this.transport.start((from, to) => this.schedule(from, to), -this.countInBeats);
     this.noticed.fill(false);
@@ -794,7 +795,10 @@ export class Session {
     );
     if (right === this.fingersRight) return;
     this.fingersRight = right;
-    this.applyVolume();
+    // A voice that changes its sound on the fingering is told; every other is
+    // halved. Not both — the change of sound is the whole of the signal.
+    if (this.synth.follow) this.synth.follow(right);
+    else this.applyVolume();
   }
 
   /** The head of the tie chain a continuation belongs to. */
@@ -813,7 +817,7 @@ export class Session {
    */
   private applyVolume(): void {
     const offer = this.offering ? OFFER_VOLUME : 1;
-    const fingers = this.fingersRight ? 1 : WRONG_FINGERING_VOLUME;
+    const fingers = this.fingersRight || this.synth.follow ? 1 : WRONG_FINGERING_VOLUME;
     this.synth.setVolume(Math.min(offer, fingers));
   }
 
