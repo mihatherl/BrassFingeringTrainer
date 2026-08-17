@@ -122,8 +122,52 @@ describe('judging', () => {
     expect(judgeAt(noteExpecting([maskOf([1, 3])]), 1.0).verdict).toBe('missed');
   });
 
-  it('accepts open valves for an open note', () => {
+  it('accepts open valves for an open note, at the start of a run', () => {
+    // No note before it to look back over: benefit of the doubt.
     expect(judgeAt(noteExpecting([maskOf([])]), 1.0).verdict).toBe('correct');
+  });
+
+  /*
+   * An open hand from a player who has not touched a valve is an instrument
+   * on a lap. Until v2.21.0 a run played by nobody scored every open note
+   * correct — a quarter of an E flat bass part for doing nothing. The
+   * player's rule: an open note counts if some fingering was played on at
+   * least one of the two notes before it.
+   */
+  describe('an open note asks for evidence the player is playing', () => {
+    const open = noteExpecting([maskOf([])]);
+    const judgeOpen = (activeSince: number | null) =>
+      judgeNote(open, 0, 2.0, CROTCHET, input, 1, activeSince);
+
+    it('is missed for a player who has held nothing since the notes before', () => {
+      // Two notes back began at 1.0; nothing has been pressed at all.
+      expect(judgeOpen(1.0).verdict).toBe('missed');
+    });
+
+    it('is correct for a player who had a valve down within the two notes before', () => {
+      now = 1.2;
+      input.keyDown(1);
+      now = 1.4;
+      input.keyUp(1);
+      expect(judgeOpen(1.0).verdict).toBe('correct');
+      // But not one whose last press was before the window looked at.
+      expect(judgeOpen(1.5).verdict).toBe('missed');
+    });
+
+    it('accepts an alternate fingering with a valve in it without asking', () => {
+      // 1-3 for a G is a deliberate act; nobody presses it by accident.
+      now = 1.95;
+      input.keyDown(1);
+      input.keyDown(3);
+      const g = noteExpecting([maskOf([]), maskOf([1, 3])]);
+      expect(judgeNote(g, 0, 2.0, CROTCHET, input, 1, 1.0).verdict).toBe('correct');
+    });
+
+    it('is not fooled by a valve pressed only after the note', () => {
+      now = 2.5;
+      input.keyDown(1);
+      expect(judgeOpen(1.0).verdict).toBe('missed');
+    });
   });
 
   it('rejects held valves on an open note', () => {
@@ -258,6 +302,15 @@ describe('confirming a note as it is played', () => {
     expect(correctYet(note)).toBe(true);
     // The verdict itself is still the better part of half a second away.
     expect(ONSET + TOLERANCE - now).toBeGreaterThan(0.2);
+  });
+
+  it('does not confirm an open note for a player who has held nothing', () => {
+    // The green would be applause for an instrument on a lap.
+    const open = noteExpecting([maskOf([])]);
+    now = ONSET;
+    expect(isAlreadyCorrect(open, ONSET, TOLERANCE, input, now, 0)).toBe(false);
+    // With no earlier note to look at, it stands.
+    expect(isAlreadyCorrect(open, ONSET, TOLERANCE, input, now, null)).toBe(true);
   });
 
   it('does not take it back once given', () => {

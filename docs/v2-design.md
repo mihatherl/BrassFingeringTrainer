@@ -288,6 +288,42 @@ same format and nothing in the app changes.
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
 
+## An open note asks for evidence, and the tone follows the fingers — v2.21.0
+
+The player's observation, on 2026-08-16: do nothing for an entire run and it
+scores about a quarter, because every open note is marked correct — an
+instrument on a lap produces exactly what an open note asks for. And the
+reference tone played on at full volume over it, agreeing with nobody.
+
+**The rule, the player's:** an open note counts only from a player who had
+some fingering down on at least one of the two notes before it. Any accepted
+fingering *with* a valve in it — the primary, or an alternate such as 1-3 for
+a G — is a deliberate act and counts on its own. The first note of a run has
+no note to look back over and gets the benefit of the doubt: there is no
+evidence either way, and a player opening on an open note has, rightly,
+pressed nothing. So a run played by nobody scores at most that one note.
+`fingeringCounts` and `isEngaged` in `judge.ts`; the same test the display's
+green confirmation asks. The window looked back over is the earlier of the
+two previous *judged* notes' windows — tie continuations and unplayable
+notes are not answers the player was asked for and are not counted among the
+two.
+
+**The cost, stated:** a run of four or more consecutive open notes from an
+honest player will have its fourth and later marked missed, since there is no
+way for open playing to show itself. Generated material rarely writes three
+opens running — the walk prefers a change of fingering and the drills and
+cells seldom repeat a note — but an imported bugle call would suffer, and the
+rule is the player's to loosen if that ever bites.
+
+**The tone follows the fingers.** Every tick of the resolve loop the session
+asks the same question of the note sounding now, and holds the reference
+tone at full while the answer is yes and half while it is no — so a wrong
+fingering is *heard* to disagree within a hundredth of a second, and an idle
+run is heard at half throughout. The sound is scheduled ahead on the audio
+thread and cannot be un-played; its level can. Half while the offer stands,
+half while the fingers are wrong, and half — not a quarter — while both: each
+is a reason for the tone to step back, not a fraction to compound.
+
 ## Themes, composed — v2.20.0
 
 The theme corpus measured a level or two easy at every level — an octave

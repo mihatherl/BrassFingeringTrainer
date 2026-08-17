@@ -515,6 +515,10 @@ describe('the offer to carry on', () => {
       brassVoice: listening,
     });
 
+    // The right fingering held throughout, so the tone answers to the offer
+    // alone and not to the fingers as well.
+    session.input.pointerDown(1, 1);
+    session.input.pointerDown(2, 2);
     session.start();
     expect(volumes, 'a run starts at full voice').toEqual([1]);
     run(0, 5);
@@ -544,6 +548,9 @@ describe('the offer to carry on', () => {
       onOffer: (offering) => offers.push(offering),
     });
 
+    // The right fingering held, so the tone answers to the offer alone.
+    session.input.pointerDown(1, 1);
+    session.input.pointerDown(2, 2);
     session.start();
     run(0, 5);
     expect(offers, 'the question is standing').toEqual([true]);
@@ -1248,5 +1255,115 @@ describe('a session with an output lead', () => {
     expect(played.length).toBeGreaterThan(0);
     expect(played[0].startTime).toBeGreaterThanOrEqual(5);
     s.stop();
+  });
+});
+
+/**
+ * Open notes ask for evidence, and the tone follows the fingers.
+ *
+ * Both from one observation, made by the player on 2026-08-16: doing nothing
+ * for an entire run scored a quarter, because every open note was marked
+ * correct — and the reference tone sailed on at full volume over it. Now an
+ * open note counts only from a player who had a valve down within the two
+ * notes before, and the tone drops to half whenever the fingers do not
+ * answer the note sounding.
+ */
+describe('a run played by nobody', () => {
+  const volumes: number[] = [];
+  const listeningVoice: Voice = {
+    play: (midi, startTime, duration) => played.push({ midi, startTime, duration }),
+    setVolume: (v) => volumes.push(v),
+    stop: () => {},
+  };
+
+  /** Six crotchets, every one of them open. */
+  function openNotes(): Exercise {
+    const open = (beat: number): NoteEvent => ({ ...note(beat, 1), acceptedMasks: [0], primaryMask: 0 });
+    return {
+      ...tiedExercise(),
+      notes: [open(0), open(1), open(2), open(3), open(4), open(5)],
+      metres: [{ fromBeat: 0, metre: metreFor(3, 4) }],
+      totalBeats: 6,
+      chosenBeats: 6,
+    };
+  }
+
+  const openSession = (playback: 'off' | 'reference' = 'off') =>
+    new Session({
+      context,
+      exercise: openNotes(),
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: playback,
+      brassVoice: listeningVoice,
+    });
+
+  it('scores the first open note and no other', () => {
+    const s = openSession();
+    runTo(s, 6);
+    expect(s.judgements.map((j) => j.verdict)).toEqual([
+      'correct',
+      'missed',
+      'missed',
+      'missed',
+      'missed',
+      'missed',
+    ]);
+  });
+
+  it('scores the open notes within two of a valve the player did press', () => {
+    const s = openSession();
+    s.start();
+    // Through the first two notes idle; a valve down during the third, released.
+    for (let elapsed = 0; elapsed <= 8; elapsed += 0.025) {
+      audioTime = elapsed;
+      if (Math.abs(elapsed - 2.2) < 1e-9) s.input.pointerDown(1, 1);
+      if (Math.abs(elapsed - 2.4) < 1e-9) s.input.releaseAll();
+      vi.advanceTimersByTime(25);
+    }
+    s.stop();
+    // The notes at beats 3 and 4 look back two notes — to beats 1 and 2 —
+    // and find the press; the note at beat 5 looks back to beat 3, and does
+    // not.
+    const verdicts = s.judgements.map((j) => j.verdict);
+    expect(verdicts.slice(3, 5)).toEqual(['correct', 'correct']);
+    expect(verdicts[5]).toBe('missed');
+  });
+
+  it('drops the tone to half while the fingers do not answer, and back when they do', () => {
+    volumes.length = 0;
+    const s = openSession('reference');
+    s.start();
+    // Idle through the first note (which counts) and into the second, which
+    // does not: the tone should fall to half there.
+    for (let elapsed = 0; elapsed <= 1.5; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    expect(volumes[volumes.length - 1]).toBe(0.5);
+    // A valve down is engagement — but a valve down is also the wrong
+    // fingering for an open note, so the tone stays half until it is lifted.
+    s.input.pointerDown(1, 1);
+    for (let elapsed = 1.5; elapsed <= 1.7; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    expect(volumes[volumes.length - 1]).toBe(0.5);
+    s.input.releaseAll();
+    for (let elapsed = 1.7; elapsed <= 1.9; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    expect(volumes[volumes.length - 1]).toBe(1);
+    s.stop();
+  });
+
+  it('leaves the tone alone with playback off', () => {
+    volumes.length = 0;
+    const s = openSession('off');
+    runTo(s, 3);
+    // Only the run's opening full volume, and never a drop.
+    expect(volumes.every((v) => v === 1)).toBe(true);
   });
 });

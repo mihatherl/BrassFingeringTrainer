@@ -74,9 +74,42 @@ export function isAlreadyCorrect(
   tolerance: number,
   input: ValveInput,
   now: number,
+  activeSince: number | null = null,
 ): boolean {
-  const accepted = new Set(note.acceptedMasks);
-  return input.statesDuring(onsetTime - tolerance, now).some((s) => accepted.has(s.mask));
+  const engaged = isEngaged(input, activeSince, now);
+  return input
+    .statesDuring(onsetTime - tolerance, now)
+    .some((s) => fingeringCounts(s.mask, note, engaged));
+}
+
+/**
+ * Whether the player has had a valve down at any instant since `activeSince`.
+ *
+ * The evidence that an open hand is a player playing an open note rather than
+ * an instrument on a lap. `null` is no earlier note to look back over — the
+ * first note of a run — and is read as engaged: there is no evidence either
+ * way, and a player opening on an open note has, rightly, pressed nothing.
+ */
+export function isEngaged(input: ValveInput, activeSince: number | null, until: number): boolean {
+  if (activeSince === null) return true;
+  return input.statesDuring(activeSince, until).some((s) => s.mask !== 0);
+}
+
+/**
+ * Whether a held button state answers a note.
+ *
+ * Any accepted fingering that takes a valve — the primary, or an alternate
+ * such as 1-3 for a G — is a deliberate act and answers on its own. Open is
+ * accepted only from a player who is engaged: it is what an instrument on
+ * its owner's lap produces too, and until v2.21.0 a run played by nobody
+ * scored every open note correct, which on an E flat bass part was a quarter
+ * of the score for doing nothing. The player's rule, on 2026-08-16: an open
+ * note counts if some fingering was played on at least one of the two notes
+ * before it.
+ */
+export function fingeringCounts(mask: number, note: NoteEvent, engaged: boolean): boolean {
+  if (!note.acceptedMasks.includes(mask)) return false;
+  return mask !== 0 || engaged;
 }
 
 export function judgeNote(
@@ -86,13 +119,19 @@ export function judgeNote(
   noteSeconds: number,
   input: ValveInput,
   toleranceScale = 1,
+  /**
+   * From when valve activity counts as engagement for an open note: the start
+   * of the earlier of the two notes before this one, or null where there is
+   * none. See `isEngaged`.
+   */
+  activeSince: number | null = null,
 ): NoteJudgement {
   const tolerance = toleranceFor(noteSeconds, toleranceScale);
   const states = input.statesDuring(onsetTime - tolerance, onsetTime + tolerance);
-  const accepted = new Set(note.acceptedMasks);
+  const engaged = isEngaged(input, activeSince, onsetTime + tolerance);
 
   for (const state of states) {
-    if (!accepted.has(state.mask)) continue;
+    if (!fingeringCounts(state.mask, note, engaged)) continue;
     // Held from before the window counts as on time, not early.
     const reachedAt = Math.max(state.from, onsetTime - tolerance);
     return {
@@ -115,8 +154,8 @@ export function judgeNote(
    * Every other fingering takes a deliberate act, so holding it is evidence of
    * intent — the player meant to play *something*, and got it wrong. Open is the
    * exception: it is also what an instrument on its owner's lap produces. So
-   * unless open happens to be correct here, the honest reading is that the note
-   * was not played at all.
+   * unless open happens to be correct here — from an engaged player — the
+   * honest reading is that the note was not played at all.
    */
   return {
     noteIndex,

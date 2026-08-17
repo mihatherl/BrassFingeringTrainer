@@ -17,7 +17,9 @@ import { barAt, beatOfBar, metreAt, type Metre } from '../domain/metre';
 import { Transport } from './clock';
 import { ValveInput } from './input';
 import {
+  fingeringCounts,
   isAlreadyCorrect,
+  isEngaged,
   judgeNote,
   summarise,
   toleranceFor,
@@ -134,6 +136,18 @@ const TAIL_BEATS = 1;
 const OFFER_BEATS = 4;
 
 /**
+ * What the reference tone drops to while the fingering is wrong.
+ *
+ * The tone follows the fingers: full while the player holds a fingering that
+ * answers the note sounding — an open note only from a player who has been
+ * playing, see `fingeringCounts` — and half otherwise. So the tone is heard
+ * to agree with the hands rather than sail on regardless, and a run played
+ * by nobody is heard at half volume throughout. Asked every tick of the
+ * resolve loop, so it answers within a hundredth of a second of the fingers.
+ */
+const WRONG_FINGERING_VOLUME = 0.5;
+
+/**
  * What the reference tone drops to while the offer stands.
  *
  * The continuation is an offer, and an offer should not be made at full
@@ -198,6 +212,10 @@ export class Session {
   private playUntil: number;
   /** Whether the offer is currently standing, so it is made only once. */
   private offering = false;
+  /** Whether the fingers answer the note sounding now; see `followFingers`. */
+  private fingersRight = true;
+  /** The note whose sound the fingers are held against, scanned forward. */
+  private soundingIndex = 0;
   /** Notes already confirmed as right, so each is announced only once. */
   private readonly noticed: boolean[];
   private finished = false;
@@ -305,7 +323,9 @@ export class Session {
   start(): void {
     // The voice is loaded once and reused across runs, so a session that
     // ended on an unanswered offer must not hand the next one a quiet start.
-    this.synth.setVolume(1);
+    this.fingersRight = true;
+    this.soundingIndex = 0;
+    this.applyVolume();
     this.input.clearHistory();
     this.transport.start((from, to) => this.schedule(from, to), -this.countInBeats);
     this.noticed.fill(false);
@@ -508,6 +528,7 @@ export class Session {
 
     this.nextNoteToSchedule = Math.min(this.nextNoteToSchedule, first);
     this.nextNoteToResolve = Math.min(this.nextNoteToResolve, first);
+    this.soundingIndex = Math.min(this.soundingIndex, first);
     for (let index = first; index < this.noticed.length; index++) this.noticed[index] = false;
 
     for (let i = this.judgements.length - 1; i >= 0; i--) {
@@ -617,7 +638,7 @@ export class Session {
       // nothing can be confirmed on a note the instrument cannot play.
       if (isTieContinuation(exercise.notes, index) || isUnplayable(note)) continue;
 
-      if (isAlreadyCorrect(note, onset, tolerance, this.input, now)) {
+      if (isAlreadyCorrect(note, onset, tolerance, this.input, now, this.activeSince(index))) {
         this.noticed[index] = true;
         this.options.onCorrect?.(index);
       }
@@ -657,7 +678,15 @@ export class Session {
       const tolerance = toleranceFor(seconds, scale);
       if (now < onset + tolerance) break;
 
-      const judgement = judgeNote(note, index, onset, seconds, this.input, scale);
+      const judgement = judgeNote(
+        note,
+        index,
+        onset,
+        seconds,
+        this.input,
+        scale,
+        this.activeSince(index),
+      );
       this.judgements.push(judgement);
       this.options.onJudgement?.(judgement);
       this.nextNoteToResolve++;
@@ -665,6 +694,7 @@ export class Session {
 
     if (this.finished) return;
 
+    this.followFingers(now);
     this.makeTheOffer(now);
     this.hearThePlayerOn(now);
 
@@ -717,6 +747,77 @@ export class Session {
   }
 
   /**
+   * From when valve activity counts as engagement for the note at `index`:
+   * the opening of the window of the earlier of the two judged notes before
+   * it, or null for the first note of the piece. Tie continuations and notes
+   * the instrument cannot play are not notes the player was asked to answer,
+   * so they are not counted among the two. See `isEngaged`.
+   */
+  private activeSince(index: number): number | null {
+    const { notes } = this.options.exercise;
+    const scale = this.options.timingTolerance ?? 1;
+    let earliest: number | null = null;
+    let counted = 0;
+    for (let i = index - 1; i >= 0 && counted < 2; i--) {
+      if (isTieContinuation(notes, i) || isUnplayable(notes[i])) continue;
+      earliest =
+        this.transport.timeForBeat(notes[i].startBeat) - toleranceFor(this.noteSeconds(i), scale);
+      counted++;
+    }
+    return earliest;
+  }
+
+  /**
+   * Holds the reference tone against the fingers: full while they answer the
+   * note sounding now, half while they do not. The sound is scheduled ahead
+   * on the audio thread, so this cannot decide what plays — only how loud it
+   * is heard, which is what a player needs from it.
+   */
+  private followFingers(now: number): void {
+    if (this.options.playbackMode === 'off') return;
+    const { notes } = this.options.exercise;
+    while (
+      this.soundingIndex + 1 < notes.length &&
+      this.transport.timeForBeat(notes[this.soundingIndex + 1].startBeat) <= now
+    ) {
+      this.soundingIndex++;
+    }
+    const index = this.soundingIndex;
+    const note = notes[index];
+    if (!note || this.transport.timeForBeat(note.startBeat) > now) return;
+    // The head of a tie stands for the whole chain; the far end asks nothing.
+    const asked = isTieContinuation(notes, index) ? this.headOf(index) : index;
+    const right = fingeringCounts(
+      this.input.maskAt(now),
+      notes[asked],
+      isEngaged(this.input, this.activeSince(asked), now),
+    );
+    if (right === this.fingersRight) return;
+    this.fingersRight = right;
+    this.applyVolume();
+  }
+
+  /** The head of the tie chain a continuation belongs to. */
+  private headOf(index: number): number {
+    const { notes } = this.options.exercise;
+    let head = index;
+    while (head > 0 && isTieContinuation(notes, head)) head--;
+    return head;
+  }
+
+  /**
+   * The tone's level, from everything that has a say in it: half while the
+   * offer stands, half while the fingers are wrong, and half — not a quarter
+   * — while both are true. Each is a reason for the tone to step back, not a
+   * fraction to be compounded into a whisper.
+   */
+  private applyVolume(): void {
+    const offer = this.offering ? OFFER_VOLUME : 1;
+    const fingers = this.fingersRight ? 1 : WRONG_FINGERING_VOLUME;
+    this.synth.setVolume(Math.min(offer, fingers));
+  }
+
+  /**
    * Asks, a few beats before the music runs out, whether the player wants
    * more — and drops the reference tone while the question stands.
    *
@@ -729,7 +830,7 @@ export class Session {
     if (this.transport.beatForTime(now) < this.playUntil - OFFER_BEATS) return;
 
     this.offering = true;
-    this.synth.setVolume(OFFER_VOLUME);
+    this.applyVolume();
     this.options.onOffer?.(true);
   }
 
@@ -750,7 +851,7 @@ export class Session {
   private withdrawTheOffer(): void {
     if (!this.offering) return;
     this.offering = false;
-    this.synth.setVolume(1);
+    this.applyVolume();
     this.options.onOffer?.(false);
   }
 }
