@@ -198,8 +198,19 @@ Master" in the relevant classes. Neither is legal advice; both are cheap.
 > long-discontinued Maestro Bass Brassmaster pedal, no live mark found.
 > Domains available at check time: BrassMaster.net, BrassMaster.com.au,
 > BrassMaster.org (.net recommended — worldwide product, clean reverse-DNS).
-> **Awaiting registration; the domain and bundle identifier get written here
-> the day they are locked.**
+>
+> **Locked, 2026-08-18: the domain is `brassmaster.net`, registered to the
+> player. The bundle identifier is `net.brassmaster.app` — write exactly this
+> into App Store Connect, because it can never change.** The in-code rename
+> shipped as v2.24.0 (manifest, titles, README, package name; storage keys
+> deliberately untouched — renaming them would orphan every player's data).
+> `VITE_BASE` now overrides the inferred base path. **The domain cutover is
+> deliberately not done yet** — it needs DNS at the registrar (A records to
+> GitHub Pages, `www` CNAME), the custom domain set on the repo, HTTPS
+> provisioned, *and a decision about existing users first*: a PWA's origin is
+> its identity, so installs and IndexedDB libraries at the github.io address
+> do not follow the app to the new domain. Cut over with eyes open, ideally
+> with an export path or a notice in the old app.
 
 **Reserve the name in App Store Connect early.** Creating the app record
 reserves the name before there is anything to upload.

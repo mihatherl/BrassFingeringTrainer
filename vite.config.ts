@@ -29,13 +29,15 @@ const { version } = JSON.parse(readFileSync(new URL('./package.json', import.met
 /**
  * Where the app will be served from.
  *
- * GitHub Pages puts a project site under `/<repo>/` rather than at the root, and
- * every asset URL has to agree. Taking it from the environment rather than
- * hard-coding it means the repository can be renamed — or the whole thing moved
- * to a host that serves from the root — without touching this file.
+ * `VITE_BASE` states it outright and wins when set — the domain cutover to
+ * brassmaster.net sets `VITE_BASE=/`, since a custom domain serves from the
+ * root. Until then the GitHub Pages default applies: a project site lives
+ * under `/<repo>/` rather than at the root, and every asset URL has to agree.
+ * Taking that from the environment rather than hard-coding it means the
+ * repository can be renamed without touching this file.
  */
 const repository = process.env.GITHUB_REPOSITORY?.split('/')[1];
-const base = repository ? `/${repository}/` : '/';
+const base = process.env.VITE_BASE ?? (repository ? `/${repository}/` : '/');
 
 export default defineConfig({
   base,
@@ -70,8 +72,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/\/spike\//],
       },
       manifest: {
-        name: 'Brass Fingering Trainer',
-        short_name: 'Brass Trainer',
+        name: 'Brass Master',
+        short_name: 'Brass Master',
         description:
           'Practise brass valve fingerings against scrolling notation, on any instrument in either clef.',
         theme_color: '#c48a2c',
