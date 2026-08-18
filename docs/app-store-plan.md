@@ -84,6 +84,10 @@ That changes the mechanism, not just the values:
 **Open question for the player:** retire the runtime tier entirely, or keep it
 for something? It is the one decision here I would not make alone.
 
+> **Answered 2026-08-18, later the same day: retire it.** The split is drawn
+> entirely at build time. See `v3-library-plan.md`, which records this and the
+> library ruling together.
+
 ## The tuner, and the trap already written down
 
 The tuner is the feature most likely to go wrong quietly, and this repo already
@@ -146,6 +150,11 @@ microphone mode — about 200ms is the earliest honest one. Both are recorded
 there; neither is affected by anything decided today.
 
 ## The sister app, and what it does to My Music
+
+> **Settled 2026-08-18, later the same day:** the phone owns the library and
+> serves it; the desktop side is a stateless converter only. The full ruling,
+> including what it deprecates on the generator side, is `v3-library-plan.md`.
+> The three consequences below all stand.
 
 A local server on the phone, serving a page to a laptop on the same network,
 is well-trodden — VLC has shipped it for years — but it has three consequences
@@ -227,7 +236,8 @@ afternoon: everything from step 5 on is built on assumptions it tests.
 
 ## Still open, and named so they are not forgotten
 
-- Retire the runtime entitlement tier, or keep it? (Above.)
+- ~~Retire the runtime entitlement tier, or keep it?~~ Retired — decided
+  2026-08-18, see `v3-library-plan.md`.
 - Paid upfront, or free with an in-app purchase? **Paid upfront is far
   simpler** — no StoreKit, no receipt check, no network, and the privacy label
   stays clean — and it is what the two-build split naturally produces. Not yet
