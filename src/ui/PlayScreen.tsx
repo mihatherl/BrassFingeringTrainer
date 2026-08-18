@@ -429,13 +429,13 @@ export function PlayScreen({
                   // Decoding mid-exercise would drop notes, so the recorded
                   // instrument is loaded here or not at all.
                   const set = instrumentById(exercise.instrumentId).sampleSet;
-                  // `?voice=pad` is a trial: a synth pad until the fingers
-                  // are right, the instrument once they are. See
-                  // `FollowingVoice`.
+                  // A soft pad until the fingers are right, the instrument
+                  // once they are — see `FollowingVoice`. `?voice=plain` is
+                  // the instrument alone, for comparing.
                   voiceRef.current =
-                    new URLSearchParams(window.location.search).get('voice') === 'pad'
-                      ? await FollowingVoice.load(context, set)
-                      : await Sampler.load(context, set);
+                    new URLSearchParams(window.location.search).get('voice') === 'plain'
+                      ? await Sampler.load(context, set)
+                      : await FollowingVoice.load(context, set, settings.cushionLevel);
                 } catch {
                   // Offline before the samples were ever cached, or a bad
                   // response. Synthesis still works, so play on.

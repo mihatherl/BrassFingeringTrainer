@@ -14,6 +14,7 @@ import { styleName } from '../render/conductor';
 import { RangePicker } from './RangePicker';
 import {
   CONDUCTOR_STYLE_RANGE,
+  CUSHION_RANGE,
   REGISTERS,
   DEFAULT_SETTINGS,
   FINGERING_MODES,
@@ -268,6 +269,7 @@ export function SettingsScreen({
       settings.timingTolerance !== DEFAULT_SETTINGS.timingTolerance ? 'timing' : undefined,
       settings.scrollSpeed !== DEFAULT_SETTINGS.scrollSpeed ? 'scroll speed' : undefined,
       settings.conductorStyle !== DEFAULT_SETTINGS.conductorStyle ? 'conductor style' : undefined,
+      settings.cushionLevel !== DEFAULT_SETTINGS.cushionLevel ? 'cushion' : undefined,
       shown.weakNoteDrilling !== DEFAULT_SETTINGS.weakNoteDrilling ? 'weak notes' : undefined,
       // The phone's own speaker is the default and says nothing; a headset in
       // use is worth a word, since it changes when every sound is sent.
@@ -876,6 +878,27 @@ export function SettingsScreen({
             />
             <p className="field__note muted">
               How sharply the beat lands. Smooth is harder to follow, and meant to be.
+            </p>
+          </label>
+        )}
+
+        {/* Only where there is a tone to cushion. */}
+        {settings.playbackMode !== 'off' && (
+          <label className="field">
+            <span className="field__label">
+              Cushion <strong>{Math.round(settings.cushionLevel * 100)}%</strong>
+            </span>
+            <input
+              type="range"
+              min={CUSHION_RANGE.min * 100}
+              max={CUSHION_RANGE.max * 100}
+              step={5}
+              value={Math.round(settings.cushionLevel * 100)}
+              onChange={(event) => update('cushionLevel', Number(event.target.value) / 100)}
+            />
+            <p className="field__note muted">
+              How loud the soft sound behind a note is until you finger it right, against the
+              instrument that takes over when you do.
             </p>
           </label>
         )}

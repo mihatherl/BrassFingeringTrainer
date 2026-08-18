@@ -288,6 +288,33 @@ same format and nothing in the app changes.
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
 
+## A cushion until the fingers are right, the instrument once they are — v2.22.0 to v2.23.0
+
+The volume rule of v2.21.0 lasted a day. The player asked to trial a *change
+of sound* instead — a synth until the note is played right, the instrument
+from then on — and it went out behind `?voice=pad` (v2.22.0). Two things
+were heard and fixed the same day (v2.22.1): the brass synth's bright attack
+played on every note that came right after its onset, before the swap, and
+read as a synthetic twang, so the pad is now a pad — two triangles under a
+fixed dark lowpass, an 80ms attack, nothing that moves; and unmuting the
+instrument into its sustain gave a note with no beginning, so coming right
+part-way through a note now starts the instrument's note afresh from that
+moment, and it *speaks* when the fingering lands as a player's own note
+would. On both paths a fingering set for the coming note inside its window
+counts as right — readers set the next fingering ahead of the beat and the
+judge already accepts it; the tone no longer hears it as leaving the note
+before.
+
+Then the trial graduated (v2.23.0): the pad-until-right voice is how the app
+plays, `?voice=plain` is the way back to the instrument alone for comparing,
+and the **cushion's level** is a setting in Advanced — a fraction of the
+instrument's, half by default on the player's ruling. Both voices are given
+every note, since sound is scheduled ahead and cannot be re-decided when the
+fingers land; two gains decide which is heard. The volume halving of
+v2.21.0 stays only for the synth-only fallback, where the samples could not
+be loaded: a voice that changes its sound is told rather than halved, since
+the change of sound is the whole of the signal.
+
 ## An open note asks for evidence, and the tone follows the fingers — v2.21.0
 
 The player's observation, on 2026-08-16: do nothing for an entire run and it

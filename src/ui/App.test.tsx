@@ -134,6 +134,22 @@ describe('the app', () => {
     expect(screen.queryByLabelText(/^Scroll speed/)).toBeNull();
   });
 
+  it('offers the cushion in Advanced, and says so when it is moved', () => {
+    render(<App />);
+    const valuesOf = () =>
+      [...document.querySelectorAll<HTMLDetailsElement>('details.panel')]
+        .find((panel) => panel.querySelector('.panel__title')?.textContent === 'Advanced')
+        ?.querySelector('.panel__values')?.textContent;
+    fireEvent.click(screen.getByText('Advanced'));
+    const slider = screen.getByLabelText<HTMLInputElement>(/^Cushion/);
+    expect(slider.value).toBe('50');
+    expect(valuesOf()).not.toContain('cushion');
+    fireEvent.change(slider, { target: { value: '25' } });
+    expect(screen.getByLabelText<HTMLInputElement>(/^Cushion/).value).toBe('25');
+    expect(valuesOf()).toContain('cushion');
+    expect(JSON.parse(localStorage.getItem('brass-trainer:settings')!).cushionLevel).toBe(0.25);
+  });
+
   it('keeps the summary in step with what is chosen', () => {
     render(<App />);
     const exerciseValues = () =>

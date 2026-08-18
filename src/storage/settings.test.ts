@@ -405,3 +405,18 @@ describe('a key and a difficulty per material', () => {
     expect(settings.materials).toEqual({ themes: { keySet: [1], difficultyId: 'easy' } });
   });
 });
+
+describe('the cushion', () => {
+  it('sits at half the instrument by default, and is held between silent and as loud', () => {
+    expect(DEFAULT_SETTINGS.cushionLevel).toBe(0.5);
+    expect(sanitise({ ...DEFAULT_SETTINGS, cushionLevel: 3 }).cushionLevel).toBe(1);
+    expect(sanitise({ ...DEFAULT_SETTINGS, cushionLevel: -1 }).cushionLevel).toBe(0);
+    expect(sanitise({ ...DEFAULT_SETTINGS, cushionLevel: Number.NaN }).cushionLevel).toBe(0);
+    expect(sanitise({ ...DEFAULT_SETTINGS, cushionLevel: 0.25 }).cushionLevel).toBe(0.25);
+  });
+
+  it('is half for a settings file that predates it', () => {
+    store({ tempo: 90 });
+    expect(loadSettings().cushionLevel).toBe(0.5);
+  });
+});

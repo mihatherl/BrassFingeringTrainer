@@ -7,7 +7,8 @@
  * before the swap; the player heard it as a synthetic twang on notes they
  * had got right. So this has no sweep and no edge: two triangles a few cents
  * apart under a fixed, dark lowpass, an attack of a twelfth of a second, and
- * a level well under the instrument's. A note that is right from its onset
+ * — by the player's setting — half the instrument's level. A note that is
+ * right from its onset
  * never hears it at all; a note that comes right late hears a soft cushion
  * give way to the instrument.
  */
@@ -26,12 +27,14 @@ export class PadSynth implements Voice {
   constructor(context: AudioContext, destination: AudioNode = context.destination) {
     this.context = context;
     this.master = context.createGain();
-    this.master.gain.value = 0.22;
+    // The same level the sampler sits at, so a cushion "at half" is half the
+    // instrument: the fraction is applied outside, in `FollowingVoice`.
+    this.master.gain.value = 0.85;
     this.master.connect(destination);
   }
 
   setVolume(volume: number): void {
-    this.master.gain.setTargetAtTime(volume * 0.22, this.context.currentTime, 0.01);
+    this.master.gain.setTargetAtTime(volume * 0.85, this.context.currentTime, 0.01);
   }
 
   stop(time?: number): void {

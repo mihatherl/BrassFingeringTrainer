@@ -19,6 +19,7 @@ import { CONDUCTOR_STYLE_RANGE } from '../render/conductor';
 import type { FingeringMode } from '../exercise/hints';
 import type { ExerciseKind } from '../exercise/types';
 import { DRILLS, type DrillId, type PatternRegister } from '../exercise/generate';
+import { DEFAULT_CUSHION } from '../audio/following-voice';
 
 // Re-exported from the domain, where the tempo plan clamps against the same
 // figures; the settings screen was this range's first customer, not its owner.
@@ -160,6 +161,15 @@ export interface Settings {
    */
   readingMode: ReadingMode;
   /**
+   * How loud the cushion is against the instrument, from 0 to 1.
+   *
+   * The reference tone is a soft pad until the fingers answer the note and
+   * the recorded instrument once they do — see `FollowingVoice` — and this is
+   * the pad's level. Half by default, on the player's ruling: heard, and
+   * plainly not the instrument.
+   */
+  cushionLevel: number;
+  /**
    * Each material's own key and difficulty, remembered from the last time it
    * was chosen.
    *
@@ -253,6 +263,9 @@ export function audioLeadFor(settings: Settings): number {
 
 export const SCROLL_SPEED_RANGE = { min: 50, max: 220 } as const;
 
+/** The cushion's level against the instrument's: silent to as loud. */
+export const CUSHION_RANGE = { min: 0, max: 1 } as const;
+
 export const TIMING_TOLERANCE_RANGE = { min: 0.5, max: 3 } as const;
 
 /**
@@ -345,6 +358,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readingMode: 'scrolling',
   // The default pair, under the default material — what `sanitise` would put
   // there, so a fresh load and a saved default agree.
+  cushionLevel: DEFAULT_CUSHION,
   materials: { phrases: { keySet: [-3], difficultyId: 'easy' } },
   audioOutputs: [],
   audioOutputId: null,
@@ -551,6 +565,7 @@ export function sanitise(settings: Settings): Settings {
       CONDUCTOR_STYLE_RANGE.max,
     ),
     ...sanitiseOutputs(settings),
+    cushionLevel: clamp(settings.cushionLevel, CUSHION_RANGE.min, CUSHION_RANGE.max),
   };
 }
 
