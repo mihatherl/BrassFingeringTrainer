@@ -1412,3 +1412,49 @@ describe('a voice that follows the fingers', () => {
     s.stop();
   });
 });
+
+/**
+ * A reader sets the next fingering just ahead of the beat, and the judge
+ * accepts it as on time. The tone must not hear that as leaving the note
+ * before: within the coming note's window, answering it is right.
+ */
+describe('the tone and an early fingering', () => {
+  it('stays full when the next note is fingered inside its window', () => {
+    const volumes: number[] = [];
+    // Two crotchets: 1-2, then 1 alone.
+    const two: Exercise = {
+      ...tiedExercise(),
+      notes: [note(0, 1), { ...note(1, 1), acceptedMasks: [0b001], primaryMask: 0b001 }],
+      totalBeats: 2,
+      chosenBeats: 2,
+    };
+    const s = new Session({
+      context,
+      exercise: two,
+      tempo: 60,
+      countInBars: 0,
+      metronomeEnabled: false,
+      playbackMode: 'reference',
+      brassVoice: { ...voice, setVolume: (v) => volumes.push(v) },
+    });
+    s.input.pointerDown(1, 1);
+    s.input.pointerDown(2, 2);
+    s.start();
+    // The clock opens a tenth of a second ahead, so the second note sounds
+    // at 1.1s and its 0.2s window opens at 0.9s.
+    for (let elapsed = 0; elapsed <= 0.95; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    // 0.15s before the second note — inside its window — the second valve
+    // comes up: right for the coming note, and heard as such.
+    s.input.releaseAll();
+    s.input.pointerDown(1, 1);
+    for (let elapsed = 0.95; elapsed <= 1.05; elapsed += 0.025) {
+      audioTime = elapsed;
+      vi.advanceTimersByTime(25);
+    }
+    expect(volumes.every((v) => v === 1)).toBe(true);
+    s.stop();
+  });
+});

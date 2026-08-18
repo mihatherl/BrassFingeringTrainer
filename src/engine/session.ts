@@ -786,13 +786,24 @@ export class Session {
     const index = this.soundingIndex;
     const note = notes[index];
     if (!note || this.transport.timeForBeat(note.startBeat) > now) return;
+    const mask = this.input.maskAt(now);
+    const answers = (i: number) =>
+      fingeringCounts(mask, notes[i], isEngaged(this.input, this.activeSince(i), now));
     // The head of a tie stands for the whole chain; the far end asks nothing.
     const asked = isTieContinuation(notes, index) ? this.headOf(index) : index;
-    const right = fingeringCounts(
-      this.input.maskAt(now),
-      notes[asked],
-      isEngaged(this.input, this.activeSince(asked), now),
-    );
+    /*
+     * Or the note about to sound, once its own window has opened. A reader
+     * sets the next fingering just ahead of the beat — the judge accepts it
+     * as on time — and the tone must not hear that as leaving the note
+     * before. Whichever of the two the fingers answer, they are right.
+     */
+    const scale = this.options.timingTolerance ?? 1;
+    let next = index + 1;
+    while (next < notes.length && (isTieContinuation(notes, next) || isUnplayable(notes[next]))) next++;
+    const nextOpen =
+      next < notes.length &&
+      now >= this.transport.timeForBeat(notes[next].startBeat) - toleranceFor(this.noteSeconds(next), scale);
+    const right = answers(asked) || (nextOpen && answers(next));
     if (right === this.fingersRight) return;
     this.fingersRight = right;
     // A voice that changes its sound on the fingering is told; every other is
