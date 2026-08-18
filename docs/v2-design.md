@@ -2643,6 +2643,15 @@ Any feature reasoning about physical slides must exclude notes where
 
 ## Selling it, one day
 
+**Superseded in part on 2026-08-18 — read `app-store-plan.md` first.** The
+player settled the shape: everything built to date stays free on the web under
+the name *Brass Master*, My Music moves to a paid iPhone app along with the
+microphone and a tuner, and the line between the two is drawn at *build* time
+rather than by the runtime entitlements described below. What stands unchanged
+is the licence verdict, the asset clearances, and the lesson that a second
+build path must be built by CI or it rots. What is in question is the runtime
+tier itself.
+
 The app is free and ungated as it stands, and the intention is that it keeps
 being so on GitHub while a paid build stays possible. Most of what that needs
 is already true, and is recorded here so it does not get undone by accident.

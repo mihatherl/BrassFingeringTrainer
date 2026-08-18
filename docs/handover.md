@@ -6,8 +6,10 @@ place — **where I was wrong**, since this session's faults were of a new kind
 and worth recognising on sight.
 
 The durable rulings live in `v2-design.md`; the feature plans are
-`tempo-map-plan.md`, `endless-play-plan.md`, `musicxml-import-plan.md` and,
-new this session, `tunes-plan.md`. **Read this for the shape, those for the
+`tempo-map-plan.md`, `endless-play-plan.md`, `musicxml-import-plan.md`,
+`tunes-plan.md` and — added 2026-08-18, and the one to read before any work on
+version 3 — `app-store-plan.md`, which settles what is free, what is paid, and
+what the split costs in code. **Read this for the shape, those for the
 reasons.**
 
 The app went from **v2.15.5 to v2.23.3** — seventeen releases, all deployed.
