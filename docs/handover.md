@@ -1,229 +1,254 @@
-# Handover — the session of 2026-08-16
+# Handover — 2026-08-18, written for the two-workspace session
 
-Written for whoever picks this up next, cold. It records what was built, what
-was decided and why, and — carried over again because it keeps earning its
-place — **where I was wrong**, since this session's faults were of a new kind
-and worth recognising on sight.
+You are picking up **one half** of a two-app product, most likely from a parent
+folder holding both this repository and its sister. This half is *Brass
+Master*: the practice app, web and — from version 3 — the App Store. The other
+half manages MusicXML files from a desktop. They meet at one seam, and holding
+both in one head is the whole reason that session exists.
 
-The durable rulings live in `v2-design.md`; the feature plans are
-`tempo-map-plan.md`, `endless-play-plan.md`, `musicxml-import-plan.md`,
-`tunes-plan.md` and — added 2026-08-18, and the one to read before any work on
-version 3 — `app-store-plan.md`, which settles what is free, what is paid, and
-what the split costs in code. **Read this for the shape, those for the
-reasons.**
+**Read this file, then one plan document for the task in front of you. Nothing
+else, until you need it.** The last session's problem was a flooded context,
+and this file is written to prevent yours.
 
-The app went from **v2.15.5 to v2.23.3** — seventeen releases, all deployed.
-It finished the settings work the last handover left half done, then spent
-the rest of the session on the two things the player's ear kept returning to:
-what the reference tone does, and whether the themes were as hard as they
-said. Every one of the seventeen was asked for by the player at the phone,
-usually within the hour of the release before it.
+## What to read, and what to leave alone
 
-## What was built, in order
+| | Lines | When |
+|---|---|---|
+| `handover.md` — this file | ~280 | Now, all of it |
+| `app-store-plan.md` | 241 | **Before any version 3 work.** What is free, what is paid, what the split costs |
+| `v2-design.md` | 2,943 | **Never end to end.** The durable rulings; grep it for the noun you are touching |
+| `musicxml-import-plan.md` | 477 | Only when touching `import/` |
+| `tempo-map-plan.md` | 607 | Only when touching the clock or the conductor |
+| `endless-play-plan.md` | 161 | Only when touching the offer or scoring |
+| `tunes-plan.md` | 102 | Only when touching the theme composer |
 
-**The settings screen, steps 3 to 5 of five** — item 11 of the plan, done:
+The code is 22,000 lines of production TypeScript and 17,000 of tests. Do not
+survey it. **Every "why is it like this?" has an answer in `v2-design.md`, and
+the way to find it is to grep for the noun** — `grep -n "fourth valve"`, `grep
+-n "open note"` — not to read the file. Its section headings are a map:
+`grep -n "^## " docs/v2-design.md`.
 
-| | |
-|---|---|
-| v2.16.0 | **Drills.** Scales and Arpeggios are one box with a picker; the four arpeggios the box once promised are real; the blurb's full sentence is back and a guard refuses to compile when a drill is added without a claim. One kind, `drills`, with `drillId`; a stored `scales`/`arpeggios` migrates. |
-| v2.18.0 | **Named minor scales.** Harmonic and melodic minor in the picker, chosen the way a book prints them: the key chips relabel to the minors — *Dm*, *C minor* — over the same signature. **The work was the spelling**: each drill note carries its letter step and `spellWithLetter` alters that letter, so D harmonic minor's seventh is C♯, not the D♭ one flat would choose. The one limit is the app's own rule: no double accidentals, so G♯/D♯/A♯ minor write the natural above, and the screen says so. |
-| v2.19.0 | **A key and a difficulty per material.** `keySet`/`fifths`/`difficultyId` stay the pair *in force*; `materials` holds the rest, put away on leaving a material and taken out on return. Old files start with nothing remembered so their one pair still carries over. |
+## Where this side stands
 
-**Sound and timing**, which took most of the session:
+**v2.23.4, deployed and green.** 1,097 tests across 52 files. The gate before
+any push is `npm test && npm run build && npm run lint`, all three, every time.
 
-| | |
-|---|---|
-| v2.16.1 | Tuba samples started early by their measured bloom, to land half level on the beat. **Withdrawn in v2.18.1** — see *Where I was wrong*. |
-| v2.17.0 | **The headphones screen.** A per-device audio *lead*: every sound handed to the audio thread early so it is heard when the clock says. `Transport.audioLead`, one place. Calibrated by tapping along — a click a second, the median offset of the taps is the lead, measured again it converges. Outputs are a named list; the phone speaker is "none of these". |
-| v2.20.1 | The output in use said beside Start, with a one-tap way back to the speaker — because the choice cannot follow the device. |
-| v2.21.0 | **An open note asks for evidence, and the tone follows the fingers.** An open note counts only from a player who had a valve down within the two notes before; a run played by nobody scores at most its first note instead of a quarter. The reference tone halves whenever the fingers do not answer the note sounding. |
-| v2.22.0–v2.23.0 | **The cushion.** Trialled behind `?voice=pad`, then adopted: a soft pad until the fingers are right, the recorded instrument once they are, both given every note and two gains deciding which is heard. The pad is a pad (no sweep, nothing that twangs); coming right mid-note re-attacks the instrument; its level is a setting in Advanced, half by default. `?voice=plain` is the way back to the instrument alone. |
-| v2.23.1 | Response measured offline at 70–190ms to full level and brought to 15–20ms: a re-attack joins the recording where it has already *spoken*; the session answers the valves on the change, not the next tick. |
-| v2.23.4 | **Three corrections to the above**, found on 2026-08-18 while checking a "no audio" report that turned out to be the phone's silent switch. The stall check watched whatever `getAudioContext()` handed back rather than the run's own context; `markStuck` could condemn a context that had already replaced the dead one; and the gate started runs whose final `ensureRunning` had failed. See *When the app has no sound* in `v2-design.md`, which also records why a YouTube video plays while the app does not. |
-| v2.23.2 | **A dead AudioContext is replaced.** After the phone has been away, iOS leaves one reporting `running` over a clock that never moves; *Try again* used to ask it to resume, and only a refresh helped. `ensureRunning` watches the clock before trusting a context; a stuck one is closed and a fresh one made inside the tap; the voice is reloaded for it; the sample cache is per context. |
+A brass-fingering trainer: it generates or imports notation, scrolls it past a
+strike line, and judges whether the player had the right valve combination down
+as each note arrived. Buttons on screen or keys 1/2/3. It has a metronome, an
+animated conductor, a tempo dial, a key dial that re-keys mid-run, a reference
+tone that follows the fingers, weak-note drilling, and My Music — parts
+imported from MusicXML files. No backend, no network at runtime, no accounts.
+It is a PWA on GitHub Pages, and the intention is a paid iPhone app in version
+3.
 
-**Themes**, rebuilt:
+## What today did — three commits
 
-| | |
-|---|---|
-| v2.19.1 | Beginner sight-reading was writing D♭s it was not allowed — the one reachable step at the edge of the range band was chromatic and the walk took it. Found while measuring themes; fixed on its own. |
-| v2.20.0 | **Themes composed from cells.** The hand-written corpus measured a level or two easy at every level; the player chose a composer over hundreds more tunes by hand. 140 one-bar cells across four metres, assembled into two four-bar phrases with joins, closes and reach chosen by level, then inflected with accidentals and breaths at the level's chance. Calibrated by the same measurement, held as a test. Sight-reading stays, on the player's ruling. See `tunes-plan.md`. |
+**`6b30cc6` Cut the seam the microphone will arrive through.** `PlayerInput`
+(`engine/player-input.ts`) is now what the session and judge ask questions of:
+`subscribe`, `stateAt`, `statesDuring`, `answers`, `clearHistory`, `release`,
+with a state of `{ from, to, mask, playing }`. `Session` takes one rather than
+making one, and keeps it private; `PlayScreen` makes the `ValveInput`, since it
+drew the buttons. The buttons' own rules moved behind the seam — including the
+open-note engagement rule, which is a rule about *buttons* and must not be
+inherited by a microphone that can hear the difference. `player-input.test.ts`
+drives whole sessions off a second implementation to prove it.
 
-And two small screen things: the drill list and the keys window are boxed with a thin scrollbar (v2.23.3); the Themes blurb says what it now is.
+**`d3cd2f8` Never let the app play a run that cannot be heard (v2.23.4).**
+Three corrections to the audio-context work: the stall check watched whatever
+`getAudioContext()` handed back rather than the run's own context; `markStuck`
+could condemn a context that had already replaced the dead one; and the gate
+started runs whose final `ensureRunning()` had failed. `audio-gate.test.tsx` is
+new and is the only test in the suite that goes past "Tap to start" — it can,
+because the failing path never mounts the canvas.
 
-## The decisions worth not re-litigating
+**`0088141` Settle what is free, what is paid, and what the split costs.**
+`app-store-plan.md`. Read it before version 3.
 
-**The clock is the truth and the sound moves.** Every sound is sent early by
-the output's lead; notation and judging read the clock as before. The other
-way round would touch every reader of the clock to fix one writer of sound.
-And a *reactive* sound — the instrument arriving when the fingers land —
-cannot be brought forward across a headset's lead at all; that is physics,
-and the cushion is at its best on the speaker.
+## The fault that was not a fault, and the lesson in it
 
-**An open note asks for evidence.** The player's rule, stated as such: some
-fingering on at least one of the two notes before. The first note of a run
-gets the benefit of the doubt. The stated cost — four opens running from an
-honest player will see the fourth marked missed — is the player's to loosen
-if it ever bites; generated material rarely writes it, an imported bugle call
-would.
+The player reported no audio at all — metronome and instrument — on the
+deployed app on an iPhone. **The cause was the phone's silent switch.** iOS
+applies it to Web Audio, which is all this app uses, and not to media elements,
+which is what the YouTube video they tested the speaker with was. So the
+speaker test passed while the app was muted.
 
-**A change of sound, not of volume.** The half-volume rule lasted a day; the
-cushion replaced it and the halving survives only on the synth-only fallback.
-A voice that follows is told rather than halved: the change of sound is the
-whole of the signal.
+Worth knowing structurally: **nothing in this app can silence both.** The
+metronome, the pad and the sampler each build their own gain and connect
+straight to `context.destination`, and there is no `setSinkId` anywhere — the
+calibrated "output" is a *lead*, not a route. Metronome and instrument going
+quiet together is the context or the device. One voice quiet while the beat
+carries on is the app's, and means a voice built on a context that has since
+been replaced. This is written up as *When the app has no sound* in
+`v2-design.md`.
 
-**Themes are composed; Sight-reading stays.** A composer over a corpus,
-because the corpus was mis-calibrated and hand-writing hundreds of tunes to
-calibrate them is not a session's work — and the walk held inside a stated
-interval trains something a tune does not.
+## The other side, which I have never seen
 
-**An altered theme degree is spelled on its own letter**, in `realiseTheme`,
-or a raised sixth in a flat key comes out as D♭ before D♮. The same lesson
-the minor scales taught, met a second time.
+Everything below is what the player told me, not what I have read. **Fill this
+section in within the first ten minutes of the combined session, before writing
+any code that assumes an answer.**
 
-**A minor drill's key is a label on the same control**, not a second setting;
-that is what let step 5 be built once.
+- A sister app, in development in a separate session, **serves a URL to a
+  laptop the way VLC does**, so MusicXML files can be managed from a desktop
+  computer rather than through a phone's file picker.
+- It is the reason My Music becomes paid-only: the feature is being rebuilt
+  around it, not withheld.
 
-**A dead context is replaced, not resumed.** `getAudioContext` hands out a
-fresh one when the last is marked stuck; nothing else in the app has to know.
+Questions whose answers change work on *this* side:
 
-## Where I was wrong
+1. **Which end runs the server?** VLC's model is that the phone hosts and the
+   laptop browses to it. Confirm, because it decides whether this repository
+   ever needs native code and a local-network permission, or whether it is
+   merely a client.
+2. **What is the sister app — desktop application, or the phone's server
+   component, or both?** Its stack, its repository path, how to run it, and its
+   own gate.
+3. **What crosses the wire** — whole MusicXML files, or something already
+   parsed? Strong recommendation: **files, unparsed.** The parser on this side
+   is 2,900 tested lines and must stay the single place that reads MusicXML.
+4. **Who owns the library** — the phone, with the desktop as a remote control,
+   or a synchronised pair? Recommend the first; a synchronising pair is a
+   different and much larger project.
+5. **What the desktop may ask for**: list, add, rename, delete, reorder? That
+   list *is* the contract.
 
-Not arithmetic and not method this time. **Twice I took a player's report,
-found a real cause, and fixed the wrong one** — because a second cause was
-sitting under it.
+## The boundary, which is why one session holds both
 
-**I removed the sample fix on the strength of the wrong culprit.** The tuba
-recordings genuinely bloom for up to a fifth of a second and v2.16.1 started
-them early to land on the beat; the player then reported the speaker "on the
-money". After the headphones screen, the player reported the tuba speaking
-early on the speaker, and I took the sample fix out (v2.18.1). It was almost
-certainly the *chosen output* — a headset left selected after moving back to
-the speaker sends every note early — and the report came again unchanged
-after the removal. What I should have done: read the three reports in
-sequence before touching anything, and ask what changed between the second
-and third. The sample fix is still out; the player has not asked for it back.
-**When a symptom survives the fix, the fix was for something else.**
+`storage/library.ts` (239 lines) and `storage/pieces.ts` (139) are the line on
+this side — the pieces the player has opened, kept between sessions. That is
+what a desktop would drive.
 
-**I built the "test environment" as a URL flag and then read a follow-up ask
-as adoption.** The player asked for a setting for the cushion's volume; I made
-the cushion the default and said so plainly, with the flag as the way back.
-That was probably right and I stated the judgement, but it was a judgement
-about what the player wanted, made silently until the reply. Say it before
-building, not after.
+`import/musicxml.ts`, `part.ts` and `unfold.ts` are indifferent to where a file
+came from and **must stay that way**. If the parser learns about the network,
+the boundary has been lost.
 
-**A build failure went out because a shell chain let it through.** `npm run
-build | grep error` succeeds when grep matches. One commit and one failed
-deploy, corrected in minutes, the tag moved. **Never gate a commit on a pipe
-whose last command is grep.**
+Nothing about the sister app should reach into `exercise/` or `engine/`. A
+piece becomes an `Exercise` and from there the app cannot tell it from
+generated music — that is a ruling already made (*The seam already exists, and
+it is `Exercise`* in `v2-design.md`) and it is the reason import cost so little.
 
-**And an honest measurement, misused once**: I measured what a walk of sixteen
-bars *reaches* and held tunes of eight bars near it, then reported the tunes
-"3–4 semitones short" as if that were a fault. It is partly the length. The
-plan says so now.
+**Define the contract before either side builds to it**, and write it down in
+one file that both workspaces can see. That is the single highest-value thing
+the combined session can do first.
 
-## What is left for version 2
+## Rulings a newcomer breaks
 
-Nothing on this list blocks version 3, and the player should say which of
-these are worth doing before it. In the order I would take them:
+- **The fourth valve stays invisible, everywhere.** Five notes on an E flat
+  bass are fourth-valve notes wearing three-valve clothes. `Fingering.usesFourth`
+  exists for this, and **the intelligent tuner is the first feature that has to
+  read it** — a tuner that blames the first slide after hearing an F3 is telling
+  the player to bend a slide that was never in the sound.
+- **The clef shows once, on the first line only** — not on the topmost visible
+  line. Got wrong in 1.2.1, fixed urgently in 1.2.2.
+- **Import unfolds, it does not navigate.** Repeats are expanded into a
+  straight read; scanning is explicitly not this app's problem.
+- **An open note asks for evidence** — and that rule belongs to the buttons,
+  inside `ValveInput.answers`, not to the judge.
+- **The clock is the truth and the sound moves.** Every sound is handed over
+  early by the output's lead; notation and judging read the clock unchanged.
+- **Nothing is inferred from silence.** Carrying on past the end is something a
+  player *asks* for, by pressing or by playing on.
+- **No double accidentals**, anywhere in spelling.
+- **No network requests at runtime.** It is what makes the app offline,
+  private, and cheap to sell once. Protect it deliberately.
 
-- **The theme composer, stages 2 and 3** (`tunes-plan.md`). Accidentals at
-  Medium and Hard sit at about six tenths of the walk's rate — the ceiling is
-  how many notes of a tune are neighbours, passing notes or repeats, since
-  every eligible one is already inflected — and range runs a little under a
-  walk twice the length. Both are corpus work: cells with more
-  chromatic-friendly shapes, and wider ones; sequences by more than a step,
-  inversion, the consequent answering the antecedent's rhythm; ties at the
-  level's chance. **The player has not yet said what their ear makes of the
-  shape** — that is the input stage 2 wants, and it should be asked for
-  before writing more cells.
-- **The scrollbar on iOS.** The keys and drills windows are boxed with a thin
-  bar styled in; whether iOS renders it persistently is unconfirmed. If not,
-  draw one.
-- **The settings screen on a short phone.** Playing is 70 points over on
-  360×740; the one measurement still failing, and untouched this session.
-- **The key-change collision on the scrolling line**, pre-existing, some joins
-  only; wants measured glyph extents on a fixed seed.
-- **Leaps per instrument, not just per difficulty** — now also the joins in
-  the composer, which are a step count per level.
-- **`FREE_TIER.playbackMode`** is declared and never read; and the free-tier
-  screen has never been shown to a second player.
-- **The sample fix** (v2.16.1), if the player's ear wants it back once the
-  output selection is right on the speaker.
-- **The conductor's** compound verdict, its two guessed thresholds, and the
-  five/seven/nine/twelve patterns — unchanged, unplayed.
-- **The importer's** four items — tempo marks, `<transpose>`, a real
-  multi-part score, the long-rest skip — unchanged.
+## What is left, carried forward
 
-Refactorings I would want before a new mode is built on top of this:
+**Version 2, none of it blocking version 3:** the theme composer's stages 2 and
+3 (wants the player's ear on the shape first); the settings screen overflowing
+by 70 points on a 360×740 phone; the key-change collision on the scrolling line;
+leaps per instrument rather than per difficulty; the conductor's compound-time
+verdict and its two guessed thresholds; the importer's four gaps (tempo marks,
+`<transpose>`, a real multi-part score, the long-rest skip); and the v2.16.1
+sample-early fix, withdrawn and not asked for back.
 
-- **`Session` has grown.** It now carries scheduling, judging, the offer, the
-  key splice, the tone's level and the fingers' say over it. `followFingers`,
-  `applyVolume` and the engagement look-back would sit better in a small
-  *Monitor* of their own that the session drives; the microphone mode will
-  want to replace the *input* and keep everything else, and the seam should
-  be there before it is needed.
-  **The input half was done on 2026-08-18** — `PlayerInput` in
-  `src/engine/player-input.ts`, the session taking one rather than making one,
-  and the buttons' rules moved behind it; see *How it plugs in* in
-  `v2-design.md`. The *Monitor* half is still open, and is now the smaller of
-  the two: `followFingers` reads the input through the seam like everything
-  else, so moving it is tidying rather than untangling.
-- **`SettingsScreen.tsx` is over nine hundred lines.** The material box, the
-  keys window and the Advanced panel would each stand alone.
-- **`generate.ts` is over sixteen hundred**, most of it the walk. The drills
-  (`DRILLS`, `patternContour`, `spellDrillNote`) are a file of their own
-  waiting to be cut out, as `compose.ts` already was.
+**Refactorings worth doing before building on top:** the *Monitor* — pulling
+`followFingers` and `applyVolume` out of `Session` — which is now tidying
+rather than untangling, since they read the input through the seam like
+everything else; `SettingsScreen.tsx` at over a thousand lines; `generate.ts`
+at over sixteen hundred, most of it the walk, with the drills waiting to be cut
+out as `compose.ts` already was.
 
-## Version 3, and readiness
+**Version 3, in the order `app-store-plan.md` argues for:** the name and domain
+checks; the build target (`VITE_TARGET=web|app`); the player's decision on the
+runtime entitlement tier; **the container spike — microphone inside the real
+wrapper, playing the reference tone while listening** — before the detector,
+because it can change the detector's design; the cents measurement; the
+detector in TypeScript against `spikefiles/`; the tuner; the library boundary.
 
-The microphone is a new *input* — pitch in, fingering out — that bypasses the
-valve pad and asks the judge the same question by another route. Several
-things filed under it: the hint ruling (trouble under the written note) is
-provisional until it lands; the fermata is parked on it; and the mic pitch
-spike of 2026-08-04 (notes settle after ~0.2s on E flat bass and cornet) is
-the measurement it starts from.
+## How to work here
 
-**Both counts of readiness were settled on 2026-08-18.** The `Session`/input
-seam exists — `PlayerInput`, six members, the session taking one rather than
-making one — so the microphone replaces `ValveInput` and nothing else. And the
-engagement rule — an open note counting only from a player who has been
-playing — is now inside `ValveInput.answers` rather than in the judge, which is
-the scoping that was asked for: it is a rule about *buttons*, where open and
-absent are the same input, and a microphone hears the difference. A second
-implementation (`HeardInput`, in `player-input.test.ts`) drives whole sessions
-to prove both, and is deliberately not a microphone — it has no detector and no
-onset measurement, only enough to show that nothing downstream knows which side
-of the seam an answer came from.
+**The gate is three commands and all of them count**: `npm test`, `npm run
+build`, `npm run lint`. Check the build's own exit status, not a grep of its
+output.
 
-What is left before the mode is the microphone's own work, unchanged by any of
-this: the detector rewritten in TypeScript against the recordings in
-`spikefiles/`, two measurements where the buttons give one (onset from the
-envelope, pitch 200ms later), and the instant green confirmation giving way in
-that mode only.
+**Push without asking** once the gate is green — standing permission since
+2026-08-10 — then confirm the deploy rather than assuming it. Tag every version
+on its last commit at that version, and push with `--follow-tags`. Patch for
+pure corrections, minor for features, major only for a change of category. A
+refactor with no player-visible change gets no version bump.
 
-## How this session worked, which is worth repeating
+**Write the ruling into `v2-design.md` in the same release as the code.** Plans
+live in `docs/*-plan.md`. This file is replaced each session; the durable
+things must be moved out of it before that happens.
 
-**Measure the thing the player heard, before deciding what it is.** The
-theme gap, the tuba bloom, the headset lead, the response time — every one
-was a number before it was a fix, and the numbers are in the docs. The two
-times I fixed the wrong thing were the two times I did not read the sequence
-of reports as data first.
-
-**Ship trials behind the URL** — `?tier=free`, `?voice=pad`, `?voice=plain` —
-so a phone can try a thing without a second deployment, and graduate what
-works.
-
-**Mutation-test every new rule.** Every one earned its keep, and one showed a
+**Mutation-test every new rule.** Change the rule, watch the test fail, put it
+back. Every one that has been through this earned its keep, and one showed a
 test asserting a seed coincidence rather than the invariant.
 
-**Look at the picture.** The engraving snapshots re-recorded five times this
-session, and each was rendered and read before it was accepted; the tune
-sheet (`npm run tunes`) exists so composed music can be looked at by the
-dozen.
+**Measure before deciding, and put the number in the docs.** The theme gap, the
+tuba bloom, the headset lead, the response time, the pitch settle — all were
+numbers before they were fixes.
 
-**Conventions in force:** push without asking once the gate is green (tests,
-build, lint — and check the build's exit, not grep's), tag every version on
-its last commit, keep pure corrections in their own release, confirm the
-deploy afterwards rather than assuming it, and write the ruling into
-`v2-design.md` in the same release as the code.
+**Look at the picture.** `npm run svg` renders an exercise to SVG, `npm run
+shots` drives the real app at five viewports and photographs it, `npm run
+tunes` engraves composed music by the dozen. Notation faults are positional and
+no assertion sees them.
+
+**Ship trials behind the URL** — `?tier=free`, `?voice=plain` — so a phone can
+try something without a second deployment.
+
+## Where I went wrong today
+
+**I used `git checkout` to undo a mutation on unstaged files, and destroyed an
+hour of uncommitted work.** Mutation testing means editing source, running,
+and putting it back; `git checkout <path>` puts back *the committed version*,
+which for uncommitted work is oblivion. I re-applied everything and re-verified
+from a clean gate, but the rule to carry: **back up with `cp` before mutating,
+never with git.**
+
+**I instrumented the deployed app across six settings combinations before
+asking the one question that resolved it in a sentence.** The probing was not
+wasted — it proved the app schedules audio correctly, which is what let me say
+with confidence that the fault was not in the code — but "what does the screen
+do when it is silent, and which device?" should have come first. With a player
+at the other end of the line, ask before you instrument.
+
+## Drop this at the parent folder as `CLAUDE.md`
+
+So a session opening the parent folder is oriented before it reads anything:
+
+```markdown
+# Brass Master — two workspaces
+
+- `brass-master-app/` — the practice app (this handover: `docs/handover.md`).
+  React + TypeScript + Vite, deployed to GitHub Pages. Gate: `npm test &&
+  npm run build && npm run lint`, all three, from that directory.
+- `<sister-app>/` — the desktop-side MusicXML manager. See its own README.
+
+**Read `brass-master-app/docs/handover.md` first.** It says what to read next
+and, more importantly, what not to.
+
+The two meet at one seam only: the piece library
+(`brass-master-app/src/storage/library.ts`). The MusicXML parser must never
+learn about the network; the sister app must never reach into `exercise/` or
+`engine/`. The contract between them lives in `CONTRACT.md` at this level —
+write it before building either side of it.
+
+Work one side at a time on a named task. The failure mode of a two-repository
+session is reading both test suites into context and then having no room to
+think.
+```
+
+Adjust the folder names to whatever you actually call them; the two rules under
+them are the part that matters.

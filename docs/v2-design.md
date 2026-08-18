@@ -64,9 +64,13 @@ at all, then a visible fix that the feature happened to need, then the feature.
   settings screen, which no shipped build exercises — see *Selling it, one
   day*, which is written to be implemented from.
 
-**A session handover for 2026-08-09/10 is in `handover.md`**, covering
-v1.15.0 to v1.28.0 — dynamic tempo, endless play, compound time — with the
-decisions worth not re-litigating and what is left.
+**`handover.md` is the current session's handover and is replaced each
+session** — it says where things stand, what is left, and what to read next.
+Earlier ones are in the history of that file, reachable by
+`git log --follow docs/handover.md`; anything from them worth keeping was
+moved here at the time. The one dated 2026-08-18 is written for a session
+holding *both* this repository and the sister app that manages MusicXML from
+a desktop; see also `app-store-plan.md`.
 
 ### Where to look
 
@@ -85,7 +89,7 @@ decisions worth not re-litigating and what is left.
 | `src/exercise/assemble.ts` | Slots and pitches into an `Exercise`. Shared by generated material and themes so the two cannot drift. |
 | `src/render/stave.ts` | `layoutKeySignature` — one arithmetic shared by drawing and measuring, including the naturals that cancel an outgoing key. |
 | `src/render/surface.ts` | Both reading modes. `staveSpaceCeiling` is the unit the whole play screen is sized from. |
-| `src/render/conductor.ts` | Pattern geometry, ported from the spike. The 6/8 motion wants review; see `handover.md`. |
+| `src/render/conductor.ts` | Pattern geometry, ported from the spike. The 6/8 motion wants review — whether compound time wants a different gesture is the player's verdict to give, and the spike asks it; see *Compound time, offered at last*. |
 | `src/licensing/` | The only two files that know money exists. |
 | `public/spike/` | Throwaway. The conductor and microphone spikes, and where shapes are argued about. |
 | `tools/stave-to-svg.mts` | `npm run svg` — renders an exercise to SVG so engraving can be *looked at* without a browser. `--keys -3,-1` draws a key change. |
