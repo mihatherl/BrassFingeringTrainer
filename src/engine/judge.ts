@@ -1,8 +1,13 @@
 /**
  * Judging.
  *
- * A note is correct if an accepted button state was held at any point in a
- * window around its onset. Two consequences of that phrasing are deliberate:
+ * A note is correct if the player answered it at any point in a window around
+ * its onset. *Answered* is the input's own word — see `PlayerInput.answers`,
+ * which is where the buttons keep what a valve combination means, and where a
+ * microphone would keep what a pitch means. This file owns the window and
+ * nothing about the instrument.
+ *
+ * Two consequences of that phrasing are deliberate:
  *
  *  - Consecutive notes sharing a fingering need no release and re-press. A
  *    player holding 1-2 through four notes that all use 1-2 is playing
@@ -18,7 +23,7 @@
 
 import { barAt, type MetreChange } from '../domain/metre';
 import type { NoteEvent } from '../exercise/types';
-import type { ValveInput } from './input';
+import type { InputState, PlayerInput } from './player-input';
 
 export type Verdict = 'correct' | 'wrong' | 'missed';
 
@@ -72,44 +77,13 @@ export function isAlreadyCorrect(
   note: NoteEvent,
   onsetTime: number,
   tolerance: number,
-  input: ValveInput,
+  input: PlayerInput,
   now: number,
   activeSince: number | null = null,
 ): boolean {
-  const engaged = isEngaged(input, activeSince, now);
   return input
     .statesDuring(onsetTime - tolerance, now)
-    .some((s) => fingeringCounts(s.mask, note, engaged));
-}
-
-/**
- * Whether the player has had a valve down at any instant since `activeSince`.
- *
- * The evidence that an open hand is a player playing an open note rather than
- * an instrument on a lap. `null` is no earlier note to look back over — the
- * first note of a run — and is read as engaged: there is no evidence either
- * way, and a player opening on an open note has, rightly, pressed nothing.
- */
-export function isEngaged(input: ValveInput, activeSince: number | null, until: number): boolean {
-  if (activeSince === null) return true;
-  return input.statesDuring(activeSince, until).some((s) => s.mask !== 0);
-}
-
-/**
- * Whether a held button state answers a note.
- *
- * Any accepted fingering that takes a valve — the primary, or an alternate
- * such as 1-3 for a G — is a deliberate act and answers on its own. Open is
- * accepted only from a player who is engaged: it is what an instrument on
- * its owner's lap produces too, and until v2.21.0 a run played by nobody
- * scored every open note correct, which on an E flat bass part was a quarter
- * of the score for doing nothing. The player's rule, on 2026-08-16: an open
- * note counts if some fingering was played on at least one of the two notes
- * before it.
- */
-export function fingeringCounts(mask: number, note: NoteEvent, engaged: boolean): boolean {
-  if (!note.acceptedMasks.includes(mask)) return false;
-  return mask !== 0 || engaged;
+    .some((state) => input.answers(state, note, activeSince, now));
 }
 
 export function judgeNote(
@@ -117,21 +91,22 @@ export function judgeNote(
   noteIndex: number,
   onsetTime: number,
   noteSeconds: number,
-  input: ValveInput,
+  input: PlayerInput,
   toleranceScale = 1,
   /**
-   * From when valve activity counts as engagement for an open note: the start
-   * of the earlier of the two notes before this one, or null where there is
-   * none. See `isEngaged`.
+   * From when evidence that somebody is playing may be counted: the start of
+   * the earlier of the two notes before this one, or null where there is none.
+   * Passed through to the input, which decides whether it needs any — the
+   * buttons do, for an open note; see `ValveInput.answers`.
    */
   activeSince: number | null = null,
 ): NoteJudgement {
   const tolerance = toleranceFor(noteSeconds, toleranceScale);
-  const states = input.statesDuring(onsetTime - tolerance, onsetTime + tolerance);
-  const engaged = isEngaged(input, activeSince, onsetTime + tolerance);
+  const until = onsetTime + tolerance;
+  const states = input.statesDuring(onsetTime - tolerance, until);
 
   for (const state of states) {
-    if (!fingeringCounts(state.mask, note, engaged)) continue;
+    if (!input.answers(state, note, activeSince, until)) continue;
     // Held from before the window counts as on time, not early.
     const reachedAt = Math.max(state.from, onsetTime - tolerance);
     return {
@@ -142,25 +117,25 @@ export function judgeNote(
     };
   }
 
-  // Report whatever they were holding at the onset itself, falling back to
+  // Report whatever they were doing at the onset itself, falling back to
   // whichever state they spent longest in.
   const atOnset = states.find((s) => s.from <= onsetTime && onsetTime < s.to);
   const longest = states.reduce((best, s) => (s.to - s.from > best.to - best.from ? s : best));
-  const heldMask = atOnset?.mask ?? longest.mask;
+  const held: InputState = atOnset ?? longest;
 
   /*
-   * An open hand is an absent answer, not a wrong one.
+   * Doing nothing is an absent answer, not a wrong one.
    *
-   * Every other fingering takes a deliberate act, so holding it is evidence of
-   * intent — the player meant to play *something*, and got it wrong. Open is the
-   * exception: it is also what an instrument on its owner's lap produces. So
-   * unless open happens to be correct here — from an engaged player — the
-   * honest reading is that the note was not played at all.
+   * A wrong fingering takes a deliberate act, so holding it is evidence of
+   * intent — the player meant to play *something*, and got it wrong. Doing
+   * nothing at all is the exception: on the buttons it is also what an
+   * instrument on its owner's lap produces. So where the state says nobody was
+   * playing, the honest reading is that the note was not attempted.
    */
   return {
     noteIndex,
-    verdict: heldMask === 0 ? 'missed' : 'wrong',
-    heldMask,
+    verdict: held.playing ? 'wrong' : 'missed',
+    heldMask: held.mask,
     timingOffset: null,
   };
 }

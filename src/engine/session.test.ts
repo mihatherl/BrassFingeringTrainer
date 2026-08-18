@@ -8,6 +8,7 @@ import { spellInKey } from '../domain/keys';
 import { durationFromBeats } from '../domain/rhythm';
 import type { Exercise, NoteEvent } from '../exercise/types';
 import type { SessionSummary } from './judge';
+import { ValveInput } from './input';
 import { Session } from './session';
 
 /**
@@ -20,6 +21,14 @@ import { Session } from './session';
  */
 
 let audioTime = 0;
+/**
+ * The buttons, made here rather than by the session.
+ *
+ * The session takes an input and does not build one — see `player-input.ts` —
+ * so these tests hold the valves themselves and press them directly, which is
+ * what the play screen does too.
+ */
+let valves: ValveInput;
 let played: Array<{ midi: number; startTime: number; duration: number }> = [];
 
 const context = {
@@ -78,6 +87,7 @@ function tiedExercise(): Exercise {
 function session(exercise: Exercise, playback: 'off' | 'reference' = 'reference'): Session {
   return new Session({
     context,
+    input: valves,
     exercise,
     // 60bpm: one beat is one second, so the arithmetic below stays legible.
     tempo: 60,
@@ -102,6 +112,7 @@ function runTo(s: Session, toBeat: number): void {
 beforeEach(() => {
   vi.useFakeTimers();
   audioTime = 0;
+  valves = new ValveInput(() => audioTime);
   played = [];
 });
 
@@ -114,8 +125,8 @@ describe('a session with a tie in it', () => {
     const s = session(tiedExercise(), 'off');
     // The right fingering, held down throughout, so nothing but the tie rule
     // decides how many verdicts come back.
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
 
     runTo(s, 4);
 
@@ -138,6 +149,7 @@ describe('a session with a tie in it', () => {
     let summary: SessionSummary | null = null;
     const s = new Session({
       context,
+      input: valves,
       exercise: tiedExercise(),
       tempo: 60,
       countInBars: 0,
@@ -148,8 +160,8 @@ describe('a session with a tie in it', () => {
         summary = result;
       },
     });
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
 
     runTo(s, 4);
 
@@ -166,6 +178,7 @@ describe('a session with a tie in it', () => {
     const exercise = tiedExercise();
     const s = new Session({
       context,
+      input: valves,
       exercise,
       tempo: 60,
       countInBars: 0,
@@ -174,8 +187,8 @@ describe('a session with a tie in it', () => {
       brassVoice: voice,
       onCorrect: (index) => confirmed.push(index),
     });
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
 
     runTo(s, 4);
 
@@ -217,8 +230,8 @@ describe('a note the instrument cannot play', () => {
      * have got right, quietly spoiling the score for the whole run.
      */
     const s = session(beyondReach(), 'off');
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
 
     runTo(s, 4);
 
@@ -277,6 +290,7 @@ describe('a session across a step change', () => {
     const at: number[] = [];
     const s = new Session({
       context,
+      input: valves,
       exercise: steppedExercise(),
       tempo: 60,
       countInBars: 0,
@@ -335,6 +349,7 @@ describe('the offer to carry on', () => {
     let endedAt = 0;
     const session = new Session({
       context,
+      input: valves,
       exercise,
       tempo: 60,
       countInBars: 0,
@@ -446,7 +461,7 @@ describe('the offer to carry on', () => {
      * as pressing does.
      */
     const { session, ended } = watched(horizonExercise());
-    session.input.pointerDown(1, 1);
+    valves.pointerDown(1, 1);
     session.start();
     run(0, 10);
 
@@ -459,7 +474,7 @@ describe('the offer to carry on', () => {
     // Playing means playing until the music runs out. Reading it as a request
     // for more before then would make the length setting impossible to obey.
     const { session } = watched(horizonExercise());
-    session.input.pointerDown(1, 1);
+    valves.pointerDown(1, 1);
     session.start();
     run(0, 6);
     expect(session.endBeat).toBe(8);
@@ -476,6 +491,7 @@ describe('the offer to carry on', () => {
     let summary: SessionSummary | null = null;
     const s = new Session({
       context,
+      input: valves,
       exercise: horizonExercise(),
       tempo: 60,
       countInBars: 0,
@@ -486,12 +502,12 @@ describe('the offer to carry on', () => {
         summary = result;
       },
     });
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     s.start();
     run(0, 7.5);
     // Hands off just before the boundary: the offer passes unanswered.
-    s.input.releaseAll();
+    valves.release();
     run(7.5, 20);
     s.stop();
 
@@ -507,6 +523,7 @@ describe('the offer to carry on', () => {
     const listening = { ...voice, setVolume: (v: number) => volumes.push(v) };
     const session = new Session({
       context,
+      input: valves,
       exercise: horizonExercise(),
       tempo: 60,
       countInBars: 0,
@@ -517,8 +534,8 @@ describe('the offer to carry on', () => {
 
     // The right fingering held throughout, so the tone answers to the offer
     // alone and not to the fingers as well.
-    session.input.pointerDown(1, 1);
-    session.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     session.start();
     expect(volumes, 'a run starts at full voice').toEqual([1]);
     run(0, 5);
@@ -539,6 +556,7 @@ describe('the offer to carry on', () => {
     const volumes: number[] = [];
     const session = new Session({
       context,
+      input: valves,
       exercise: horizonExercise(),
       tempo: 60,
       countInBars: 0,
@@ -549,8 +567,8 @@ describe('the offer to carry on', () => {
     });
 
     // The right fingering held, so the tone answers to the offer alone.
-    session.input.pointerDown(1, 1);
-    session.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     session.start();
     run(0, 5);
     expect(offers, 'the question is standing').toEqual([true]);
@@ -582,6 +600,7 @@ describe('the offer to carry on', () => {
     const judged: number[] = [];
     const session = new Session({
       context,
+      input: valves,
       exercise: horizonExercise(),
       tempo: 60,
       // Two bars of two-four: four beats of counting before the first note.
@@ -617,6 +636,7 @@ describe('the offer to carry on', () => {
     const judged: number[] = [];
     const session = new Session({
       context,
+      input: valves,
       exercise: horizonExercise(),
       tempo: 60,
       countInBars: 0,
@@ -658,6 +678,7 @@ describe('the offer to carry on', () => {
     let summary: SessionSummary | null = null;
     const s = new Session({
       context,
+      input: valves,
       exercise: horizonExercise(),
       tempo: 60,
       countInBars: 0,
@@ -668,8 +689,8 @@ describe('the offer to carry on', () => {
         summary = result;
       },
     });
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     s.start();
     run(0, 3);
     s.finishNow();
@@ -714,6 +735,7 @@ describe('reaching the end of the paper', () => {
     const holder: { session?: Session } = {};
     holder.session = new Session({
       context,
+      input: valves,
       exercise,
       tempo: 60,
       countInBars: 0,
@@ -730,8 +752,8 @@ describe('reaching the end of the paper', () => {
     });
     const s = holder.session;
 
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     s.start();
     for (let elapsed = 0; elapsed <= 20; elapsed += 0.025) {
       audioTime = elapsed;
@@ -804,6 +826,7 @@ describe('changing key mid-run', () => {
     const exercise = paper(0);
     const session = new Session({
       context,
+      input: valves,
       exercise,
       tempo: 60,
       countInBars: over.countInBars ?? 0,
@@ -850,8 +873,8 @@ describe('changing key mid-run', () => {
     let changed = 0;
     const { session, exercise } = playing({ onKeyChange: () => changed++ });
 
-    session.input.pointerDown(1, 1);
-    session.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     session.start();
     run(0, 5);
 
@@ -930,6 +953,7 @@ function clicksFor(
 
   const s = new Session({
     context,
+    input: valves,
     exercise,
     tempo: 60,
     countInBars: 0,
@@ -1095,6 +1119,7 @@ describe('pausing and rewinding', () => {
   function running(exercise: Exercise, onRewind?: (from: number) => void): Session {
     const s = new Session({
       context,
+      input: valves,
       exercise,
       tempo: 60,
       countInBars: 0,
@@ -1210,6 +1235,7 @@ describe('a session with an output lead', () => {
   const led = (exercise: Exercise) =>
     new Session({
       context,
+      input: valves,
       exercise,
       tempo: 60,
       countInBars: 0,
@@ -1237,8 +1263,8 @@ describe('a session with an output lead', () => {
     // hears it — is right, whatever the lead. Fingers held from the start, so
     // only the timing question is being asked.
     const s = led(tiedExercise());
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     runTo(s, 4);
     expect(s.judgements.map((j) => j.verdict)).toEqual(['correct', 'correct', 'correct']);
   });
@@ -1291,6 +1317,7 @@ describe('a run played by nobody', () => {
   const openSession = (playback: 'off' | 'reference' = 'off') =>
     new Session({
       context,
+      input: valves,
       exercise: openNotes(),
       tempo: 60,
       countInBars: 0,
@@ -1318,8 +1345,8 @@ describe('a run played by nobody', () => {
     // Through the first two notes idle; a valve down during the third, released.
     for (let elapsed = 0; elapsed <= 8; elapsed += 0.025) {
       audioTime = elapsed;
-      if (Math.abs(elapsed - 2.2) < 1e-9) s.input.pointerDown(1, 1);
-      if (Math.abs(elapsed - 2.4) < 1e-9) s.input.releaseAll();
+      if (Math.abs(elapsed - 2.2) < 1e-9) valves.pointerDown(1, 1);
+      if (Math.abs(elapsed - 2.4) < 1e-9) valves.release();
       vi.advanceTimersByTime(25);
     }
     s.stop();
@@ -1344,13 +1371,13 @@ describe('a run played by nobody', () => {
     expect(volumes[volumes.length - 1]).toBe(0.5);
     // A valve down is engagement — but a valve down is also the wrong
     // fingering for an open note, so the tone stays half until it is lifted.
-    s.input.pointerDown(1, 1);
+    valves.pointerDown(1, 1);
     for (let elapsed = 1.5; elapsed <= 1.7; elapsed += 0.025) {
       audioTime = elapsed;
       vi.advanceTimersByTime(25);
     }
     expect(volumes[volumes.length - 1]).toBe(0.5);
-    s.input.releaseAll();
+    valves.release();
     for (let elapsed = 1.7; elapsed <= 1.9; elapsed += 0.025) {
       audioTime = elapsed;
       vi.advanceTimersByTime(25);
@@ -1385,6 +1412,7 @@ describe('a voice that follows the fingers', () => {
     };
     const s = new Session({
       context,
+      input: valves,
       exercise: tiedExercise(),
       tempo: 60,
       countInBars: 0,
@@ -1400,8 +1428,8 @@ describe('a voice that follows the fingers', () => {
     }
     expect(told[told.length - 1]).toBe(false);
     // The right fingering lands: told again, straight away.
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     for (let elapsed = 0.5; elapsed <= 0.6; elapsed += 0.025) {
       audioTime = elapsed;
       vi.advanceTimersByTime(25);
@@ -1430,6 +1458,7 @@ describe('the tone and an early fingering', () => {
     };
     const s = new Session({
       context,
+      input: valves,
       exercise: two,
       tempo: 60,
       countInBars: 0,
@@ -1437,8 +1466,8 @@ describe('the tone and an early fingering', () => {
       playbackMode: 'reference',
       brassVoice: { ...voice, setVolume: (v) => volumes.push(v) },
     });
-    s.input.pointerDown(1, 1);
-    s.input.pointerDown(2, 2);
+    valves.pointerDown(1, 1);
+    valves.pointerDown(2, 2);
     s.start();
     // The clock opens a tenth of a second ahead, so the second note sounds
     // at 1.1s and its 0.2s window opens at 0.9s.
@@ -1448,7 +1477,7 @@ describe('the tone and an early fingering', () => {
     }
     // 0.15s before the second note — inside its window — the second valve
     // comes up: right for the coming note, and heard as such.
-    s.input.pointerUp(2);
+    valves.pointerUp(2);
     for (let elapsed = 0.95; elapsed <= 1.05; elapsed += 0.025) {
       audioTime = elapsed;
       vi.advanceTimersByTime(25);

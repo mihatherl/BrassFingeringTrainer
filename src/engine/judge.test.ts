@@ -117,7 +117,7 @@ describe('judging', () => {
     input.keyDown(1);
     input.keyDown(2);
     now = 0.95;
-    input.releaseAll();
+    input.release();
 
     expect(judgeAt(noteExpecting([maskOf([1, 3])]), 1.0).verdict).toBe('missed');
   });

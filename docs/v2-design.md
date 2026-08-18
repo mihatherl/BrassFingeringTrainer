@@ -75,6 +75,7 @@ decisions worth not re-litigating and what is left.
 | `src/domain/keys.ts` | `keyAt`, `orderByCloseness`, `widestKey`, spelling. The key model. |
 | `src/domain/metre.ts` | Bar length, pulse, `barAt`. The model `keys.ts` was built to match. |
 | `src/engine/clock.ts` | `timeForBeat`, `beatForTime`, `secondsBetween` — the three functions a tempo map replaces. |
+| `src/engine/player-input.ts` | The seam the microphone arrives through: what the judge asks of whatever the player is playing with. `input.ts` is the buttons' answer to it, engagement rule and all. |
 | `src/exercise/generate.ts` | Rhythm, pitch, key placement. Patterns are generated the opposite way round from free material; the comment on `generateExercise` says why. |
 | `src/exercise/ties.ts` | How the rest of the app reads a tie. |
 | `src/exercise/theme.ts` | The theme format, its validator, and degrees into a key. |
@@ -222,7 +223,9 @@ release.
    *Fermata* and `tempo-map-plan.md`.
 7. **The microphone as input**, instead of the buttons. Proven in a spike and
    parked; see *The microphone, parked*. It also answers the one hard question
-   in 5 — it can hear that you have stopped.
+   in 5 — it can hear that you have stopped. **The seam it arrives through was
+   cut on 2026-08-18**: `PlayerInput`, with the buttons' own rules moved behind
+   it, so the mode replaces the input and nothing else.
 8. **My Music** — a mode of its own for the player's own parts, imported from a
    local MusicXML file. Gated. See *My Music, and why it is not a material*.
 9. **A server**, only if step 8 shows people want a library rather than their
@@ -329,8 +332,10 @@ a G — is a deliberate act and counts on its own. The first note of a run has
 no note to look back over and gets the benefit of the doubt: there is no
 evidence either way, and a player opening on an open note has, rightly,
 pressed nothing. So a run played by nobody scores at most that one note.
-`fingeringCounts` and `isEngaged` in `judge.ts`; the same test the display's
-green confirmation asks. The window looked back over is the earlier of the
+`ValveInput.answers` in `input.ts` — it was `fingeringCounts` and `isEngaged`
+in `judge.ts` until the input seam was cut on 2026-08-18, and it moved because
+it is a rule about buttons; the same test the display's green confirmation
+asks. The window looked back over is the earlier of the
 two previous *judged* notes' windows — tie continuations and unplayable
 notes are not answers the player was asked for and are not counted among the
 two.
@@ -2495,21 +2500,58 @@ Nothing here is speculative; it was measured.
   microphone is declined or the room is too loud. The microphone half must be
   additive: declining the prompt should leave exactly the app that exists today.
 
-### How it would plug in
+### How it plugs in — the seam is cut, 2026-08-18
 
 `ValveInput` is a timestamped history of button states, and `judgeNote` asks one
 question of it: *was an accepted state held at any instant in a window around
 this onset*. The microphone produces a timestamped history of **pitches**
 instead, and the same question becomes *was an accepted pitch sounding*. So the
 judge wants a source interface rather than a `ValveInput`, with two
-implementations.
+implementations — and as of 2026-08-18 it has one: **`src/engine/player-input.ts`**.
 
-The awkward part is that the microphone cannot answer it in one measurement.
+**`PlayerInput` is six members**: `subscribe`, `stateAt`, `statesDuring`,
+`answers`, `clearHistory`, `release`. A state is `{ from, to, mask, playing }`.
+`Session` takes one in its options and never constructs one; `PlayScreen` makes
+the `ValveInput`, because it is the thing showing the buttons; the judge holds a
+`PlayerInput` and no longer imports `ValveInput` at all.
+
+**What moved behind the seam, and why it matters more than the interface.**
+The rule about open notes — an open note counts only from a player who had a
+valve down within the two notes before, v2.21.0 — was in the judge as
+`fingeringCounts` and `isEngaged`. It is a rule about *buttons*, where an open
+note and an abandoned instrument are the same input; a microphone hears the
+difference and must not inherit it. It now lives inside `ValveInput.answers`,
+which is the only thing that knows what a valve combination means. The session
+still says *from when* evidence may be counted — that is a fact about the notes
+and the clock — and the input decides whether it needs any.
+
+Likewise `playing` on the state rather than `mask !== 0` at the reading end:
+"was the player doing something" is asked in two places where no note is in
+question (a note nobody attempted is *missed* rather than *wrong*; carrying on
+past the committed end takes up the offer of more), and zero means two different
+things to the two inputs. A microphone hearing a sounding open note knows
+somebody is playing it; the buttons cannot tell. That is also the one thing that
+would let `VALVED_BEATS` — the generator keeping open notes out of the grace
+stretch, so there is always a valve to put down — be relaxed in microphone mode.
+
+**Held to by a second implementation.** `player-input.test.ts` drives whole
+sessions off `HeardInput`, a scripted listening input that is not the buttons
+and has no engagement rule: it judges a run, reads silence as missed, takes the
+offer from a player heard carrying on with no valve down, and scores six open
+notes correct where the same six on the buttons score one. Four mutations were
+checked against it, and the offer one is caught by nothing else.
+
+The awkward part is that the microphone cannot answer the question in one
+measurement.
 Timing comes from the amplitude envelope, which is reliable at the attack;
 pitch comes from the settled portion, ~200ms later. Two measurements of two
 different things, where the buttons give one. Anything reading `heldMask` —
 the results screen, the recent-notes list, weak-note stats — needs a pitch-
-shaped answer as well as a fingering-shaped one.
+shaped answer as well as a fingering-shaped one. `InputState.mask` is a
+*fingering* for exactly that reason: it is what the app teaches and what the
+results screen draws, so a listening input reports the fingering the pitch
+implies, and the two questions only a microphone can answer — a cracked
+partial, an octave — are additions rather than a change of shape.
 
 `onCorrect` and the strike-line flash are the visible casualty: the earliest
 honest confirmation is about 200ms after the attack, so the instant green cannot

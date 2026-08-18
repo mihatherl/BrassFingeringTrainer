@@ -23,6 +23,7 @@ import { barAt, metreFor } from '../domain/metre';
 import { keyAt } from '../domain/keys';
 import { instrumentById } from '../domain/instruments';
 import type { Transport } from '../engine/clock';
+import { ValveInput } from '../engine/input';
 import { Session } from '../engine/session';
 import { fingeringHints, type Hints } from '../exercise/hints';
 import { soundingHeads } from '../exercise/ties';
@@ -81,6 +82,15 @@ export function PlayScreen({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<Session | null>(null);
+  /**
+   * The buttons, held here rather than inside the session.
+   *
+   * They are pressed by this screen and read by the session, and the session is
+   * written to take *an* input rather than to make this one — so that a
+   * microphone can be put in its place without the run knowing. See
+   * `engine/player-input.ts`.
+   */
+  const valvesRef = useRef<ValveInput | null>(null);
   const rendererRef = useRef<StaveRenderer | null>(null);
   const verdictsRef = useRef<Array<Verdict | undefined>>([]);
   const hintsRef = useRef<Hints | null>(null);
@@ -202,8 +212,14 @@ export function PlayScreen({
 
     // The very same context `unlockAudio` resumed — a second one would stay
     // suspended and the exercise would run in silence.
+    const context = getAudioContext();
+    // Timestamped off the same clock the notes are scheduled against, so a
+    // press and a beat are directly comparable.
+    const valves = new ValveInput(() => context.currentTime);
+    valvesRef.current = valves;
     const session = new Session({
-      context: getAudioContext(),
+      context,
+      input: valves,
       exercise,
       tempo: settings.tempo,
       countInBars: settings.countInBars,
@@ -348,8 +364,8 @@ export function PlayScreen({
     });
     rendererRef.current = renderer;
 
-    const unsubscribe = session.input.subscribe(setMask);
-    const detachKeyboard = session.input.attachKeyboard();
+    const unsubscribe = valves.subscribe(setMask);
+    const detachKeyboard = valves.attachKeyboard();
 
     const resizeObserver = new ResizeObserver(() => renderer.resize());
     resizeObserver.observe(canvas);
@@ -399,6 +415,7 @@ export function PlayScreen({
       wakeLock?.release().catch(() => undefined);
       hintsRef.current = null;
       sessionRef.current = null;
+      valvesRef.current = null;
       rendererRef.current = null;
       setTransport(null);
     };
@@ -696,8 +713,8 @@ export function PlayScreen({
 
       <ValvePad
         mask={mask}
-        onPress={(pointerId, valve) => sessionRef.current?.input.pointerDown(pointerId, valve)}
-        onRelease={(pointerId) => sessionRef.current?.input.pointerUp(pointerId)}
+        onPress={(pointerId, valve) => valvesRef.current?.pointerDown(pointerId, valve)}
+        onRelease={(pointerId) => valvesRef.current?.pointerUp(pointerId)}
       />
     </div>
   );

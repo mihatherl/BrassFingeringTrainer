@@ -15,11 +15,9 @@ import type { Voice } from '../audio/sampler';
 import { Metronome } from '../audio/metronome';
 import { barAt, beatOfBar, metreAt, type Metre } from '../domain/metre';
 import { Transport } from './clock';
-import { ValveInput } from './input';
+import type { PlayerInput } from './player-input';
 import {
-  fingeringCounts,
   isAlreadyCorrect,
-  isEngaged,
   judgeNote,
   summarise,
   toleranceFor,
@@ -37,6 +35,16 @@ export type PlaybackMode = 'off' | 'reference';
 export interface SessionOptions {
   context: AudioContext;
   exercise: Exercise;
+  /**
+   * What the player is playing with.
+   *
+   * The buttons today — a `ValveInput`, made by whoever is showing them, since
+   * they are pressed by the screen and read by the session. Anything answering
+   * `PlayerInput` will do, which is the point: a microphone is a new input and
+   * nothing else, and everything in this file is written to be the "everything
+   * else". See `player-input.ts`.
+   */
+  input: PlayerInput;
   tempo: number;
   countInBars: number;
   metronomeEnabled: boolean;
@@ -140,7 +148,7 @@ const OFFER_BEATS = 4;
  *
  * The tone follows the fingers: full while the player holds a fingering that
  * answers the note sounding — an open note only from a player who has been
- * playing, see `fingeringCounts` — and half otherwise. So the tone is heard
+ * playing, see `ValveInput.answers` — and half otherwise. So the tone is heard
  * to agree with the hands rather than sail on regardless, and a run played
  * by nobody is heard at half volume throughout. Asked every tick of the
  * resolve loop, so it answers within a hundredth of a second of the fingers.
@@ -192,7 +200,13 @@ const KEY_CHANGE_LEAD_BARS = 1;
 
 export class Session {
   readonly transport: Transport;
-  readonly input: ValveInput;
+  /**
+   * Private, and worth keeping so: the input is made and driven by whoever is
+   * showing it — the play screen presses the buttons it drew — and the session
+   * only ever asks it questions. Nothing reaches through a session to get at
+   * the thing the player is playing with.
+   */
+  private readonly input: PlayerInput;
   readonly judgements: NoteJudgement[] = [];
 
   private readonly synth: Voice;
@@ -245,7 +259,7 @@ export class Session {
       opening.pulseBeats,
       options.audioLead ?? 0,
     );
-    this.input = new ValveInput(() => context.currentTime);
+    this.input = options.input;
     // The fingers are answered the instant they move, not at the next tick:
     // ten milliseconds is a tenth of what a player can feel, but a change of
     // sound that waits for it is a change of sound that waits.
@@ -348,7 +362,7 @@ export class Session {
     this.transport.stop();
     if (this.resolveTimer !== null) window.clearInterval(this.resolveTimer);
     this.resolveTimer = null;
-    this.input.releaseAll();
+    this.input.release();
   }
 
   get isPaused(): boolean {
@@ -369,7 +383,7 @@ export class Session {
     if (this.resolveTimer !== null) window.clearInterval(this.resolveTimer);
     this.resolveTimer = null;
     this.synth.stop();
-    this.input.releaseAll();
+    this.input.release();
   }
 
   /** Picks the run up where it was paused, a bar of counting in first. */
@@ -729,7 +743,7 @@ export class Session {
   private hearThePlayerOn(now: number): void {
     if (!this.offering || !this.canContinue) return;
     if (this.transport.beatForTime(now) < this.playUntil) return;
-    if (this.input.maskAt(now) === 0) return;
+    if (!this.input.stateAt(now).playing) return;
     this.continuePlaying();
   }
 
@@ -758,7 +772,9 @@ export class Session {
    * the opening of the window of the earlier of the two judged notes before
    * it, or null for the first note of the piece. Tie continuations and notes
    * the instrument cannot play are not notes the player was asked to answer,
-   * so they are not counted among the two. See `isEngaged`.
+   * so they are not counted among the two. Whether the look-back means
+   * anything at all is the input's business, not this one's: the buttons need
+   * it for an open note, a microphone would not.
    */
   private activeSince(index: number): number | null {
     const { notes } = this.options.exercise;
@@ -792,9 +808,8 @@ export class Session {
     const index = this.soundingIndex;
     const note = notes[index];
     if (!note || this.transport.timeForBeat(note.startBeat) > now) return;
-    const mask = this.input.maskAt(now);
-    const answers = (i: number) =>
-      fingeringCounts(mask, notes[i], isEngaged(this.input, this.activeSince(i), now));
+    const state = this.input.stateAt(now);
+    const answers = (i: number) => this.input.answers(state, notes[i], this.activeSince(i), now);
     // The head of a tie stands for the whole chain; the far end asks nothing.
     const asked = isTieContinuation(notes, index) ? this.headOf(index) : index;
     /*

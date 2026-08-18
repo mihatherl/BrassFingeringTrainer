@@ -160,6 +160,12 @@ Refactorings I would want before a new mode is built on top of this:
   *Monitor* of their own that the session drives; the microphone mode will
   want to replace the *input* and keep everything else, and the seam should
   be there before it is needed.
+  **The input half was done on 2026-08-18** — `PlayerInput` in
+  `src/engine/player-input.ts`, the session taking one rather than making one,
+  and the buttons' rules moved behind it; see *How it plugs in* in
+  `v2-design.md`. The *Monitor* half is still open, and is now the smaller of
+  the two: `followFingers` reads the input through the seam like everything
+  else, so moving it is tidying rather than untangling.
 - **`SettingsScreen.tsx` is over nine hundred lines.** The material box, the
   keys window and the Advanced panel would each stand alone.
 - **`generate.ts` is over sixteen hundred**, most of it the walk. The drills
@@ -175,13 +181,23 @@ provisional until it lands; the fermata is parked on it; and the mic pitch
 spike of 2026-08-04 (notes settle after ~0.2s on E flat bass and cornet) is
 the measurement it starts from.
 
-**Not ready yet, on two counts.** The `Session`/input seam above should
-exist first, so the microphone replaces `ValveInput` and nothing else. And
-the engagement rule — an open note counting only from a player who has been
-playing — is a rule about *buttons*, where open and absent are the same
-input; a microphone hears the difference, and the rule should be scoped to
-the input that needs it before a second input arrives. Both are a session's
-work, and better done before the mode than during it.
+**Both counts of readiness were settled on 2026-08-18.** The `Session`/input
+seam exists — `PlayerInput`, six members, the session taking one rather than
+making one — so the microphone replaces `ValveInput` and nothing else. And the
+engagement rule — an open note counting only from a player who has been
+playing — is now inside `ValveInput.answers` rather than in the judge, which is
+the scoping that was asked for: it is a rule about *buttons*, where open and
+absent are the same input, and a microphone hears the difference. A second
+implementation (`HeardInput`, in `player-input.test.ts`) drives whole sessions
+to prove both, and is deliberately not a microphone — it has no detector and no
+onset measurement, only enough to show that nothing downstream knows which side
+of the seam an answer came from.
+
+What is left before the mode is the microphone's own work, unchanged by any of
+this: the detector rewritten in TypeScript against the recordings in
+`spikefiles/`, two measurements where the buttons give one (onset from the
+envelope, pitch 200ms later), and the instant green confirmation giving way in
+that mode only.
 
 ## How this session worked, which is worth repeating
 
