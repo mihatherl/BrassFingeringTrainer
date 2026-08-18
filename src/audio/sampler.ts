@@ -98,8 +98,40 @@ export function sustainLoop(
   return { from, to: from + periods * period };
 }
 
+/**
+ * Where a recording has spoken: seconds from its start to the first moment
+ * its envelope reaches nine tenths of its peak, measured over 5ms windows.
+ *
+ * The tuba recordings bloom — up to a fifth of a second on the low notes —
+ * and a note *re-attacked* when the fingers come right (see
+ * `FollowingVoice`) must not replay that bloom from the top: the player has
+ * just done the right thing and is waiting to hear it. Entering the
+ * recording here instead gives the instrument within a hundredth of a second
+ * of the fingers, at the cost of the attack's colour, which the note's real
+ * onset already carried. A note scheduled at its onset still plays from the
+ * start; only a late join enters here.
+ */
+export function spokenAt(samples: Float32Array, sampleRate: number): number {
+  const window = Math.max(1, Math.round(sampleRate * 0.005));
+  const peaks: number[] = [];
+  for (let start = 0; start + window <= samples.length; start += window) {
+    let peak = 0;
+    for (let i = start; i < start + window; i++) peak = Math.max(peak, Math.abs(samples[i]));
+    peaks.push(peak);
+  }
+  const loudest = peaks.reduce((a, b) => Math.max(a, b), 0);
+  if (loudest === 0) return 0;
+  return (peaks.findIndex((p) => p >= loudest * 0.9) * window) / sampleRate;
+}
+
+/** A decoded recording, and where it has spoken. */
+interface LoadedSample {
+  buffer: AudioBuffer;
+  spoken: number;
+}
+
 /** Decoded sample sets, kept for the life of the page so a replay is instant. */
-const cache = new Map<SampleSet, Promise<Map<number, AudioBuffer>>>();
+const cache = new Map<SampleSet, Promise<Map<number, LoadedSample>>>();
 
 /** The sampled note used to reach a pitch: whichever lies closest. */
 export function nearestSample(pitches: readonly number[], midi: number): number {
@@ -121,33 +153,34 @@ function sampleUrl(set: SampleSet, midi: number): string {
 async function loadBuffers(
   context: AudioContext,
   set: SampleSet,
-): Promise<Map<number, AudioBuffer>> {
+): Promise<Map<number, LoadedSample>> {
   const midis = SAMPLE_MANIFEST[set];
-  const buffers = await Promise.all(
-    midis.map(async (midi) => {
+  const samples = await Promise.all(
+    midis.map(async (midi): Promise<LoadedSample> => {
       const response = await fetch(sampleUrl(set, midi));
       if (!response.ok) throw new Error(`${set}/${midi}: HTTP ${response.status}`);
-      return context.decodeAudioData(await response.arrayBuffer());
+      const buffer = await context.decodeAudioData(await response.arrayBuffer());
+      return { buffer, spoken: spokenAt(buffer.getChannelData(0), buffer.sampleRate) };
     }),
   );
-  return new Map(midis.map((midi, index) => [midi, buffers[index]]));
+  return new Map(midis.map((midi, index) => [midi, samples[index]]));
 }
 
 export class Sampler implements Voice {
   private readonly master: GainNode;
   private readonly context: AudioContext;
-  private readonly buffers: Map<number, AudioBuffer>;
+  private readonly samples: Map<number, LoadedSample>;
   private readonly pitches: number[];
   private active: { gain: GainNode; node: AudioBufferSourceNode } | null = null;
 
   private constructor(
     context: AudioContext,
-    buffers: Map<number, AudioBuffer>,
+    samples: Map<number, LoadedSample>,
     destination: AudioNode,
   ) {
     this.context = context;
-    this.buffers = buffers;
-    this.pitches = [...buffers.keys()].sort((a, b) => a - b);
+    this.samples = samples;
+    this.pitches = [...samples.keys()].sort((a, b) => a - b);
     this.master = context.createGain();
     this.master.gain.value = 0.85;
     this.master.connect(destination);
@@ -205,11 +238,18 @@ export class Sampler implements Voice {
     }
   }
 
-  play(midi: number, startTime: number, durationSeconds: number): void {
+  /**
+   * Schedules one note. `spoken` joins the recording where it has already
+   * spoken rather than at its start — for a note re-attacked late, when the
+   * fingers come right; see `spokenAt`.
+   */
+  play(midi: number, startTime: number, durationSeconds: number, spoken = false): void {
     if (this.pitches.length === 0) return;
     const source = nearestSample(this.pitches, midi);
-    const buffer = this.buffers.get(source);
-    if (!buffer) return;
+    const sample = this.samples.get(source);
+    if (!sample) return;
+    const { buffer } = sample;
+    const offset = spoken ? sample.spoken : 0;
 
     const ctx = this.context;
     const node = ctx.createBufferSource();
@@ -233,13 +273,13 @@ export class Sampler implements Voice {
      * a note played below the sample's pitch is slowed down. That is what
      * decides whether looping is needed at all.
      */
-    if (end - startTime > buffer.duration / node.playbackRate.value) {
+    if (end - startTime > (buffer.duration - offset) / node.playbackRate.value) {
       loopSustain(node, buffer, source);
     }
 
     node.connect(gain);
     gain.connect(this.master);
-    node.start(startTime);
+    node.start(startTime, offset);
     node.stop(end + 0.02);
 
     this.active = { gain, node };

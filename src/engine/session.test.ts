@@ -1448,8 +1448,7 @@ describe('the tone and an early fingering', () => {
     }
     // 0.15s before the second note — inside its window — the second valve
     // comes up: right for the coming note, and heard as such.
-    s.input.releaseAll();
-    s.input.pointerDown(1, 1);
+    s.input.pointerUp(2);
     for (let elapsed = 0.95; elapsed <= 1.05; elapsed += 0.025) {
       audioTime = elapsed;
       vi.advanceTimersByTime(25);

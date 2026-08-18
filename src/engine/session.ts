@@ -246,6 +246,12 @@ export class Session {
       options.audioLead ?? 0,
     );
     this.input = new ValveInput(() => context.currentTime);
+    // The fingers are answered the instant they move, not at the next tick:
+    // ten milliseconds is a tenth of what a player can feel, but a change of
+    // sound that waits for it is a change of sound that waits.
+    this.input.subscribe(() => {
+      if (this.transport.isRunning && !this.finished) this.followFingers(context.currentTime);
+    });
     this.synth = options.brassVoice ?? new BrassSynth(context);
     this.metronome = new Metronome(context);
     // A count-in of whole bars, so it must be measured in the crotchets a bar

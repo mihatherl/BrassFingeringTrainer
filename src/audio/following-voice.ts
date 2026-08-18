@@ -24,8 +24,13 @@ import type { SampleSet } from '../domain/instruments';
 import { PadSynth } from './pad';
 import { Sampler, type Voice } from './sampler';
 
-/** How long the swap between the two takes, in seconds. */
-const SWAP = 0.02;
+/**
+ * How long the swap between the two takes, in seconds: quick going to the
+ * instrument, since the player has just done the right thing and is waiting
+ * to hear it, and gentler going back to the pad.
+ */
+const SWAP_TO_INSTRUMENT = 0.006;
+const SWAP_TO_PAD = 0.02;
 
 /**
  * The least of a note that is worth re-attacking the instrument for. Coming
@@ -126,15 +131,17 @@ export class FollowingVoice implements Voice {
     const now = this.context.currentTime;
     const wasRight = this.right;
     this.right = right;
-    this.padGain.gain.setTargetAtTime(right ? 0 : 1, now, SWAP);
-    this.instrumentGain.gain.setTargetAtTime(right ? 1 : 0, now, SWAP);
+    const swap = right ? SWAP_TO_INSTRUMENT : SWAP_TO_PAD;
+    this.padGain.gain.setTargetAtTime(right ? 0 : 1, now, swap);
+    this.instrumentGain.gain.setTargetAtTime(right ? 1 : 0, now, swap);
 
     const note = this.current;
     if (right && !wasRight && note && now > note.startTime && note.endTime - now > MIN_REATTACK) {
       // The running instrument note has been silent under its gain; let it
-      // go, and speak the note from here for what is left of it.
+      // go, and speak the note from here for what is left of it — joining
+      // the recording where it has already spoken, not at its bloom.
       this.instrument.stop(now);
-      this.instrument.play(note.midi, now, note.endTime - now);
+      this.instrument.play(note.midi, now, note.endTime - now, true);
     }
   }
 }
