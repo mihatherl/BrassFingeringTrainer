@@ -190,6 +190,17 @@ search the App Store for near-identical names (Apple rejects lookalikes under
 guideline 4.1), and search IP Australia's trade mark register for "Brass
 Master" in the relevant classes. Neither is legal advice; both are cheap.
 
+> **Checks done, 2026-08-18, all clear.** App Store: nothing called anything
+> like "Brass Master" (checked by the player). IP Australia's TM Checker: no
+> problems (the player). US register: two "Brass Master" marks exist but both
+> in unrelated classes — metal fittings (Reg. 5234157) and water softeners —
+> and nothing live in classes 9, 41 or 15; the nearest musical use is the
+> long-discontinued Maestro Bass Brassmaster pedal, no live mark found.
+> Domains available at check time: BrassMaster.net, BrassMaster.com.au,
+> BrassMaster.org (.net recommended — worldwide product, clean reverse-DNS).
+> **Awaiting registration; the domain and bundle identifier get written here
+> the day they are locked.**
+
 **Reserve the name in App Store Connect early.** Creating the app record
 reserves the name before there is anything to upload.
 
