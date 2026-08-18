@@ -64,8 +64,17 @@ export function getAudioContext(): AudioContext {
  * Marks the context in hand as dead, so the next `getAudioContext` replaces
  * it. Called by whoever has watched its clock stand still — the play screen's
  * stall check — and by `ensureRunning` when it finds the same.
+ *
+ * `target` is the context the caller was actually watching, and passing it is
+ * what makes the verdict *about* something. A report on a context that has
+ * already been replaced says nothing about the one in hand, and discarding
+ * the live one on its word would throw away a good context — on iOS, one
+ * brought up inside a user gesture, which cannot be brought up again without
+ * another. Omitting it is a verdict on whatever is current, which is what
+ * `ensureRunning` means, since it has just tested that one itself.
  */
-export function markStuck(): void {
+export function markStuck(target?: AudioContext): void {
+  if (target && target !== context) return;
   stuck = true;
 }
 
@@ -93,7 +102,7 @@ export async function ensureRunning(timeoutMs = 1500): Promise<boolean> {
     }
     if (!isRunning(ctx)) {
       // Resumable by nobody: dead, and the next asker gets a fresh one.
-      markStuck();
+      markStuck(ctx);
       return false;
     }
   }
@@ -108,7 +117,7 @@ export async function ensureRunning(timeoutMs = 1500): Promise<boolean> {
   const before = ctx.currentTime;
   await new Promise((resolve) => setTimeout(resolve, 120));
   if (ctx.currentTime === before) {
-    markStuck();
+    markStuck(ctx);
     return false;
   }
   return true;

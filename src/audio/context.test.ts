@@ -111,6 +111,34 @@ describe('the audio context', () => {
     expect(getAudioContext()).toBe(second);
   });
 
+  /**
+   * A verdict is about the context that was watched, not about whatever is
+   * current when it arrives.
+   *
+   * The play screen watches one run's clock for 600ms and reports what it
+   * saw. By then the context it watched may already have been replaced — and
+   * on iOS the replacement was brought up inside a tap, which cannot be had
+   * again without another one. Discarding it on a report about its
+   * predecessor would throw away the only working context in the room.
+   */
+  it('ignores a report about a context that has already been replaced', async () => {
+    behaviours = ['lively', 'lively'];
+    const { getAudioContext, markStuck } = await import('./context');
+    const first = getAudioContext();
+    markStuck();
+    const second = getAudioContext();
+    expect(second).not.toBe(first);
+
+    // The stall check for the run that was using `first`, arriving late.
+    markStuck(first);
+    expect(getAudioContext()).toBe(second);
+    expect((second as unknown as FakeContext).closed).toBe(false);
+
+    // And a report about the context in hand is still heeded.
+    markStuck(second);
+    expect(getAudioContext()).not.toBe(second);
+  });
+
   it('brings up a fresh context inside unlockAudio when the one in hand is dead', async () => {
     behaviours = ['dead', 'lively'];
     const { getAudioContext, unlockAudio } = await import('./context');

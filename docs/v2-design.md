@@ -291,6 +291,59 @@ same format and nothing in the app changes.
 **MusicXML rather than MIDI.** MIDI discards spelling and key, which are the
 two things this app cares most about.
 
+## When the app has no sound — v2.23.4
+
+**Ask about the phone's silent switch first.** Reported on 2026-08-18 as no
+audio at all, metronome and instrument alike, on the deployed app on an
+iPhone; the cause was the ring/silent switch, and the reason it read as a bug
+is that the player quite reasonably tested the speaker with a YouTube video,
+which played. iOS applies that switch to **Web Audio**, which is all this app
+uses, and not to media-element playback, which is what a video is. So the
+speaker test passes while the app is muted.
+
+The app can opt out of the switch with `navigator.audioSession.type =
+'playback'` (Safari 16.4+), which is what a music app does. **Not taken**, and
+it is a decision rather than a fix: it means the app makes noise on a phone
+that was deliberately silenced, which is right at home and wrong in a concert.
+Left for the player to call.
+
+**Nothing in the app can silence both.** Worth knowing before an hour is spent
+looking: the metronome, the pad and the sampler each build their own gain and
+connect straight to `context.destination`, and there is no `setSinkId`
+anywhere — the calibrated "output" is a *lead*, not a route. So metronome and
+instrument going quiet together is the context or the device, never the
+mixing. One voice silent while the beat carries on is the other shape, and
+that one *is* the app's: a voice built on a context that has since been
+replaced.
+
+**Two faults found while checking, and fixed in v2.23.4.** Both were latent —
+neither caused the report above — and both produce silence with no message,
+which is the worst way for this app to fail:
+
+- **The stall check watched the wrong context.** It read
+  `getAudioContext()` twice, and that function is not a reader: it hands out a
+  *fresh* context once anything has marked the old one stuck. So it could
+  compare a new context's clock against the old one's reading, find them
+  different, and pronounce a run healthy that was playing through a context
+  nobody could hear. It now watches the context the session was built on, which
+  is the only one whose clock is evidence about that run.
+- **`markStuck` now names the context it is about.** A verdict arriving 600ms
+  late may be about a context that has already been replaced, and condemning
+  the live one on its word would discard a good context — on iOS, one brought
+  up inside a tap, which cannot be had again without another tap. A report
+  about something already replaced is now ignored; `ensureRunning` still calls
+  it unnamed, meaning "the one I have just tested".
+- **The gate no longer starts a run it knows cannot be heard.** `beginRun`
+  ignored the result of its final `ensureRunning()`, so a context that died
+  while the samples were downloading led to a run on a dead clock with the
+  voice built on a context about to be closed. It now shows *Audio didn't
+  start*, whose button is a gesture — the one thing a fresh context needs.
+
+`audio-gate.test.tsx` covers that last one, and is the only test in the suite
+that goes past "Tap to start"; it can, because the failing path never mounts
+the canvas. The stall check's own line is still not covered — it needs a real
+canvas and a real clock — and was verified in a browser instead.
+
 ## A cushion until the fingers are right, the instrument once they are — v2.22.0 to v2.23.0
 
 The volume rule of v2.21.0 lasted a day. The player asked to trial a *change

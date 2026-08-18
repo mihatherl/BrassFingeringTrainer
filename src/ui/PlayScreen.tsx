@@ -384,13 +384,23 @@ export function PlayScreen({
      * and the exercise freezes on the first count with no error anywhere. That
      * is far worse than an honest failure, so the clock is checked once shortly
      * after starting and the player is offered a way out.
+     *
+     * **The run's own context, both times.** `getAudioContext()` is not a
+     * reader — it hands out a *fresh* context once anything has marked the old
+     * one stuck — so asking it twice could compare a new context's clock
+     * against the old one's reading, find them different, and pronounce a run
+     * healthy that is playing through something nobody can hear. The context
+     * this session was built on is the only one whose clock is evidence about
+     * it, and it is held in `context` a few lines above.
      */
-    const startedAt = getAudioContext().currentTime;
+    const startedAt = context.currentTime;
     const stallCheck = window.setTimeout(() => {
-      if (getAudioContext().currentTime === startedAt) {
+      if (context.currentTime === startedAt) {
         // A clock that has not moved is a dead context; the next asker —
-        // "Try again" — gets a fresh one rather than this one resumed.
-        markStuck();
+        // "Try again" — gets a fresh one rather than this one resumed. Named,
+        // so that a context already replaced under us is not condemned twice
+        // and a healthy replacement is not condemned at all.
+        markStuck(context);
         setStalled(true);
       }
     }, 600);
@@ -454,8 +464,25 @@ export function PlayScreen({
       // have been suspended again since the tap, and a suspended
       // context has a clock that never advances — which would start
       // the exercise against a frozen count-in and no metronome.
-      await ensureRunning();
+      const alive = await ensureRunning();
       setLoading(false);
+      if (!alive) {
+        /*
+         * It died while the samples were coming down, and the answer is not
+         * to start anyway.
+         *
+         * `ensureRunning` has already marked it, so the next tap gets a fresh
+         * context — but the voice just built belongs to this one and would be
+         * silent in any other, and the run would play on a clock that never
+         * arrives. Saying so is the whole point of this screen; starting into
+         * it would produce exactly the silence it exists to explain. "Try
+         * again" is a gesture, which is the one thing a new context needs.
+         */
+        voiceRef.current = undefined;
+        setStalled(true);
+        setStarted(true);
+        return;
+      }
       setStalled(false);
       setAttempt((n) => n + 1);
       setStarted(true);
