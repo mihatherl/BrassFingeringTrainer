@@ -987,12 +987,14 @@ input[type='checkbox'] {
 .keys {
   --key-h: 2.875rem;
   --key-gap: 0.375rem;
+  --keys-pad: 0.375rem;
   /* So a row's `offsetTop` is measured from this box and not from whatever
      happens to be positioned further up — which is what the centring reads. */
   position: relative;
   display: grid;
   gap: var(--key-gap);
-  height: calc(1.5 * var(--key-h) + var(--key-gap));
+  /* A row and a half of chips, plus the box's own padding and border. */
+  height: calc(1.5 * var(--key-h) + var(--key-gap) + 2 * var(--keys-pad) + 2px);
   /*
    * Hand-sized wherever it is shown. It is a thumb control — a row is swiped —
    * and five chips stretched across a desktop panel are both ugly and further
@@ -1003,11 +1005,31 @@ input[type='checkbox'] {
   scroll-snap-type: y mandatory;
   /* A swipe should land on a row, never between two. */
   overscroll-behavior-y: contain;
-  scrollbar-width: none;
+  /*
+   * A box, and a thin scrollbar in it: the player's ask, on 2026-08-16. The
+   * window used to be borderless with its scrollbar hidden, and read as a
+   * row of chips that happened to be cut off rather than as a thing that
+   * scrolls. The border says where the window is; the bar says there is more.
+   */
+  padding: var(--keys-pad);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
 }
 
 .keys::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.keys::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 2px;
+}
+
+.keys::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .keys__row {
@@ -1083,20 +1105,36 @@ input[type='checkbox'] {
 .drills {
   --drill-h: 2.25rem;
   --drill-gap: 0.375rem;
+  --drills-pad: 0.375rem;
   /* So a row's `offsetTop` is measured from this box; see `.keys`. */
   position: relative;
   display: grid;
   gap: var(--drill-gap);
-  height: calc(3.5 * var(--drill-h) + 3 * var(--drill-gap));
+  height: calc(3.5 * var(--drill-h) + 3 * var(--drill-gap) + 2 * var(--drills-pad) + 2px);
   max-width: 22rem;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   overscroll-behavior-y: contain;
-  scrollbar-width: none;
+  /* The same box and bar as the keys, for the same reason. */
+  padding: var(--drills-pad);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
 }
 
 .drills::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.drills::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 2px;
+}
+
+.drills::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .drill {
