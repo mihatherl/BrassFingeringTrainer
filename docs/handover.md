@@ -1,279 +1,210 @@
-# Handover — the session of 2026-08-15
+# Handover — the session of 2026-08-16
 
-Written for whoever picks this up next, cold. It records what was built, what was
-decided and why, and — carried over again because it keeps earning its place —
-**where I was wrong**, since this session's faults were of a different kind from
-the last two and are worth recognising on sight.
+Written for whoever picks this up next, cold. It records what was built, what
+was decided and why, and — carried over again because it keeps earning its
+place — **where I was wrong**, since this session's faults were of a new kind
+and worth recognising on sight.
 
 The durable rulings live in `v2-design.md`; the feature plans are
-`tempo-map-plan.md`, `endless-play-plan.md` and `musicxml-import-plan.md`.
-**Read this for the shape, those for the reasons.**
+`tempo-map-plan.md`, `endless-play-plan.md`, `musicxml-import-plan.md` and,
+new this session, `tunes-plan.md`. **Read this for the shape, those for the
+reasons.**
 
-The app went from **v2.12.0 to v2.15.5** — eleven releases, all deployed, and one
-commit of documentation carrying no version because it changed nothing. It began
-by clearing the faults the previous handover listed as inherited, built the
-feature the player asked for on top, and ended in the settings screen, which is
-half way through a planned reorganisation.
+The app went from **v2.15.5 to v2.23.3** — seventeen releases, all deployed.
+It finished the settings work the last handover left half done, then spent
+the rest of the session on the two things the player's ear kept returning to:
+what the reference tone does, and whether the themes were as hard as they
+said. Every one of the seventeen was asked for by the player at the phone,
+usually within the hour of the release before it.
 
 ## What was built, in order
 
-**Clearing the inherited faults**, all four of them named in the last handover:
+**The settings screen, steps 3 to 5 of five** — item 11 of the plan, done:
 
 | | |
 |---|---|
-| v2.12.1 | **A rewind takes the standing offer with it.** The offer to carry on is made once per committed end and remembered, so a rewind out of its window left the button green, the tone at half volume, and the question unaskable ever again. Also: **a bar waits only on the notes that can be judged** — one note above the top of a tuba held its bar grey for the rest of the run in paged reading. |
-| v2.12.2 | **The rewind buttons stay live.** `canRewind` was written to grey them out at the top of a piece and was never wired to anything; the player ruled ◀5 in bar two should simply go back to the start, so it was deleted. |
+| v2.16.0 | **Drills.** Scales and Arpeggios are one box with a picker; the four arpeggios the box once promised are real; the blurb's full sentence is back and a guard refuses to compile when a drill is added without a claim. One kind, `drills`, with `drillId`; a stored `scales`/`arpeggios` migrates. |
+| v2.18.0 | **Named minor scales.** Harmonic and melodic minor in the picker, chosen the way a book prints them: the key chips relabel to the minors — *Dm*, *C minor* — over the same signature. **The work was the spelling**: each drill note carries its letter step and `spellWithLetter` alters that letter, so D harmonic minor's seventh is C♯, not the D♭ one flat would choose. The one limit is the app's own rule: no double accidentals, so G♯/D♯/A♯ minor write the natural above, and the screen says so. |
+| v2.19.0 | **A key and a difficulty per material.** `keySet`/`fifths`/`difficultyId` stay the pair *in force*; `materials` holds the rest, put away on leaving a material and taken out on return. Old files start with nothing remembered so their one pair still carries over. |
 
-**The key dial**, the session's largest piece:
-
-| | |
-|---|---|
-| v2.13.0 | **The key is under the player's hand, mid-run.** A dial beside the tempo; the face follows the finger and the music is rewritten when the finger comes off. The paper is spliced in place at a bar line ahead of the playhead. Free material only. |
-| v2.13.1 | **The smoothed clock never ticks backwards.** Found from a player report about paged reading flipping back towards the start — see below, because finding it is most of the story. |
-
-**The settings screen**, steps 1 and 2 of four:
+**Sound and timing**, which took most of the session:
 
 | | |
 |---|---|
-| v2.14.0 | **Three choices taken off it.** *Random notes*, Expert, and the three length settings that wore one label. The paywall moved from lengths to *playing on*. |
-| v2.15.0 | **One box per material**, holding only the settings that apply to it. The open box is the material. |
-| v2.15.1 | **Nothing claims what it does not deliver.** The Arpeggios box promised five chords and played one. |
-| v2.15.2 | **The keys in a window a row and a half tall**, three rows of five, opening on the row the current key is in. |
-| v2.15.3 | **The open material box fits the screen it is opened on** — and an opened section now comes to the top. |
-| v2.15.4 | **The Playing settings two to a row**, and the fingering modes divided two and one. |
-| v2.15.5 | **A shut box is its name, on a short screen.** The last of the room the open box needed. |
+| v2.16.1 | Tuba samples started early by their measured bloom, to land half level on the beat. **Withdrawn in v2.18.1** — see *Where I was wrong*. |
+| v2.17.0 | **The headphones screen.** A per-device audio *lead*: every sound handed to the audio thread early so it is heard when the clock says. `Transport.audioLead`, one place. Calibrated by tapping along — a click a second, the median offset of the taps is the lead, measured again it converges. Outputs are a named list; the phone speaker is "none of these". |
+| v2.20.1 | The output in use said beside Start, with a one-tap way back to the speaker — because the choice cannot follow the device. |
+| v2.21.0 | **An open note asks for evidence, and the tone follows the fingers.** An open note counts only from a player who had a valve down within the two notes before; a run played by nobody scores at most its first note instead of a quarter. The reference tone halves whenever the fingers do not answer the note sounding. |
+| v2.22.0–v2.23.0 | **The cushion.** Trialled behind `?voice=pad`, then adopted: a soft pad until the fingers are right, the recorded instrument once they are, both given every note and two gains deciding which is heard. The pad is a pad (no sweep, nothing that twangs); coming right mid-note re-attacks the instrument; its level is a setting in Advanced, half by default. `?voice=plain` is the way back to the instrument alone. |
+| v2.23.1 | Response measured offline at 70–190ms to full level and brought to 15–20ms: a re-attack joins the recording where it has already *spoken*; the session answers the valves on the change, not the next tick. |
+| v2.23.2 | **A dead AudioContext is replaced.** After the phone has been away, iOS leaves one reporting `running` over a clock that never moves; *Try again* used to ask it to resume, and only a refresh helped. `ensureRunning` watches the clock before trusting a context; a stuck one is closed and a fresh one made inside the tap; the voice is reloaded for it; the sample cache is per context. |
+
+**Themes**, rebuilt:
+
+| | |
+|---|---|
+| v2.19.1 | Beginner sight-reading was writing D♭s it was not allowed — the one reachable step at the edge of the range band was chromatic and the walk took it. Found while measuring themes; fixed on its own. |
+| v2.20.0 | **Themes composed from cells.** The hand-written corpus measured a level or two easy at every level; the player chose a composer over hundreds more tunes by hand. 140 one-bar cells across four metres, assembled into two four-bar phrases with joins, closes and reach chosen by level, then inflected with accidentals and breaths at the level's chance. Calibrated by the same measurement, held as a test. Sight-reading stays, on the player's ruling. See `tunes-plan.md`. |
+
+And two small screen things: the drill list and the keys window are boxed with a thin scrollbar (v2.23.3); the Themes blurb says what it now is.
 
 ## The decisions worth not re-litigating
 
-**A key is a destination, not a path.** The key dial commits on release rather
-than per detent — and the reason is musical, not computational. Two hundred bars
-regenerate in about 4ms and engrave in half of one, measured before it was built.
-Sliding from one flat to two sharps passes through C and G, and putting those on
-the page on the way would show a player two keys they never asked to read.
+**The clock is the truth and the sound moves.** Every sound is sent early by
+the output's lead; notation and judging read the clock as before. The other
+way round would touch every reader of the clock to fix one writer of sound.
+And a *reactive* sound — the instrument arriving when the fingers land —
+cannot be brought forward across a headset's lead at all; that is physics,
+and the cushion is at its best on the speaker.
 
-**The splice lands on a bar line past the scheduling horizon, and that is what
-makes note indices safe.** Everything below the splice keeps the index it had,
-which is what lets a run change key without losing what has been played:
-`judgements`, `noticed`, the screen's verdicts and per-note hint state are all
-indexed into the note list. Past the horizon because nothing already handed to
-the audio thread can be rewritten; on a bar line because an accidental depends on
-the key *and* on what has occurred in its bar, and the notes either side of a
-join were spelled by two different runs of the generator.
+**An open note asks for evidence.** The player's rule, stated as such: some
+fingering on at least one of the two notes before. The first note of a run
+gets the benefit of the doubt. The stated cost — four opens running from an
+honest player will see the fourth marked missed — is the player's to loosen
+if it ever bites; generated material rarely writes it, an imported bugle call
+would.
 
-**The paper is spliced in place, not replaced.** The session, the renderer, the
-hints and the play screen all hold the same `Exercise`, and several destructure
-its `notes` at construction. One piece of paper, everybody reading it, and an
-explicit call to say it changed.
+**A change of sound, not of volume.** The half-volume rule lasted a day; the
+cushion replaced it and the halving survives only on the synth-only fallback.
+A voice that follows is told rather than halved: the change of sound is the
+whole of the signal.
 
-**A key tour ends where the player names their own key.** The tour's changes are
-the score's instruction and the dial is the player's — the same split
-`changeTempo` draws between a written step and a turned one.
+**Themes are composed; Sight-reading stays.** A composer over a corpus,
+because the corpus was mis-calibrated and hand-writing hundreds of tunes to
+calibrate them is not a session's work — and the walk held inside a stated
+interval trains something a tune does not.
 
-**Length is not a setting, and the paywall is *playing on*.** Every tier gets the
-same material and the same default length; only a paid copy carries on past the
-end of it. Enforced by not generating the horizon rather than by declining the
-offer, so nothing has to say no and no green button turns out to be a shop. Every
-material kind is free — a mode shown but unusable teaches nobody what the app is
-for.
+**An altered theme degree is spelled on its own letter**, in `realiseTheme`,
+or a raised sixth in a flat key comes out as D♭ before D♮. The same lesson
+the minor scales taught, met a second time.
 
-**The open box is the material.** One state, not two. A selected box and an
-expanded box say almost the same thing, and two things saying almost the same
-thing can disagree.
+**A minor drill's key is a label on the same control**, not a second setting;
+that is what let step 5 be built once.
 
-**`maxInterval` constrains a random walk, not an authored tune.** A generated
-line picking freely inside a wide interval is a sequence of unrelated jumps; a
-composer's tenth is placed, prepared and resolved. Themes have their own ceiling.
-
-**Nothing should make a claim of something it doesn't deliver.** The player's
-rule, and now a test in both directions: a blurb may not widen past the patterns,
-and adding a pattern without widening the blurb fails too.
-
-**Melodic minor is drilled ascending melodic and descending natural.** Ruled
-before the code that needs it exists.
+**A dead context is replaced, not resumed.** `getAudioContext` hands out a
+fresh one when the last is marked stuck; nothing else in the app has to know.
 
 ## Where I was wrong
 
-Not the two families of the last two sessions. These were failures of *method*
-rather than of arithmetic, and all three cost more than the bugs did.
+Not arithmetic and not method this time. **Twice I took a player's report,
+found a real cause, and fixed the wrong one** — because a second cause was
+sitting under it.
 
-**I invented a hazard, wrote it into a plan, and had to take it back out.** The
-key-dial plan warned that a narrow range in a distant key could leave the
-generator with nothing to pick and throw. It cannot. `candidatePitches` walks
-every semitone of the range and never reads `fifths` at all; the key enters later
-as a *preference* in `chooseNext`, which falls back to the whole reachable set
-when it empties. The player's proposed answer — "just give them accidentals" —
-was what the code had always done. **A plan is read as fact by whoever picks it
-up.** Check the code before writing a hazard into one; a hazard that is not real
-costs the next session the time to find that out.
+**I removed the sample fix on the strength of the wrong culprit.** The tuba
+recordings genuinely bloom for up to a fifth of a second and v2.16.1 started
+them early to land on the beat; the player then reported the speaker "on the
+money". After the headphones screen, the player reported the tuba speaking
+early on the speaker, and I took the sample fix out (v2.18.1). It was almost
+certainly the *chosen output* — a headset left selected after moving back to
+the speaker sends every note early — and the report came again unchanged
+after the removal. What I should have done: read the three reports in
+sequence before touching anything, and ask what changed between the second
+and third. The sample fix is still out; the player has not asked for it back.
+**When a symptom survives the fix, the fix was for something else.**
 
-**My first model of a bug reproduced nothing, and I nearly believed the code was
-innocent.** The player reported paged reading occasionally flipping back towards
-the start. Two theories died: that a stitched theme's tempo steps made the beat
-map non-monotonic — checked over the whole compiled map of a real themes
-exercise, monotonic to the last decimal — and a synthetic clock test that had
-`currentTime` lagging wall time *evenly*, which never overshoots and so passed.
-Only sampling a real browser frame by frame found it: **four backwards steps in
-twenty seconds, up to three hundredths of a beat.** A test that reproduces
-nothing is evidence about the test.
+**I built the "test environment" as a URL flag and then read a follow-up ask
+as adoption.** The player asked for a setting for the cushion's volume; I made
+the cushion the default and said so plainly, with the flag as the way back.
+That was probably right and I stated the judgement, but it was a judgement
+about what the player wanted, made silently until the reply. Say it before
+building, not after.
 
-**A test I had just written asserted something false, and mutation-testing caught
-it.** Removing *Random notes* left sight-reading as the only free material, and I
-rewrote the open-notes steering test as a comparison — in-window against
-elsewhere. It passed. It also passed with the steering deleted. Measured, the
-rates are 0.229 against 0.236: **the steering is very nearly inert for stepwise
-material**, which has two or three notes to choose between at any moment. I
-deleted the test rather than weaken its threshold to fit, and wrote the loss down
-where the rule lives. A test that cannot fail is decoration, and it would have
-read as a guarantee for years.
+**A build failure went out because a shell chain let it through.** `npm run
+build | grep error` succeeds when grep matches. One commit and one failed
+deploy, corrected in minutes, the tag moved. **Never gate a commit on a pipe
+whose last command is grep.**
 
-**Mechanical own goals from editing files with scripts, three of them, and the
-third after this was written.** A greedy deletion in `settings.ts` took
-`REGISTERS` out along with the constants either side of it; a restore from a
-`/tmp` backup older than the edit I was keeping
-silently reverted two `export` keywords; and a `git checkout` used to undo a
-*mutation test* threw away the edits of the release being built. The typecheck
-caught all three within a minute, which is the only reason they are footnotes.
-**Assert what a scripted edit is about to remove**, never restore from a backup
-older than the change you want to keep, and never undo a mutation by reverting a
-file — put the one line back that you took out.
+**And an honest measurement, misused once**: I measured what a walk of sixteen
+bars *reaches* and held tunes of eight bars near it, then reported the tunes
+"3–4 semitones short" as if that were a fault. It is partly the length. The
+plan says so now.
 
-## What is left
+## What is left for version 2
 
-**The settings screen**, half done. `v2-design.md` item 11 carries the plan, now
-five steps rather than four.
+Nothing on this list blocks version 3, and the player should say which of
+these are worth doing before it. In the order I would take them:
 
-The two that shipped were subtraction and rearrangement; what is left is where the
-model changes. Everything below was measured on a simulated phone rather than a
-real one, so it is worth a player's own device before it is called finished.
+- **The theme composer, stages 2 and 3** (`tunes-plan.md`). Accidentals at
+  Medium and Hard sit at about six tenths of the walk's rate — the ceiling is
+  how many notes of a tune are neighbours, passing notes or repeats, since
+  every eligible one is already inflected — and range runs a little under a
+  walk twice the length. Both are corpus work: cells with more
+  chromatic-friendly shapes, and wider ones; sequences by more than a step,
+  inversion, the consequent answering the antecedent's rhythm; ties at the
+  level's chance. **The player has not yet said what their ear makes of the
+  shape** — that is the input stage 2 wants, and it should be asked for
+  before writing more cells.
+- **The scrollbar on iOS.** The keys and drills windows are boxed with a thin
+  bar styled in; whether iOS renders it persistently is unconfirmed. If not,
+  draw one.
+- **The settings screen on a short phone.** Playing is 70 points over on
+  360×740; the one measurement still failing, and untouched this session.
+- **The key-change collision on the scrolling line**, pre-existing, some joins
+  only; wants measured glyph extents on a fixed seed.
+- **Leaps per instrument, not just per difficulty** — now also the joins in
+  the composer, which are a step count per level.
+- **`FREE_TIER.playbackMode`** is declared and never read; and the free-tier
+  screen has never been shown to a second player.
+- **The sample fix** (v2.16.1), if the player's ear wants it back once the
+  output selection is right on the speaker.
+- **The conductor's** compound verdict, its two guessed thresholds, and the
+  five/seven/nine/twelve patterns — unchanged, unplayed.
+- **The importer's** four items — tempo marks, `<transpose>`, a real
+  multi-part score, the long-rest skip — unchanged.
 
-- **Step 3 — Drills.** Scales and Arpeggios become one box with a selectable
-  drill type, and the key choice moves into it. `SCALE_PATTERNS` and
-  `ARPEGGIO_PATTERNS` are exported lists of `{ rootDegree, intervals }` and the
-  picker is a matter of listing entries. The **four arpeggios the box used to
-  promise** — subdominant, dominant, dominant 7th, relative minor — are wanted
-  here, and the blurb guard fails the moment one is added, which is the reminder
-  to write the sentence back.
-- **Step 4 — named minor scales.** *A minor harmonic*, chosen as a book prints
-  it. The intervals are free; **the work is spelling.** `spellInKey` picks
-  accidentals by the key signature's direction, and a minor key takes its
-  relative major's signature — so D harmonic minor is one flat and its raised
-  seventh comes out as D♭ rather than C♯. The pattern must carry which degree is
-  raised, not a semitone count.
-- The picker ends up around ten entries once both land, which argues for a
-  scrollable list rather than a row of chips.
-- **Step 5 — a key and a difficulty per material.** Asked for and deliberately
-  sequenced last: step 3 merges two materials into one box, and step 4 takes the
-  key control out of that box altogether, since *A minor harmonic* names its own
-  tonic. Building per-material keys before those land would be building storage
-  for a setting about to stop existing in one material of three.
+Refactorings I would want before a new mode is built on top of this:
 
-**The settings screen on a short phone**, which is the one measurement still
-failing:
+- **`Session` has grown.** It now carries scheduling, judging, the offer, the
+  key splice, the tone's level and the fingers' say over it. `followFingers`,
+  `applyVolume` and the engagement look-back would sit better in a small
+  *Monitor* of their own that the session drives; the microphone mode will
+  want to replace the *input* and keep everything else, and the seam should
+  be there before it is needed.
+- **`SettingsScreen.tsx` is over nine hundred lines.** The material box, the
+  keys window and the Advanced panel would each stand alone.
+- **`generate.ts` is over sixteen hundred**, most of it the walk. The drills
+  (`DRILLS`, `patternContour`, `spellDrillNote`) are a file of their own
+  waiting to be cut out, as `compose.ts` already was.
 
-- **Playing is 70 points over on a 360×740 phone.** Exercise fits there now; the
-  blurb on a *shut* material box is hidden below 800 points of height, which is
-  what bought the room. Playing has no shut boxes above it, so the same lever
-  does not exist. Its equivalent would be hiding the blurb on the cards *not*
-  chosen, which is a worse trade — comparing options is exactly when those
-  sentences are wanted. Left open rather than taken.
+## Version 3, and readiness
 
-**The engraving fault the key dial made prominent**, and the first thing to look
-at if notation looks wrong at a change of key:
+The microphone is a new *input* — pitch in, fingering out — that bypasses the
+valve pad and asks the judge the same question by another route. Several
+things filed under it: the hint ruling (trouble under the written note) is
+provisional until it lands; the fermata is parked on it; and the mic pitch
+spike of 2026-08-04 (notes settle after ~0.2s on E flat bass and cornet) is
+the measurement it starts from.
 
-- **A key signature change on a scrolling line still collides with the music at
-  some joins.** Room is now reserved where none was, which fixes the plain cases
-  and is a strict improvement, but not every one. **Pre-existing** — a key tour
-  collides identically with the dial untouched — and paged reading is unaffected.
-  Finishing it wants measured glyph extents on a fixed seed, the way the range
-  stave's crop was settled, rather than screenshots of randomly seeded runs.
-
-**Three things ruled but not built**, all from the settings work:
-
-- **Leaps want reconsidering per instrument, not just per difficulty.** It is now
-  the answer to two separate things: the angular interval reading that left with
-  *Random notes*, and the open-note margin past a block boundary that stepwise
-  material cannot hold on its own.
-- **The theme corpus needs recategorising and extending.** Its difficulty labels
-  read easier than the generated material of the same name — the player's own
-  observation, made while eight themes were being refiled out of Expert.
-- **Melodic minor's shape** is settled and waiting for step 4.
-
-**The microphone**, which the player expects to pick up, and which several things
-wait on:
-
-- The hint ruling — trouble filed under the written note — is explicitly
-  provisional until it lands.
-- The fermata is parked on it: "hold until released", and only the microphone can
-  release the player.
-
-**Pause and rewind:**
-
-- **A stray metronome click can land after a pause**, since the scheduling
-  horizon is already on the audio thread. The sounding note is cut; a click
-  cannot be. Not fixable from this side.
-
-**The fingering hints:**
-
-- **The reach-back was designed and not built.** For a passage too dense for a
-  capsule, the idea was to hang it over an earlier note with the tail reaching to
-  the one it names. Dropped because a tail crossing a beam into a cluster of
-  semiquavers is worse than silence — but if a player asks, `hints.ts` should
-  decide the anchor and the renderers draw a slanted tail.
-
-**The bar picker** — still the least settled part of My Music:
-
-- **The split bars are the untested edge.** Bars 16/17, 23/24, 33/34, 49/50 and
-  66/67 of the hymn are where the scanner cut one printed bar in two.
-- **`times` is fixed at build**, and nothing keeps a selection between visits.
-
-**The importer, in rough order of value:**
-
-- **Tempo marks are not read.** `<sound tempo>` is quarter-notes per minute and
-  the app's tempo names the *pulse*, so it wants the v1.30.0 conversion.
-- **`<transpose>` is ignored by design and never tested.** A real brass band part
-  will carry one.
-- **The part chooser has not met a real multi-part score.**
-- **The long-rest skip is not offered.** Over ten seconds at the designated
-  tempo, ask, and come back in at the bar before.
-
-**The conductor:** the compound lag/lift verdict is still unanswered;
-`BEAT_IN_FEWER_ABOVE_BPM = 168` and `SUBDIVIDE_BELOW_BPM = 76` are guesses
-awaiting a play-test; five, seven, nine and twelve patterns are unbuilt.
-
-**Elsewhere:** variable tempo is still sparse across the grey for free material
-and patterns, and it interacts with the tempo dial — a planned step overrides
-what the player set, which is documented but has never been played.
+**Not ready yet, on two counts.** The `Session`/input seam above should
+exist first, so the microphone replaces `ValveInput` and nothing else. And
+the engagement rule — an open note counting only from a player who has been
+playing — is a rule about *buttons*, where open and absent are the same
+input; a microphone hears the difference, and the rule should be scoped to
+the input that needs it before a second input arrives. Both are a session's
+work, and better done before the mode than during it.
 
 ## How this session worked, which is worth repeating
 
-**Drive the thing and measure it — and measure the thing you are about to
-assert.** Every finding that mattered came from running the app or the generator
-and counting: 4ms to regenerate two hundred bars, which decided *why* the key
-dial commits on release; four backwards clock steps in twenty seconds, which
-found a bug two theories had missed; 0.229 against 0.236, which killed a test.
-Reading the code found none of them, and in one case reading the code produced a
-hazard that was not there.
+**Measure the thing the player heard, before deciding what it is.** The
+theme gap, the tuba bloom, the headset lead, the response time — every one
+was a number before it was a fix, and the numbers are in the docs. The two
+times I fixed the wrong thing were the two times I did not read the sequence
+of reports as data first.
 
-**Reproduce before fixing, and distrust a model that reproduces nothing.** The
-clock bug took three attempts: two theories and a synthetic test that was too
-kind to the audio clock. The fix took ten minutes once it could be seen.
+**Ship trials behind the URL** — `?tier=free`, `?voice=pad`, `?voice=plain` —
+so a phone can try a thing without a second deployment, and graduate what
+works.
 
-**Mutation-test every new test.** Every rule added this session was checked by
-breaking the code it guards, and every one earned its keep — including the time
-it revealed that the *test* was false rather than the code.
+**Mutation-test every new rule.** Every one earned its keep, and one showed a
+test asserting a seed coincidence rather than the invariant.
 
-**Ask what the rule is actually measuring.** `maxInterval` was one rule doing two
-jobs, and only one of them was its own. Splitting it re-homed eight written tunes
-that would otherwise have been deleted.
-
-**Check the code before writing a hazard into a plan.** See above; this is the
-one I would most want the next session to have.
-
-**Take the player's reasoning, not just their answer.** Twice their one-line
-verdict — *not enough differentiation*, *nothing should claim what it doesn't
-deliver* — was worth more as a rule applied everywhere than as the single change
-requested. The second produced an audit of ten blurbs, of which exactly one lied.
+**Look at the picture.** The engraving snapshots re-recorded five times this
+session, and each was rendered and read before it was accepted; the tune
+sheet (`npm run tunes`) exists so composed music can be looked at by the
+dozen.
 
 **Conventions in force:** push without asking once the gate is green (tests,
-build, lint), tag every version on its last commit, keep pure corrections in
-their own release, and confirm the deploy afterwards rather than assuming it.
+build, lint — and check the build's exit, not grep's), tag every version on
+its last commit, keep pure corrections in their own release, confirm the
+deploy afterwards rather than assuming it, and write the ruling into
+`v2-design.md` in the same release as the code.
