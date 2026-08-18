@@ -1,7 +1,4 @@
-# Brass Master
-
-*(formerly Brass Fingering Trainer — renamed 2026-08-18; the home is
-[brassmaster.net](https://brassmaster.net) once the domain cutover lands)*
+# Brass Fingering Trainer
 
 An installable web app for drilling brass valve fingerings. Notation scrolls past
 a strike line at a set tempo; you hold the right combination of three on-screen

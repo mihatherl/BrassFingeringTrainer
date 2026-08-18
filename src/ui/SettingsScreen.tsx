@@ -556,7 +556,7 @@ export function SettingsScreen({
   return (
     <div className="screen screen--settings">
       <header className="masthead">
-        <h1>Brass Master</h1>
+        <h1>Brass Fingering Trainer</h1>
       </header>
 
       {/*

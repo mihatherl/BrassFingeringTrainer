@@ -21,7 +21,7 @@ afterEach(() => {
 describe('the app', () => {
   it('opens on the settings screen', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { name: /brass master/i })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /brass fingering trainer/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Start' })).toBeTruthy();
   });
 
