@@ -17,6 +17,21 @@
 let context: AudioContext | null = null;
 
 /**
+ * Whether the context in hand is known to be dead: running by its own
+ * account, or resumable by nobody, with a clock that does not move.
+ *
+ * iOS does this after the app has been away — a call, another app, the
+ * screen locked. The context comes back reporting `running`, or `interrupted`
+ * for good, and `resume()` changes nothing; every note scheduled against it
+ * lands on a clock that never arrives. Nothing revives it. What works is a
+ * fresh context, which is what `getAudioContext` hands out once this is set,
+ * and what "Try again" on the play screen used to promise and never did — it
+ * asked the dead one to resume, was told no, and left the screen where it
+ * was. Reported by the player on 2026-08-16: only a browser refresh helped.
+ */
+let stuck = false;
+
+/**
  * Safari reports `interrupted` as well as the states the spec defines, and a
  * context in that state is every bit as stopped as a suspended one.
  */
@@ -25,6 +40,13 @@ function isRunning(ctx: AudioContext): boolean {
 }
 
 export function getAudioContext(): AudioContext {
+  if (context && stuck) {
+    // Let the dead one go. Nothing awaits its closing, and a close that fails
+    // is a context that was already gone.
+    void context.close().catch(() => undefined);
+    context = null;
+    stuck = false;
+  }
   if (!context) {
     context = new AudioContext({ latencyHint: 'interactive' });
 
@@ -39,6 +61,15 @@ export function getAudioContext(): AudioContext {
 }
 
 /**
+ * Marks the context in hand as dead, so the next `getAudioContext` replaces
+ * it. Called by whoever has watched its clock stand still — the play screen's
+ * stall check — and by `ensureRunning` when it finds the same.
+ */
+export function markStuck(): void {
+  stuck = true;
+}
+
+/**
  * Brings the context up, and confirms it.
  *
  * `resume()` resolves without promising the context is actually running, so the
@@ -48,20 +79,39 @@ export function getAudioContext(): AudioContext {
  */
 export async function ensureRunning(timeoutMs = 1500): Promise<boolean> {
   const ctx = getAudioContext();
-  if (isRunning(ctx)) return true;
 
-  try {
-    await ctx.resume();
-  } catch {
-    // Called outside a gesture, most likely; the poll below still gives it a
-    // chance in case something else resumes it.
+  if (!isRunning(ctx)) {
+    try {
+      await ctx.resume();
+    } catch {
+      // Called outside a gesture, most likely; the poll below still gives it a
+      // chance in case something else resumes it.
+    }
+    const deadline = Date.now() + timeoutMs;
+    while (!isRunning(ctx) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (!isRunning(ctx)) {
+      // Resumable by nobody: dead, and the next asker gets a fresh one.
+      markStuck();
+      return false;
+    }
   }
 
-  const deadline = Date.now() + timeoutMs;
-  while (!isRunning(ctx) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 25));
+  /*
+   * Running by its own account is not the same as running. After an
+   * interruption iOS can report `running` over a clock that never advances,
+   * and everything scheduled against it waits for ever. So the clock is
+   * watched for a moment before it is trusted; one that does not move is a
+   * dead context, and is marked so.
+   */
+  const before = ctx.currentTime;
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  if (ctx.currentTime === before) {
+    markStuck();
+    return false;
   }
-  return isRunning(ctx);
+  return true;
 }
 
 /**
@@ -71,8 +121,14 @@ export async function ensureRunning(timeoutMs = 1500): Promise<boolean> {
  * associates the two — anything awaited beforehand may forfeit the permission.
  */
 export async function unlockAudio(): Promise<AudioContext> {
-  const ctx = getAudioContext();
-  await ensureRunning();
+  let ctx = getAudioContext();
+  // A dead context is replaced and the fresh one brought up in its place —
+  // still inside the gesture that called this, since nothing was awaited
+  // before the first attempt found it dead.
+  if (!(await ensureRunning())) {
+    ctx = getAudioContext();
+    await ensureRunning();
+  }
 
   // Safari sometimes reports "running" while still refusing to emit sound until
   // something has actually been played; a silent buffer settles it.

@@ -130,8 +130,19 @@ interface LoadedSample {
   spoken: number;
 }
 
-/** Decoded sample sets, kept for the life of the page so a replay is instant. */
-const cache = new Map<SampleSet, Promise<Map<number, LoadedSample>>>();
+/**
+ * Decoded sample sets, kept for the life of the page so a replay is instant.
+ *
+ * Per context, deliberately: a buffer decoded by one context is meant to
+ * play in any other, but that has not always been so in WebKit, and a
+ * context *is* replaced when iOS leaves one dead behind (see
+ * `audio/context.ts`). Decoding again for the new one costs a moment
+ * behind the gate; the files themselves are already to hand.
+ */
+const cache = new Map<
+  SampleSet,
+  { context: AudioContext; pending: Promise<Map<number, LoadedSample>> }
+>();
 
 /** The sampled note used to reach a pitch: whichever lies closest. */
 export function nearestSample(pitches: readonly number[], midi: number): number {
@@ -197,13 +208,13 @@ export class Sampler implements Voice {
     set: SampleSet,
     destination: AudioNode = context.destination,
   ): Promise<Sampler> {
-    let pending = cache.get(set);
-    if (!pending) {
-      pending = loadBuffers(context, set);
-      cache.set(set, pending);
+    let entry = cache.get(set);
+    if (!entry || entry.context !== context) {
+      entry = { context, pending: loadBuffers(context, set) };
+      cache.set(set, entry);
     }
     try {
-      return new Sampler(context, await pending, destination);
+      return new Sampler(context, await entry.pending, destination);
     } catch (error) {
       // A failed load must not be remembered, or a retry could never succeed.
       cache.delete(set);

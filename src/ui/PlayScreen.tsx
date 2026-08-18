@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ensureRunning, getAudioContext, unlockAudio } from '../audio/context';
+import { ensureRunning, getAudioContext, markStuck, unlockAudio } from '../audio/context';
 import { FollowingVoice } from '../audio/following-voice';
 import { Sampler, type Voice } from '../audio/sampler';
 import { barAt, metreFor } from '../domain/metre';
@@ -89,6 +89,12 @@ export function PlayScreen({
   const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stalled, setStalled] = useState(false);
+  /**
+   * Which go at starting this is. Bumped by "Try again", so the play surface
+   * is torn down and built again against a context that has been replaced —
+   * `started` alone would not move, since it is already true.
+   */
+  const [attempt, setAttempt] = useState(0);
   const [mask, setMask] = useState(0);
   const [progress, setProgress] = useState({ done: 0, accuracy: 0 });
   /**
@@ -365,7 +371,12 @@ export function PlayScreen({
      */
     const startedAt = getAudioContext().currentTime;
     const stallCheck = window.setTimeout(() => {
-      if (getAudioContext().currentTime === startedAt) setStalled(true);
+      if (getAudioContext().currentTime === startedAt) {
+        // A clock that has not moved is a dead context; the next asker —
+        // "Try again" — gets a fresh one rather than this one resumed.
+        markStuck();
+        setStalled(true);
+      }
     }, 600);
 
     // Keeps the screen awake mid-exercise; unsupported browsers simply carry on.
@@ -391,7 +402,48 @@ export function PlayScreen({
       rendererRef.current = null;
       setTransport(null);
     };
-  }, [started, exercise, settings]);
+  }, [started, attempt, exercise, settings]);
+
+  /**
+   * Brings the audio up and starts the run — from the gate, and again from
+   * "Try again", where it is the whole of the cure: a context that has been
+   * found dead is replaced by `unlockAudio`, the voice is loaded afresh for
+   * it (a voice holds the context it was made in, and one made for the dead
+   * context is silent in the live one), and the play surface is built again
+   * against the moving clock.
+   */
+  const beginRun = () => {
+    setLoading(true);
+    void (async () => {
+      const context = await unlockAudio();
+      try {
+        // Decoding mid-exercise would drop notes, so the recorded
+        // instrument is loaded here or not at all.
+        const set = instrumentById(exercise.instrumentId).sampleSet;
+        // A soft pad until the fingers are right, the instrument
+        // once they are — see `FollowingVoice`. `?voice=plain` is
+        // the instrument alone, for comparing.
+        voiceRef.current =
+          new URLSearchParams(window.location.search).get('voice') === 'plain'
+            ? await Sampler.load(context, set)
+            : await FollowingVoice.load(context, set, settings.cushionLevel);
+      } catch {
+        // Offline before the samples were ever cached, or a bad
+        // response. Synthesis still works, so play on.
+        voiceRef.current = undefined;
+      }
+
+      // Loading the samples takes long enough that the context can
+      // have been suspended again since the tap, and a suspended
+      // context has a clock that never advances — which would start
+      // the exercise against a frozen count-in and no metronome.
+      await ensureRunning();
+      setLoading(false);
+      setStalled(false);
+      setAttempt((n) => n + 1);
+      setStarted(true);
+    })();
+  };
 
   if (!started) {
     return (
@@ -421,35 +473,7 @@ export function PlayScreen({
             type="button"
             className="button button--primary button--large"
             disabled={loading}
-            onClick={() => {
-              setLoading(true);
-              void (async () => {
-                const context = await unlockAudio();
-                try {
-                  // Decoding mid-exercise would drop notes, so the recorded
-                  // instrument is loaded here or not at all.
-                  const set = instrumentById(exercise.instrumentId).sampleSet;
-                  // A soft pad until the fingers are right, the instrument
-                  // once they are — see `FollowingVoice`. `?voice=plain` is
-                  // the instrument alone, for comparing.
-                  voiceRef.current =
-                    new URLSearchParams(window.location.search).get('voice') === 'plain'
-                      ? await Sampler.load(context, set)
-                      : await FollowingVoice.load(context, set, settings.cushionLevel);
-                } catch {
-                  // Offline before the samples were ever cached, or a bad
-                  // response. Synthesis still works, so play on.
-                  voiceRef.current = undefined;
-                }
-
-                // Loading the samples takes long enough that the context can
-                // have been suspended again since the tap, and a suspended
-                // context has a clock that never advances — which would start
-                // the exercise against a frozen count-in and no metronome.
-                await ensureRunning();
-                setStarted(true);
-              })();
-            }}
+            onClick={beginRun}
           >
             {loading ? 'Loading instrument…' : 'Tap to start'}
           </button>
@@ -472,23 +496,16 @@ export function PlayScreen({
         <div className="start-gate">
           <h2>Audio didn’t start</h2>
           <p className="muted">
-            The browser stopped the sound before the exercise got going, which leaves the count-in
-            stuck. Tapping again almost always sorts it.
+            The phone stopped the sound before the exercise got going — it does this after the app
+            has been away — which leaves the count-in stuck. Try again starts the sound afresh.
           </p>
           <button
             type="button"
             className="button button--primary button--large"
-            onClick={() => {
-              void ensureRunning().then((running) => {
-                if (!running) return;
-                // Unmounting and remounting the play surface is what restarts
-                // the transport against a clock that is now moving.
-                setStalled(false);
-                setStarted(false);
-              });
-            }}
+            disabled={loading}
+            onClick={beginRun}
           >
-            Try again
+            {loading ? 'Starting…' : 'Try again'}
           </button>
           <button type="button" className="button button--quiet" onClick={onExit}>
             Back to settings
