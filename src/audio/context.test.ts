@@ -16,9 +16,9 @@ class FakeContext {
   state = 'suspended';
   currentTime = 0;
   closed = false;
-  constructor(
-    public readonly behaviour: 'lively' | 'frozen' | 'dead' = 'lively',
-  ) {
+  readonly behaviour: 'lively' | 'frozen' | 'dead';
+  constructor(behaviour: 'lively' | 'frozen' | 'dead' = 'lively') {
+    this.behaviour = behaviour;
     FakeContext.made.push(this);
   }
   addEventListener() {}
